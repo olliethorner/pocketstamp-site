@@ -1,4 +1,3 @@
-import React from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, Coffee, WalletCards, SmartphoneNfc, ShieldCheck, Store, Sparkles, CheckCircle2 } from "lucide-react";
 

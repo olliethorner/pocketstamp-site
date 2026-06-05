@@ -2,6 +2,12 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Customer Join Redirect
+
+`https://getpocketstamp.com/join/:merchantSlug` redirects to the Railway backend join page at `https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug`.
+
+This is a temporary branded redirect until customer join pages are fully hosted on the website frontend.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)

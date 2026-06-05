@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/join/:merchantSlug",
+      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug",
+      "permanent": false
+    }
+  ]
+}
