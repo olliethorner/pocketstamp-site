@@ -1,21 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Activity,
-  AlertCircle,
-  ArrowRight,
-  BarChart3,
-  CheckCircle2,
-  Coffee,
-  Copy,
-  ExternalLink,
-  Loader2,
-  LogOut,
-  QrCode,
-  Radio,
-  Users,
-  WalletCards,
-} from "lucide-react";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
@@ -28,14 +12,18 @@ const pilotHref =
 const problems = [
   ["Lost cards", "Paper cards are familiar, but easy to lose."],
   ["App fatigue", "Customers do not want another loyalty app."],
-  ["No visibility", "Manual stamping gives you no customer data."],
+  ["Passive loyalty", "Paper cards cannot remind customers when they are close to a reward."],
 ];
 
 const steps = [
-  ["Scan QR", "Customer scans your café’s join QR.", QrCode],
-  ["Add to Wallet", "They create a branded loyalty card in Apple Wallet.", WalletCards],
-  ["Tap at the counter", "They tap their phone or watch on a compatible reader.", Radio],
-  ["Track everything", "You see customers, stamps and rewards in your dashboard.", BarChart3],
+  ["Scan QR", "Customer scans your café’s join QR.", "QR"],
+  ["Add to Wallet", "They create a branded loyalty card in Apple Wallet.", "Wallet"],
+  ["Tap at the counter", "They tap their phone or watch on a compatible reader.", "Tap"],
+  [
+    "Track and remind",
+    "You see activity, and PocketStamp can trigger simple Wallet reminders at key milestones.",
+    "Data",
+  ],
 ];
 
 const walletBullets = [
@@ -65,7 +53,14 @@ const dashboardBullets = [
   "Reward redemptions",
   "Join QR and URL",
   "Reader status",
-  "Basic repeat-visit analytics",
+  "Wallet reminder activity",
+];
+
+const reminderBullets = [
+  ["Halfway reminders", "You’re halfway to your free coffee."],
+  ["Almost-there reminders", "Only one coffee away from your free one."],
+  ["Reward-ready messages", "Your free coffee is ready."],
+  ["Birthday rewards", "Happy Birthday! Enjoy a free coffee on us today."],
 ];
 
 const stats = [
@@ -297,6 +292,32 @@ function formatActivityBadge(item) {
   return toTitle(getActivityType(item));
 }
 
+function IconMark({ label, className = "" }) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-xl text-xs font-bold ${className}`}
+      aria-hidden="true"
+    >
+      {label}
+    </span>
+  );
+}
+
+function CheckMark({ className = "" }) {
+  return (
+    <span
+      className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e7f7f3] text-xs font-bold text-[#16856f] ${className}`}
+      aria-hidden="true"
+    >
+      ✓
+    </span>
+  );
+}
+
+function LoadingText({ label = "Loading..." }) {
+  return <span>{label}</span>;
+}
+
 function WalletPassMockup({ hero = false }) {
   return (
     <div className={`mx-auto w-full ${hero ? "max-w-lg" : "max-w-sm"}`}>
@@ -305,11 +326,9 @@ function WalletPassMockup({ hero = false }) {
           <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
             <div className="bg-[#143d3b] p-6 text-white">
               <div className="flex items-start justify-between gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-[#143d3b]">
-                  <Coffee size={25} />
-                </div>
+                <IconMark label="PS" className="h-12 w-12 bg-white text-[#143d3b]" />
                 <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
-                  <WalletCards size={14} />
+                  <span className="h-2 w-2 rounded-full bg-[#f4c15d]" />
                   Apple Wallet
                 </div>
               </div>
@@ -378,7 +397,7 @@ function HardwareMockup() {
               <p className="mt-1 text-lg font-semibold">Counter till</p>
             </div>
             <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white/8">
-              <Radio className="text-[#63c7b2]" size={25} />
+              <span className="text-lg font-bold text-[#63c7b2]">)))</span>
               <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#63c7b2]" />
             </div>
           </div>
@@ -392,15 +411,15 @@ function HardwareMockup() {
         <div className="absolute bottom-28 left-44 flex h-52 w-52 items-center justify-center rounded-full border border-[#63c7b2]/20">
           <span className="absolute h-36 w-36 rounded-full border border-[#63c7b2]/35" />
           <span className="absolute h-24 w-24 rounded-full border border-[#63c7b2]/55" />
-          <Radio className="text-[#16856f]" size={34} />
+          <span className="text-xl font-bold text-[#16856f]">)))</span>
         </div>
 
         <div className="absolute right-10 top-24 w-60 rotate-6 rounded-[32px] bg-slate-950 p-2 shadow-2xl shadow-slate-900/25">
           <div className="rounded-[26px] bg-white p-3">
             <div className="rounded-xl bg-[#143d3b] p-5 text-white">
               <div className="flex items-center justify-between">
-                <Coffee size={24} />
-                <WalletCards className="text-[#f4c15d]" size={24} />
+                <IconMark label="PS" className="h-7 w-7 bg-white text-[#143d3b]" />
+                <span className="text-sm font-bold text-[#f4c15d]">Wallet</span>
               </div>
               <p className="mt-9 text-xs font-semibold uppercase text-white/60">
                 PocketStamp
@@ -421,10 +440,72 @@ function HardwareMockup() {
 
         <div className="absolute bottom-10 right-10 rounded-xl bg-white px-4 py-3 shadow-xl shadow-slate-900/10 ring-1 ring-slate-200">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="text-[#16856f]" size={18} />
+            <CheckMark className="mt-0" />
             <p className="text-sm font-semibold text-slate-950">Stamp added</p>
           </div>
           <p className="mt-1 text-xs text-slate-500">Pass update sent</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReminderMockup() {
+  return (
+    <div className="mx-auto w-full max-w-md">
+      <div className="rounded-[34px] bg-slate-950 p-3 shadow-2xl shadow-slate-900/20">
+        <div className="overflow-hidden rounded-[28px] bg-[#dfe7e6] p-5">
+          <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
+            <span>9:41</span>
+            <span className="rounded-full bg-white/45 px-3 py-1 text-xs">
+              Wallet
+            </span>
+          </div>
+
+          <div className="mt-14 text-center">
+            <p className="text-5xl font-semibold text-slate-950">10:24</p>
+            <p className="mt-2 text-sm font-semibold text-slate-600">
+              Tuesday, 6 June
+            </p>
+          </div>
+
+          <div className="mt-16 rounded-2xl bg-white/85 p-4 shadow-xl shadow-slate-900/10 backdrop-blur">
+            <div className="flex gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#143d3b] text-white">
+                <span className="text-xs font-bold">PS</span>
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <p className="font-semibold text-slate-950">Without Borders</p>
+                  <span className="text-xs font-semibold text-slate-400">now</span>
+                </div>
+                <p className="mt-1 leading-6 text-slate-700">
+                  Only one coffee away from your free one.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl bg-white/45 p-4 backdrop-blur">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">
+                  Stamps
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-slate-950">9/10</p>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {Array.from({ length: 10 }).map((_, index) => (
+                  <span
+                    key={index}
+                    className={`h-3 w-3 rounded-full ${
+                      index < 9 ? "bg-[#143d3b]" : "bg-white"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -451,7 +532,7 @@ function DashboardMockup() {
             </p>
           </div>
           <div className="rounded-xl bg-[#e7f7f3] p-3 text-[#16856f]">
-            <Activity size={22} />
+            <span className="text-xs font-bold">Live</span>
           </div>
         </div>
 
@@ -506,7 +587,7 @@ function SimpleBullets({ items }) {
     <ul className="mt-7 grid gap-3 sm:grid-cols-2">
       {items.map((item) => (
         <li key={item} className="flex items-center gap-3 text-slate-700">
-          <CheckCircle2 className="shrink-0 text-[#16856f]" size={20} />
+          <CheckMark className="mt-0" />
           <span>{item}</span>
         </li>
       ))}
@@ -519,7 +600,7 @@ function FeatureBullets({ items }) {
     <ul className="mt-8 space-y-5">
       {items.map(([title, body]) => (
         <li key={title} className="flex gap-4">
-          <CheckCircle2 className="mt-1 shrink-0 text-[#16856f]" size={21} />
+          <CheckMark className="mt-1" />
           <div>
             <p className="font-semibold text-slate-950">{title}</p>
             <p className="mt-1 leading-7 text-slate-600">{body}</p>
@@ -567,7 +648,7 @@ function MerchantLogin({ onLogin }) {
         <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl shadow-slate-900/10 ring-1 ring-slate-200">
           <a href="/" className="flex items-center gap-3" aria-label="PocketStamp home">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#143d3b] text-white">
-              <Coffee size={22} />
+              PS
             </span>
             <span className="text-xl font-semibold">PocketStamp Merchant</span>
           </a>
@@ -609,7 +690,9 @@ function MerchantLogin({ onLogin }) {
 
             {error ? (
               <div className="flex gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-700">
-                <AlertCircle className="mt-0.5 shrink-0" size={18} />
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-bold">
+                  !
+                </span>
                 <p>{error}</p>
               </div>
             ) : null}
@@ -619,7 +702,7 @@ function MerchantLogin({ onLogin }) {
               disabled={isLoading}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#143d3b] px-5 py-3 font-semibold text-white transition hover:bg-[#0f302f] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {isLoading ? <Loader2 className="animate-spin" size={18} /> : null}
+              {isLoading ? <LoadingText label="" /> : null}
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
           </form>
@@ -629,7 +712,7 @@ function MerchantLogin({ onLogin }) {
   );
 }
 
-function OverviewCard({ label, value, helper, icon: Icon }) {
+function OverviewCard({ label, value, helper, iconLabel }) {
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div className="flex items-start justify-between gap-4">
@@ -639,7 +722,7 @@ function OverviewCard({ label, value, helper, icon: Icon }) {
           {helper ? <p className="mt-2 text-sm text-slate-500">{helper}</p> : null}
         </div>
         <div className="rounded-xl bg-[#e7f7f3] p-3 text-[#16856f]">
-          <Icon size={22} />
+          <span className="text-xs font-bold">{iconLabel}</span>
         </div>
       </div>
     </div>
@@ -650,8 +733,7 @@ function ActivityList({ activityRows, isLoading, error }) {
   if (isLoading) {
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-white p-6 text-slate-600 ring-1 ring-slate-200">
-        <Loader2 className="animate-spin text-[#16856f]" size={20} />
-        Loading recent activity...
+        <LoadingText label="Loading recent activity..." />
       </div>
     );
   }
@@ -659,7 +741,9 @@ function ActivityList({ activityRows, isLoading, error }) {
   if (error) {
     return (
       <div className="flex gap-3 rounded-2xl bg-white p-6 text-red-700 ring-1 ring-red-100">
-        <AlertCircle className="mt-0.5 shrink-0" size={20} />
+        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-bold">
+          !
+        </span>
         <p>{error}</p>
       </div>
     );
@@ -764,7 +848,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-6 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-start gap-4">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#143d3b] text-white">
-              <Coffee size={23} />
+              PS
             </span>
             <div>
               <p className="text-sm font-semibold uppercase text-[#16856f]">
@@ -784,7 +868,6 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             onClick={onLogout}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
           >
-            <LogOut size={17} />
             Logout
           </button>
         </div>
@@ -796,25 +879,25 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             label="Total customers"
             value={merchantContext.totalCustomers ?? "Coming soon"}
             helper="Customer totals will appear as reporting expands."
-            icon={Users}
+            iconLabel="Users"
           />
           <OverviewCard
             label="Stamps today"
             value={isActivityLoading ? "..." : stampsToday}
             helper="Derived from recent activity."
-            icon={Coffee}
+            iconLabel="Stamps"
           />
           <OverviewCard
             label="Rewards redeemed"
             value={isActivityLoading ? "..." : rewardsRedeemed}
             helper="Based on loaded reward activity."
-            icon={CheckCircle2}
+            iconLabel="✓"
           />
           <OverviewCard
             label="Reader status"
             value="Ready"
             helper="Ready for reader events."
-            icon={Radio}
+            iconLabel="Tap"
           />
         </div>
 
@@ -848,7 +931,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                     Share this branded link or turn it into a counter QR code.
                   </p>
                 </div>
-                <QrCode className="text-[#16856f]" size={24} />
+                <span className="text-sm font-bold text-[#16856f]">QR</span>
               </div>
 
               <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-800 break-all">
@@ -861,7 +944,6 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                   onClick={handleCopyJoinUrl}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#143d3b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f302f]"
                 >
-                  <Copy size={16} />
                   {copyState === "copied"
                     ? "Copied"
                     : copyState === "failed"
@@ -874,7 +956,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                   rel="noreferrer"
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
                 >
-                  Open <ExternalLink size={16} />
+                  Open
                 </a>
               </div>
             </div>
@@ -882,7 +964,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
               <div className="flex items-start gap-4">
                 <div className="rounded-xl bg-[#e7f7f3] p-3 text-[#16856f]">
-                  <Radio size={22} />
+                  <span className="text-xs font-bold">Tap</span>
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-slate-950">
@@ -968,8 +1050,7 @@ function MerchantPortal() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#fbfaf7] text-slate-600">
         <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200">
-          <Loader2 className="animate-spin text-[#16856f]" size={20} />
-          Checking merchant session...
+          <LoadingText label="Checking merchant session..." />
         </div>
       </main>
     );
@@ -995,7 +1076,7 @@ function MarketingHomepage() {
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
           <a href="/" className="flex items-center gap-3" aria-label="PocketStamp home">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#143d3b] text-white">
-              <Coffee size={21} />
+              PS
             </span>
             <span className="text-xl font-semibold">PocketStamp</span>
           </a>
@@ -1021,15 +1102,16 @@ function MarketingHomepage() {
             </h1>
             <p className="mt-6 max-w-2xl text-xl leading-8 text-slate-600">
               Customers add your branded café rewards card to Apple Wallet,
-              then tap in-store to collect stamps. No customer app. No paper
-              cards. No extra staff app.
+              tap in-store to collect stamps, and receive simple Wallet
+              reminders when they are close to a reward. No customer app. No
+              paper cards. No extra staff app.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <a
                 href={demoHref}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#143d3b] px-5 py-3 text-base font-semibold text-white transition hover:bg-[#0f302f]"
               >
-                Book a demo <ArrowRight size={18} />
+                Book a demo →
               </a>
               <a
                 href="#how-it-works"
@@ -1057,11 +1139,11 @@ function MarketingHomepage() {
               Why change
             </p>
             <h2 className="mt-4 text-4xl font-semibold text-slate-950">
-              Keep the habit. Remove the friction.
+              A stamp card that brings people back.
             </h2>
             <p className="mt-5 text-lg leading-8 text-slate-600">
-              PocketStamp keeps the stamp-card ritual and removes the parts
-              that slow it down.
+              A paper stamp card rewards customers when they come back.
+              PocketStamp helps bring them back.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
@@ -1082,11 +1164,11 @@ function MarketingHomepage() {
             title="Four steps from QR to repeat visit."
           />
           <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {steps.map(([title, body, Icon], index) => (
+            {steps.map(([title, body, iconLabel], index) => (
               <div key={title} className="rounded-2xl bg-[#fbfaf7] p-6 ring-1 ring-slate-200">
                 <div className="flex items-center justify-between">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e7f7f3] text-[#16856f]">
-                    <Icon size={22} />
+                    <span className="text-xs font-bold">{iconLabel}</span>
                   </div>
                   <span className="text-sm font-semibold text-slate-400">
                     0{index + 1}
@@ -1121,6 +1203,26 @@ function MarketingHomepage() {
         </div>
       </section>
 
+      <section className="bg-white py-24">
+        <div className="mx-auto grid max-w-7xl gap-14 px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
+          <div>
+            <p className="text-sm font-semibold uppercase text-[#16856f]">
+              Wallet reminders
+            </p>
+            <h2 className="mt-4 text-4xl font-semibold text-slate-950 sm:text-5xl">
+              A stamp card that helps bring customers back.
+            </h2>
+            <p className="mt-5 text-lg leading-8 text-slate-600">
+              Paper cards wait for customers to remember them. PocketStamp can
+              automatically remind customers through Apple Wallet when they are
+              halfway there, close to a reward, or have a birthday treat waiting.
+            </p>
+            <FeatureBullets items={reminderBullets} />
+          </div>
+          <ReminderMockup />
+        </div>
+      </section>
+
       <section className="bg-[#eef8f5] py-24">
         <div className="mx-auto grid max-w-7xl gap-14 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8">
           <div>
@@ -1139,7 +1241,7 @@ function MarketingHomepage() {
               href={demoHref}
               className="mt-9 inline-flex items-center gap-2 font-semibold text-[#143d3b] hover:text-[#0f302f]"
             >
-              Hardware reader setup <ArrowRight size={18} />
+              Hardware reader setup →
             </a>
           </div>
           <HardwareMockup />
@@ -1202,13 +1304,16 @@ function MarketingHomepage() {
               <p className="mt-4 text-lg text-white/75">
                 Pilot spaces available for independent cafés.
               </p>
+              <p className="mt-2 text-lg text-white/75">
+                Turn your stamp card into an automated comeback system.
+              </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <a
                 href={demoHref}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-[#143d3b] transition hover:bg-slate-100"
               >
-                Book a demo <ArrowRight size={18} />
+                Book a demo →
               </a>
               <a
                 href={pilotHref}
