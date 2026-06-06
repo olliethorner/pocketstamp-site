@@ -1,14 +1,24 @@
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Activity,
+  AlertCircle,
   ArrowRight,
   BarChart3,
   CheckCircle2,
   Coffee,
+  Copy,
+  ExternalLink,
+  Loader2,
+  LogOut,
   QrCode,
   Radio,
+  Users,
   WalletCards,
 } from "lucide-react";
+
+const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
+const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
 
 const demoHref =
   "mailto:hello@getpocketstamp.com?subject=PocketStamp demo enquiry";
@@ -71,6 +81,221 @@ const setupSteps = [
   "You get your dashboard, QR code and reader setup",
   "Customers start joining",
 ];
+
+async function requestJson(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const message =
+      payload?.error ||
+      payload?.message ||
+      "Something went wrong. Please try again.";
+    throw new Error(message);
+  }
+
+  return payload;
+}
+
+function loginMerchant(email, password) {
+  return requestJson("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+function fetchMerchantMe(accessToken) {
+  return requestJson("/api/auth/me", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+function fetchMerchantActivity(accessToken) {
+  return requestJson("/api/merchant/activity?limit=10", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+function toTitle(value) {
+  if (!value) return "Activity";
+  return String(value)
+    .replace(/[_-]/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function safeSlug(value) {
+  return String(value || "merchant")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function pickFirst(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== "");
+}
+
+function normalizeMerchantContext(payload) {
+  const source =
+    payload?.merchantContext ||
+    payload?.context ||
+    payload?.merchant ||
+    payload?.user?.merchant ||
+    payload?.data?.merchantContext ||
+    payload?.data?.merchant ||
+    payload ||
+    {};
+
+  const user = payload?.user || payload?.data?.user || source?.user || {};
+  const location =
+    source?.location ||
+    source?.merchantLocation ||
+    source?.locations?.[0] ||
+    payload?.location ||
+    {};
+
+  const merchantName = pickFirst(
+    source.merchantName,
+    source.name,
+    source.displayName,
+    source.businessName,
+    payload?.merchantName,
+    "PocketStamp merchant",
+  );
+
+  return {
+    raw: payload,
+    merchantId: pickFirst(source.merchantId, source.id, source._id, payload?.merchantId),
+    merchantName,
+    merchantSlug: pickFirst(source.merchantSlug, source.slug, payload?.merchantSlug),
+    locationName: pickFirst(
+      source.locationName,
+      location.name,
+      location.displayName,
+      payload?.locationName,
+      "Primary location",
+    ),
+    role: pickFirst(source.role, user.role, payload?.role, "Merchant"),
+    email: pickFirst(user.email, source.email, payload?.email),
+    totalCustomers: pickFirst(source.totalCustomers, source.customerCount),
+  };
+}
+
+function extractAccessToken(payload) {
+  return pickFirst(
+    payload?.session?.accessToken,
+    payload?.accessToken,
+    payload?.token,
+    payload?.jwt,
+    payload?.data?.session?.accessToken,
+    payload?.data?.accessToken,
+    payload?.data?.token,
+  );
+}
+
+function extractActivityRows(payload) {
+  const candidates = [
+    payload,
+    payload?.activity,
+    payload?.activities,
+    payload?.events,
+    payload?.items,
+    payload?.data,
+    payload?.data?.activity,
+    payload?.data?.activities,
+    payload?.data?.events,
+    payload?.data?.items,
+  ];
+
+  return candidates.find(Array.isArray) || [];
+}
+
+function getActivityTimestamp(item) {
+  return pickFirst(
+    item.timestamp,
+    item.createdAt,
+    item.created_at,
+    item.scannedAt,
+    item.updatedAt,
+    item.date,
+  );
+}
+
+function getActivityType(item) {
+  return pickFirst(item.type, item.eventType, item.action, item.event, item.kind);
+}
+
+function isToday(timestamp) {
+  if (!timestamp) return false;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
+}
+
+function looksLikeStamp(item) {
+  const haystack = JSON.stringify(item).toLowerCase();
+  return haystack.includes("stamp") || haystack.includes("+1");
+}
+
+function looksLikeReward(item) {
+  const haystack = JSON.stringify(item).toLowerCase();
+  return haystack.includes("reward") || haystack.includes("redeem");
+}
+
+function formatActivityTime(timestamp) {
+  if (!timestamp) return "Recent";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "Recent";
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function formatActivityTitle(item) {
+  return pickFirst(
+    item.title,
+    item.description,
+    item.message,
+    item.customerName && getActivityType(item)
+      ? `${item.customerName} · ${toTitle(getActivityType(item))}`
+      : null,
+    item.customer?.name && getActivityType(item)
+      ? `${item.customer.name} · ${toTitle(getActivityType(item))}`
+      : null,
+    toTitle(getActivityType(item)),
+  );
+}
+
+function formatActivityMeta(item) {
+  return pickFirst(
+    item.customerName,
+    item.customer?.name,
+    item.passSerialNumber,
+    item.passId,
+    item.readerName,
+    item.readerId,
+    item.locationName,
+  );
+}
+
+function formatActivityBadge(item) {
+  if (looksLikeReward(item)) return "Reward";
+  if (looksLikeStamp(item)) return "+1 stamp";
+  return toTitle(getActivityType(item));
+}
 
 function WalletPassMockup({ hero = false }) {
   return (
@@ -305,7 +530,465 @@ function FeatureBullets({ items }) {
   );
 }
 
-export default function PocketStampLandingPage() {
+function MerchantLogin({ onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      const payload = await loginMerchant(email, password);
+      const accessToken = extractAccessToken(payload);
+
+      if (!accessToken) {
+        throw new Error(
+          "Login succeeded, but the response did not include session.accessToken. Safe debug: expected a session object with an accessToken field.",
+        );
+      }
+
+      // TODO: Future: switch to more robust session handling if needed.
+      localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
+      onLogin(accessToken, normalizeMerchantContext(payload));
+    } catch (loginError) {
+      setError(loginError.message || "Unable to sign in. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-[#fbfaf7] px-6 py-10 text-slate-950">
+      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-7xl items-center justify-center">
+        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl shadow-slate-900/10 ring-1 ring-slate-200">
+          <a href="/" className="flex items-center gap-3" aria-label="PocketStamp home">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#143d3b] text-white">
+              <Coffee size={22} />
+            </span>
+            <span className="text-xl font-semibold">PocketStamp Merchant</span>
+          </a>
+
+          <div className="mt-10">
+            <h1 className="text-3xl font-semibold text-slate-950">
+              Sign in to view your loyalty dashboard
+            </h1>
+            <p className="mt-3 leading-7 text-slate-600">
+              Manage Wallet loyalty activity, join links and reader setup from
+              one clean merchant view.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-700">Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                required
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#16856f] focus:ring-4 focus:ring-[#16856f]/10"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-700">Password</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#16856f] focus:ring-4 focus:ring-[#16856f]/10"
+              />
+            </label>
+
+            {error ? (
+              <div className="flex gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 shrink-0" size={18} />
+                <p>{error}</p>
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#143d3b] px-5 py-3 font-semibold text-white transition hover:bg-[#0f302f] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isLoading ? <Loader2 className="animate-spin" size={18} /> : null}
+              {isLoading ? "Signing in..." : "Sign in"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function OverviewCard({ label, value, helper, icon: Icon }) {
+  return (
+    <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-500">{label}</p>
+          <p className="mt-3 text-3xl font-semibold text-slate-950">{value}</p>
+          {helper ? <p className="mt-2 text-sm text-slate-500">{helper}</p> : null}
+        </div>
+        <div className="rounded-xl bg-[#e7f7f3] p-3 text-[#16856f]">
+          <Icon size={22} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActivityList({ activityRows, isLoading, error }) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl bg-white p-6 text-slate-600 ring-1 ring-slate-200">
+        <Loader2 className="animate-spin text-[#16856f]" size={20} />
+        Loading recent activity...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex gap-3 rounded-2xl bg-white p-6 text-red-700 ring-1 ring-red-100">
+        <AlertCircle className="mt-0.5 shrink-0" size={20} />
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  if (!activityRows.length) {
+    return (
+      <div className="rounded-2xl bg-white p-6 text-slate-600 ring-1 ring-slate-200">
+        No recent activity yet. New joins, stamps and rewards will appear here.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
+      {activityRows.map((item, index) => (
+        <div
+          key={pickFirst(item.id, item._id, item.eventId, `${index}-${getActivityTimestamp(item)}`)}
+          className="flex flex-col gap-3 border-b border-slate-100 p-5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <p className="font-semibold text-slate-950">{formatActivityTitle(item)}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {formatActivityTime(getActivityTimestamp(item))}
+              {formatActivityMeta(item) ? ` · ${formatActivityMeta(item)}` : ""}
+            </p>
+          </div>
+          <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
+            {formatActivityBadge(item)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
+  const [activityRows, setActivityRows] = useState([]);
+  const [activityError, setActivityError] = useState("");
+  const [isActivityLoading, setIsActivityLoading] = useState(true);
+  const [copyState, setCopyState] = useState("idle");
+
+  const merchantSlug = useMemo(
+    () =>
+      merchantContext.merchantSlug ||
+      safeSlug(merchantContext.merchantName || merchantContext.merchantId),
+    [merchantContext],
+  );
+  const joinUrl = `https://getpocketstamp.com/join/${merchantSlug}`;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadActivity() {
+      setIsActivityLoading(true);
+      setActivityError("");
+
+      try {
+        const payload = await fetchMerchantActivity(accessToken);
+        if (isMounted) {
+          setActivityRows(extractActivityRows(payload));
+        }
+      } catch (error) {
+        if (isMounted) {
+          setActivityError(
+            error.message || "Unable to load recent activity right now.",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsActivityLoading(false);
+        }
+      }
+    }
+
+    loadActivity();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken]);
+
+  const stampsToday = activityRows.filter(
+    (item) => isToday(getActivityTimestamp(item)) && looksLikeStamp(item),
+  ).length;
+  const rewardsRedeemed = activityRows.filter(looksLikeReward).length;
+
+  async function handleCopyJoinUrl() {
+    try {
+      await navigator.clipboard.writeText(joinUrl);
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 1800);
+    } catch {
+      setCopyState("failed");
+      window.setTimeout(() => setCopyState("idle"), 1800);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-[#fbfaf7] text-slate-950">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-6 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+          <div className="flex items-start gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#143d3b] text-white">
+              <Coffee size={23} />
+            </span>
+            <div>
+              <p className="text-sm font-semibold uppercase text-[#16856f]">
+                PocketStamp Merchant
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-950">
+                {merchantContext.merchantName}
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                {merchantContext.locationName} · {merchantContext.role}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onLogout}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+          >
+            <LogOut size={17} />
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <OverviewCard
+            label="Total customers"
+            value={merchantContext.totalCustomers ?? "Coming soon"}
+            helper="Customer totals will appear as reporting expands."
+            icon={Users}
+          />
+          <OverviewCard
+            label="Stamps today"
+            value={isActivityLoading ? "..." : stampsToday}
+            helper="Derived from recent activity."
+            icon={Coffee}
+          />
+          <OverviewCard
+            label="Rewards redeemed"
+            value={isActivityLoading ? "..." : rewardsRedeemed}
+            helper="Based on loaded reward activity."
+            icon={CheckCircle2}
+          />
+          <OverviewCard
+            label="Reader status"
+            value="Ready"
+            helper="Ready for reader events."
+            icon={Radio}
+          />
+        </div>
+
+        <div className="mt-8 grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
+          <section>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-950">
+                  Recent activity
+                </h2>
+                <p className="mt-1 text-slate-500">
+                  Latest joins, stamps and rewards from the backend.
+                </p>
+              </div>
+            </div>
+            <ActivityList
+              activityRows={activityRows}
+              isLoading={isActivityLoading}
+              error={activityError}
+            />
+          </section>
+
+          <aside className="space-y-6">
+            <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-950">
+                    Join URL
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Share this branded link or turn it into a counter QR code.
+                  </p>
+                </div>
+                <QrCode className="text-[#16856f]" size={24} />
+              </div>
+
+              <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-800 break-all">
+                {joinUrl}
+              </div>
+
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleCopyJoinUrl}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#143d3b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f302f]"
+                >
+                  <Copy size={16} />
+                  {copyState === "copied"
+                    ? "Copied"
+                    : copyState === "failed"
+                      ? "Copy failed"
+                      : "Copy link"}
+                </button>
+                <a
+                  href={joinUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                >
+                  Open <ExternalLink size={16} />
+                </a>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-start gap-4">
+                <div className="rounded-xl bg-[#e7f7f3] p-3 text-[#16856f]">
+                  <Radio size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-950">
+                    Reader/device
+                  </h2>
+                  <p className="mt-3 font-semibold text-slate-800">
+                    Reader integration: VTAP-style endpoint prepared
+                  </p>
+                  <p className="mt-2 leading-7 text-slate-500">
+                    Next: connect hardware reader once Apple/VAS details are
+                    confirmed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function MerchantPortal() {
+  const [accessToken, setAccessToken] = useState(() =>
+    localStorage.getItem(TOKEN_STORAGE_KEY),
+  );
+  const [merchantContext, setMerchantContext] = useState(null);
+  const [isCheckingSession, setIsCheckingSession] = useState(Boolean(accessToken));
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function restoreSession() {
+      if (!accessToken) {
+        setIsCheckingSession(false);
+        return;
+      }
+
+      try {
+        const payload = await fetchMerchantMe(accessToken);
+        if (isMounted) {
+          setMerchantContext(normalizeMerchantContext(payload));
+        }
+      } catch {
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+        if (isMounted) {
+          setAccessToken(null);
+          setMerchantContext(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingSession(false);
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken]);
+
+  async function handleLogin(token, initialContext) {
+    setAccessToken(token);
+    setMerchantContext(initialContext);
+
+    try {
+      const payload = await fetchMerchantMe(token);
+      setMerchantContext(normalizeMerchantContext(payload));
+    } catch {
+      // Login context is enough for the MVP view; /me will refresh on next load.
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    setAccessToken(null);
+    setMerchantContext(null);
+  }
+
+  if (isCheckingSession) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#fbfaf7] text-slate-600">
+        <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200">
+          <Loader2 className="animate-spin text-[#16856f]" size={20} />
+          Checking merchant session...
+        </div>
+      </main>
+    );
+  }
+
+  if (!accessToken || !merchantContext) {
+    return <MerchantLogin onLogin={handleLogin} />;
+  }
+
+  return (
+    <MerchantDashboard
+      accessToken={accessToken}
+      merchantContext={merchantContext}
+      onLogout={handleLogout}
+    />
+  );
+}
+
+function MarketingHomepage() {
   return (
     <main className="min-h-screen bg-[#fbfaf7] text-slate-950">
       <section className="bg-white">
@@ -553,4 +1236,14 @@ export default function PocketStampLandingPage() {
       </footer>
     </main>
   );
+}
+
+export default function App() {
+  const pathname = window.location.pathname;
+
+  if (pathname.startsWith("/merchant")) {
+    return <MerchantPortal />;
+  }
+
+  return <MarketingHomepage />;
 }

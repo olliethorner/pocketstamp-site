@@ -5,5 +5,15 @@
       "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug",
       "permanent": false
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/merchant",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/merchant/:path*",
+      "destination": "/index.html"
+    }
   ]
 }
