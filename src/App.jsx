@@ -863,7 +863,11 @@ function ReminderStatusSection({ summary, isLoading, error }) {
       "Active",
       "Customers can add their birthday when joining. PocketStamp can make their Wallet pass reward-ready on their birthday.",
     ],
-    ["Win-back reminders", "Coming soon", "Comeback reminders will appear here once live stats are available."],
+    [
+      "Win-back reminders",
+      "Active",
+      "Automatically reminds customers who have not visited in 30 days.",
+    ],
   ];
 
   return (
