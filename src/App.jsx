@@ -486,61 +486,24 @@ function HardwareMockup() {
 
 function ReminderMockup() {
   return (
-    <div className="mx-auto w-full max-w-md">
-      <div className="rounded-[34px] bg-slate-950 p-3 shadow-2xl shadow-slate-900/20">
-        <div className="overflow-hidden rounded-[28px] bg-[#dfe7e6] p-5">
-          <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
-            <span>9:41</span>
-            <span className="rounded-full bg-white/45 px-3 py-1 text-xs">
-              Wallet
-            </span>
-          </div>
-
-          <div className="mt-14 text-center">
-            <p className="text-5xl font-semibold text-slate-950">10:24</p>
-            <p className="mt-2 text-sm font-semibold text-slate-600">
-              Tuesday, 6 June
-            </p>
-          </div>
-
-          <div className="mt-16 rounded-2xl bg-white/85 p-4 shadow-xl shadow-slate-900/10 backdrop-blur">
-            <div className="flex gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#143d3b] text-white">
-                <span className="text-xs font-bold">PS</span>
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <p className="font-semibold text-slate-950">Without Borders</p>
-                  <span className="text-xs font-semibold text-slate-400">now</span>
-                </div>
-                <p className="mt-1 leading-6 text-slate-700">
-                  Only one coffee away from your free one.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-2xl bg-white/45 p-4 backdrop-blur">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase text-slate-500">
-                  Stamps
-                </p>
-                <p className="mt-1 text-2xl font-semibold text-slate-950">9/10</p>
-              </div>
-              <div className="grid grid-cols-5 gap-1.5">
-                {Array.from({ length: 10 }).map((_, index) => (
-                  <span
-                    key={index}
-                    className={`h-3 w-3 rounded-full ${
-                      index < 9 ? "bg-[#143d3b]" : "bg-white"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="mx-auto w-full max-w-xl">
+      <div className="overflow-hidden rounded-3xl bg-[#fbfaf7] p-3 shadow-2xl shadow-slate-900/10 ring-1 ring-slate-200">
+        <img
+          src="/wallet-reminders-mockup.png"
+          alt="iPhone lock screen showing PocketStamp Wallet reminder notifications"
+          className="block w-full rounded-[22px]"
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+      <div className="mt-5 rounded-2xl bg-white p-5 shadow-xl shadow-slate-900/10 ring-1 ring-slate-200">
+        <p className="text-lg font-semibold text-slate-950">
+          Automated Apple Wallet reminders
+        </p>
+        <p className="mt-2 leading-7 text-slate-600">
+          PocketStamp can remind customers when they’re close to a reward, have
+          earned one, have a birthday reward, or haven’t visited in a while.
+        </p>
       </div>
     </div>
   );
