@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { QRCodeSVG } from "qrcode.react";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
@@ -777,31 +778,21 @@ function ActivityList({ activityRows, isLoading, error }) {
   );
 }
 
-function DashboardQrPlaceholder() {
+function DashboardQrCode({ value }) {
   return (
-    <div className="mt-5 flex justify-center rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
-      <div className="grid grid-cols-7 gap-1 rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
-        {Array.from({ length: 49 }).map((_, index) => {
-          const isFinder =
-            index < 3 ||
-            (index >= 7 && index <= 9) ||
-            (index >= 14 && index <= 16) ||
-            index % 7 === 0 ||
-            index % 7 === 6 ||
-            index === 24 ||
-            index === 26 ||
-            index === 32 ||
-            index === 40;
-
-          return (
-            <span
-              key={index}
-              className={`h-2.5 w-2.5 rounded-sm ${
-                isFinder ? "bg-slate-950" : "bg-slate-200"
-              }`}
-            />
-          );
-        })}
+    <div className="mt-5 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
+      <div className="mx-auto max-w-[220px] rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+        <QRCodeSVG
+          value={value}
+          size={196}
+          level="M"
+          includeMargin
+          role="img"
+          title={`QR code for ${value}`}
+          className="block h-auto w-full"
+          bgColor="#ffffff"
+          fgColor="#020617"
+        />
       </div>
     </div>
   );
@@ -1127,7 +1118,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                     Join URL
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Share this branded link or turn it into a counter QR code.
+                    Share this branded link or display the counter QR code.
                   </p>
                 </div>
                 <span className="text-sm font-bold text-[#16856f]">QR</span>
@@ -1137,7 +1128,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                 {joinUrl}
               </div>
 
-              <DashboardQrPlaceholder />
+              <DashboardQrCode value={joinUrl} />
 
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <button
