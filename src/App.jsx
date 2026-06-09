@@ -119,6 +119,12 @@ function fetchMerchantActivity(accessToken) {
   });
 }
 
+function fetchMerchantReminderSummary(accessToken) {
+  return requestJson("/api/merchant/reminders/summary", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
 function toTitle(value) {
   if (!value) return "Activity";
   return String(value)
@@ -290,6 +296,17 @@ function formatActivityBadge(item) {
   if (looksLikeReward(item)) return "Reward";
   if (looksLikeStamp(item)) return "+1 stamp";
   return toTitle(getActivityType(item));
+}
+
+function formatReminderDate(timestamp) {
+  if (!timestamp) return "None yet.";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "None yet.";
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function IconMark({ label, className = "" }) {
@@ -810,7 +827,16 @@ function DashboardQrPlaceholder() {
   );
 }
 
-function ReminderStatusSection() {
+function ReminderStatCard({ label, value }) {
+  return (
+    <div className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+      <p className="text-sm font-semibold text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function ReminderStatusSection({ summary, isLoading, error }) {
   const reminderRows = [
     ["Halfway reminder", "Active", "Sent when a customer reaches the middle of their stamp card."],
     ["Almost-there reminder", "Active", "Sent when a customer is close to earning a reward."],
@@ -839,6 +865,37 @@ function ReminderStatusSection() {
         </span>
       </div>
 
+      <div className="mt-6">
+        {isLoading ? (
+          <div className="rounded-xl bg-[#fbfaf7] p-4 text-sm font-semibold text-slate-500 ring-1 ring-slate-100">
+            Loading reminder stats...
+          </div>
+        ) : error ? (
+          <div className="rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800 ring-1 ring-amber-100">
+            Reminder stats unavailable.
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <ReminderStatCard
+              label="Sent this month"
+              value={summary?.sentThisMonth ?? 0}
+            />
+            <ReminderStatCard
+              label="Scheduled"
+              value={summary?.scheduled ?? 0}
+            />
+            <ReminderStatCard
+              label="Failed"
+              value={summary?.failed ?? 0}
+            />
+            <ReminderStatCard
+              label="Last reminder sent"
+              value={formatReminderDate(summary?.lastSentAt)}
+            />
+          </div>
+        )}
+      </div>
+
       <div className="mt-6 grid gap-3 lg:grid-cols-2">
         {reminderRows.map(([title, status, body]) => (
           <div key={title} className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
@@ -858,8 +915,6 @@ function ReminderStatusSection() {
           </div>
         ))}
       </div>
-
-      <p className="mt-5 text-sm text-slate-500">Live stats coming soon.</p>
     </section>
   );
 }
@@ -868,6 +923,9 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const [activityRows, setActivityRows] = useState([]);
   const [activityError, setActivityError] = useState("");
   const [isActivityLoading, setIsActivityLoading] = useState(true);
+  const [reminderSummary, setReminderSummary] = useState(null);
+  const [reminderError, setReminderError] = useState("");
+  const [isReminderSummaryLoading, setIsReminderSummaryLoading] = useState(true);
   const [copyState, setCopyState] = useState("idle");
 
   const merchantSlug = useMemo(
@@ -881,29 +939,42 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadActivity() {
+    async function loadDashboardData() {
       setIsActivityLoading(true);
       setActivityError("");
+      setIsReminderSummaryLoading(true);
+      setReminderError("");
 
-      try {
-        const payload = await fetchMerchantActivity(accessToken);
-        if (isMounted) {
-          setActivityRows(extractActivityRows(payload));
-        }
-      } catch (error) {
-        if (isMounted) {
-          setActivityError(
-            error.message || "Unable to load recent activity right now.",
-          );
-        }
-      } finally {
-        if (isMounted) {
-          setIsActivityLoading(false);
-        }
+      const [activityResult, reminderResult] = await Promise.allSettled([
+        fetchMerchantActivity(accessToken),
+        fetchMerchantReminderSummary(accessToken),
+      ]);
+
+      if (!isMounted) return;
+
+      if (activityResult.status === "fulfilled") {
+        setActivityRows(extractActivityRows(activityResult.value));
+      } else {
+        setActivityError(
+          activityResult.reason?.message ||
+            "Unable to load recent activity right now.",
+        );
       }
+
+      if (reminderResult.status === "fulfilled") {
+        setReminderSummary(reminderResult.value?.summary || null);
+      } else {
+        setReminderError(
+          reminderResult.reason?.message ||
+            "Unable to load reminder stats right now.",
+        );
+      }
+
+      setIsActivityLoading(false);
+      setIsReminderSummaryLoading(false);
     }
 
-    loadActivity();
+    loadDashboardData();
 
     return () => {
       isMounted = false;
@@ -986,7 +1057,11 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
         </div>
 
         <div className="mt-8">
-          <ReminderStatusSection />
+          <ReminderStatusSection
+            summary={reminderSummary}
+            isLoading={isReminderSummaryLoading}
+            error={reminderError}
+          />
         </div>
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
