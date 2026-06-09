@@ -125,6 +125,12 @@ function fetchMerchantReminderSummary(accessToken) {
   });
 }
 
+function fetchMerchantDashboardSummary(accessToken) {
+  return requestJson("/api/merchant/dashboard/summary", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
 function toTitle(value) {
   if (!value) return "Activity";
   return String(value)
@@ -923,6 +929,9 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const [activityRows, setActivityRows] = useState([]);
   const [activityError, setActivityError] = useState("");
   const [isActivityLoading, setIsActivityLoading] = useState(true);
+  const [dashboardSummary, setDashboardSummary] = useState(null);
+  const [dashboardSummaryError, setDashboardSummaryError] = useState("");
+  const [isDashboardSummaryLoading, setIsDashboardSummaryLoading] = useState(true);
   const [reminderSummary, setReminderSummary] = useState(null);
   const [reminderError, setReminderError] = useState("");
   const [isReminderSummaryLoading, setIsReminderSummaryLoading] = useState(true);
@@ -942,11 +951,14 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     async function loadDashboardData() {
       setIsActivityLoading(true);
       setActivityError("");
+      setIsDashboardSummaryLoading(true);
+      setDashboardSummaryError("");
       setIsReminderSummaryLoading(true);
       setReminderError("");
 
-      const [activityResult, reminderResult] = await Promise.allSettled([
+      const [activityResult, dashboardResult, reminderResult] = await Promise.allSettled([
         fetchMerchantActivity(accessToken),
+        fetchMerchantDashboardSummary(accessToken),
         fetchMerchantReminderSummary(accessToken),
       ]);
 
@@ -961,6 +973,15 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
         );
       }
 
+      if (dashboardResult.status === "fulfilled") {
+        setDashboardSummary(dashboardResult.value?.summary || null);
+      } else {
+        setDashboardSummaryError(
+          dashboardResult.reason?.message ||
+            "Unable to load dashboard summary right now.",
+        );
+      }
+
       if (reminderResult.status === "fulfilled") {
         setReminderSummary(reminderResult.value?.summary || null);
       } else {
@@ -971,6 +992,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
       }
 
       setIsActivityLoading(false);
+      setIsDashboardSummaryLoading(false);
       setIsReminderSummaryLoading(false);
     }
 
@@ -981,10 +1003,10 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     };
   }, [accessToken]);
 
-  const stampsToday = activityRows.filter(
-    (item) => isToday(getActivityTimestamp(item)) && looksLikeStamp(item),
-  ).length;
-  const rewardsRedeemed = activityRows.filter(looksLikeReward).length;
+  const metricFallback = dashboardSummaryError ? "Summary unavailable" : "—";
+  const metricHelperFallback = dashboardSummaryError
+    ? "Dashboard summary could not be loaded."
+    : "Loading summary...";
 
   async function handleCopyJoinUrl() {
     try {
@@ -1031,21 +1053,47 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
       <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <OverviewCard
-            label="Total customers"
-            value={merchantContext.totalCustomers ?? "Coming soon"}
-            helper="Customer totals will appear as reporting expands."
-            iconLabel="Users"
+            label="Active Wallet cards"
+            value={
+              isDashboardSummaryLoading
+                ? "..."
+                : dashboardSummary?.activeWalletCards ?? metricFallback
+            }
+            helper={
+              isDashboardSummaryLoading
+                ? metricHelperFallback
+                : dashboardSummaryError
+                  ? metricHelperFallback
+                  : `${dashboardSummary?.customersJoined ?? 0} customers joined`
+            }
+            iconLabel="Wallet"
           />
           <OverviewCard
             label="Stamps today"
-            value={isActivityLoading ? "..." : stampsToday}
-            helper="Derived from recent activity."
+            value={
+              isDashboardSummaryLoading
+                ? "..."
+                : dashboardSummary?.stampsToday ?? metricFallback
+            }
+            helper={
+              isDashboardSummaryLoading || dashboardSummaryError
+                ? metricHelperFallback
+                : "From dashboard summary."
+            }
             iconLabel="Stamps"
           />
           <OverviewCard
             label="Rewards redeemed"
-            value={isActivityLoading ? "..." : rewardsRedeemed}
-            helper="Based on loaded reward activity."
+            value={
+              isDashboardSummaryLoading
+                ? "..."
+                : dashboardSummary?.rewardsRedeemed ?? metricFallback
+            }
+            helper={
+              isDashboardSummaryLoading || dashboardSummaryError
+                ? metricHelperFallback
+                : "From dashboard summary."
+            }
             iconLabel="✓"
           />
           <OverviewCard
