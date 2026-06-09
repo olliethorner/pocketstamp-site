@@ -780,6 +780,90 @@ function ActivityList({ activityRows, isLoading, error }) {
   );
 }
 
+function DashboardQrPlaceholder() {
+  return (
+    <div className="mt-5 flex justify-center rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
+      <div className="grid grid-cols-7 gap-1 rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+        {Array.from({ length: 49 }).map((_, index) => {
+          const isFinder =
+            index < 3 ||
+            (index >= 7 && index <= 9) ||
+            (index >= 14 && index <= 16) ||
+            index % 7 === 0 ||
+            index % 7 === 6 ||
+            index === 24 ||
+            index === 26 ||
+            index === 32 ||
+            index === 40;
+
+          return (
+            <span
+              key={index}
+              className={`h-2.5 w-2.5 rounded-sm ${
+                isFinder ? "bg-slate-950" : "bg-slate-200"
+              }`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ReminderStatusSection() {
+  const reminderRows = [
+    ["Halfway reminder", "Active", "Sent when a customer reaches the middle of their stamp card."],
+    ["Almost-there reminder", "Active", "Sent when a customer is close to earning a reward."],
+    ["Reward-ready reminder", "Active", "Sent when a customer has earned a reward."],
+    ["Birthday rewards", "Coming soon", "Birthday treats are planned for a future dashboard release."],
+    ["Win-back reminders", "Coming soon", "Comeback reminders will appear here once live stats are available."],
+  ];
+
+  return (
+    <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase text-[#16856f]">
+            Wallet reminders
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+            Automated reminders
+          </h2>
+          <p className="mt-2 max-w-2xl leading-7 text-slate-600">
+            PocketStamp automatically reminds customers through Apple Wallet
+            when they’re close to a reward or have earned one.
+          </p>
+        </div>
+        <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
+          Active
+        </span>
+      </div>
+
+      <div className="mt-6 grid gap-3 lg:grid-cols-2">
+        {reminderRows.map(([title, status, body]) => (
+          <div key={title} className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-semibold text-slate-950">{title}</p>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  status === "Active"
+                    ? "bg-[#e7f7f3] text-[#16856f]"
+                    : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {status}
+              </span>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{body}</p>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-5 text-sm text-slate-500">Live stats coming soon.</p>
+    </section>
+  );
+}
+
 function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const [activityRows, setActivityRows] = useState([]);
   const [activityError, setActivityError] = useState("");
@@ -901,6 +985,10 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
           />
         </div>
 
+        <div className="mt-8">
+          <ReminderStatusSection />
+        </div>
+
         <div className="mt-8 grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
           <section>
             <div className="mb-4 flex items-center justify-between gap-4">
@@ -937,6 +1025,8 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
               <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-800 break-all">
                 {joinUrl}
               </div>
+
+              <DashboardQrPlaceholder />
 
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <button
