@@ -87,14 +87,25 @@ async function requestJson(path, options = {}) {
   });
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : null;
+  let payload = null;
+
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch (parseError) {
+    parseError.status = response.status;
+    parseError.responseText = text;
+    throw parseError;
+  }
 
   if (!response.ok) {
     const message =
       payload?.error ||
       payload?.message ||
       "Something went wrong. Please try again.";
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    error.responseText = text;
+    throw error;
   }
 
   return payload;
@@ -847,7 +858,11 @@ function ReminderStatusSection({ summary, isLoading, error }) {
     ["Halfway reminder", "Active", "Sent when a customer reaches the middle of their stamp card."],
     ["Almost-there reminder", "Active", "Sent when a customer is close to earning a reward."],
     ["Reward-ready reminder", "Active", "Sent when a customer has earned a reward."],
-    ["Birthday rewards", "Coming soon", "Birthday treats are planned for a future dashboard release."],
+    [
+      "Birthday rewards",
+      "Active",
+      "Customers can add their birthday when joining. PocketStamp can make their Wallet pass reward-ready on their birthday.",
+    ],
     ["Win-back reminders", "Coming soon", "Comeback reminders will appear here once live stats are available."],
   ];
 
@@ -976,6 +991,12 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
       if (dashboardResult.status === "fulfilled") {
         setDashboardSummary(dashboardResult.value?.summary || null);
       } else {
+        console.error("Dashboard summary fetch failed", {
+          status: dashboardResult.reason?.status || "unknown",
+          responseText:
+            dashboardResult.reason?.responseText?.slice(0, 500) || "",
+          message: dashboardResult.reason?.message || "Unknown error",
+        });
         setDashboardSummaryError(
           dashboardResult.reason?.message ||
             "Unable to load dashboard summary right now.",
