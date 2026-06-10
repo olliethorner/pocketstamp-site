@@ -255,6 +255,41 @@ function getActivityType(item) {
   return pickFirst(item.type, item.eventType, item.action, item.event, item.kind);
 }
 
+function getActivityText(item) {
+  return [
+    item.type,
+    item.eventType,
+    item.action,
+    item.event,
+    item.kind,
+    item.result,
+    item.status,
+    item.rewardType,
+    item.reward_type,
+    item.rewardName,
+    item.reward_name,
+    item.title,
+    item.description,
+    item.message,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function getActivityCustomerName(item) {
+  return pickFirst(
+    item.customerName,
+    item.customer_name,
+    item.customer?.name,
+    item.customer?.fullName,
+    item.customer?.firstName && item.customer?.lastName
+      ? `${item.customer.firstName} ${item.customer.lastName}`
+      : null,
+    item.customer?.firstName,
+  );
+}
+
 function isToday(timestamp) {
   if (!timestamp) return false;
   const date = new Date(timestamp);
@@ -264,13 +299,39 @@ function isToday(timestamp) {
 }
 
 function looksLikeStamp(item) {
-  const haystack = JSON.stringify(item).toLowerCase();
+  const haystack = getActivityText(item);
   return haystack.includes("stamp") || haystack.includes("+1");
 }
 
 function looksLikeReward(item) {
-  const haystack = JSON.stringify(item).toLowerCase();
+  const haystack = getActivityText(item);
   return haystack.includes("reward") || haystack.includes("redeem");
+}
+
+function looksLikeBirthdayReward(item) {
+  const haystack = getActivityText(item);
+  return looksLikeReward(item) && haystack.includes("birthday");
+}
+
+function looksLikeJoin(item) {
+  const haystack = getActivityText(item);
+  return (
+    haystack.includes("join") ||
+    haystack.includes("signup") ||
+    haystack.includes("sign up") ||
+    haystack.includes("customer_created") ||
+    haystack.includes("customer created")
+  );
+}
+
+function looksLikeWalletPass(item) {
+  const haystack = getActivityText(item);
+  return haystack.includes("pass") || haystack.includes("wallet");
+}
+
+function looksLikeReminder(item) {
+  const haystack = getActivityText(item);
+  return haystack.includes("reminder") || haystack.includes("notification");
 }
 
 function formatActivityTime(timestamp) {
@@ -284,35 +345,53 @@ function formatActivityTime(timestamp) {
 }
 
 function formatActivityTitle(item) {
+  const haystack = getActivityText(item);
+  const backendTitle = pickFirst(item.title, item.description, item.message);
+
+  if (looksLikeBirthdayReward(item) && haystack.includes("activat")) {
+    return "Birthday reward activated";
+  }
+
+  if (looksLikeBirthdayReward(item)) return "Birthday reward redeemed";
+
+  if (looksLikeReward(item) && haystack.includes("redeem")) {
+    return "Reward redeemed";
+  }
+
+  if (looksLikeStamp(item)) return "Stamp added";
+  if (looksLikeReward(item)) return "Reward earned";
+  if (looksLikeReminder(item) && haystack.includes("sent")) return "Reminder sent";
+  if (looksLikeReminder(item)) return "Wallet reminder";
+  if (looksLikeJoin(item)) return "Customer joined";
+  if (looksLikeWalletPass(item) && haystack.includes("creat")) {
+    return "Wallet pass created";
+  }
+  if (looksLikeWalletPass(item)) return "Wallet pass updated";
+
   return pickFirst(
-    item.title,
-    item.description,
-    item.message,
-    item.customerName && getActivityType(item)
-      ? `${item.customerName} · ${toTitle(getActivityType(item))}`
-      : null,
-    item.customer?.name && getActivityType(item)
-      ? `${item.customer.name} · ${toTitle(getActivityType(item))}`
-      : null,
+    backendTitle && backendTitle.length > 8 ? backendTitle : null,
     toTitle(getActivityType(item)),
   );
 }
 
 function formatActivityMeta(item) {
   return pickFirst(
-    item.customerName,
-    item.customer?.name,
+    getActivityCustomerName(item),
+    item.readerName,
+    item.locationName,
     item.passSerialNumber,
     item.passId,
-    item.readerName,
     item.readerId,
-    item.locationName,
   );
 }
 
 function formatActivityBadge(item) {
-  if (looksLikeReward(item)) return "Reward";
-  if (looksLikeStamp(item)) return "+1 stamp";
+  if (looksLikeBirthdayReward(item)) return "Birthday";
+  if (looksLikeStamp(item)) return "Stamp";
+  if (looksLikeReward(item)) return "Redeemed";
+  if (looksLikeReminder(item)) return "Reminder";
+  if (looksLikeJoin(item)) return "Joined";
+  if (looksLikeWalletPass(item)) return "Wallet";
   return toTitle(getActivityType(item));
 }
 
