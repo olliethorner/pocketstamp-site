@@ -411,6 +411,16 @@ function formatCustomerDate(timestamp) {
   }).format(date);
 }
 
+function formatCustomerShortDate(timestamp) {
+  if (!timestamp) return "No activity yet";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "No activity yet";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
 function formatCustomerBirthday(customer) {
   const month = Number(customer.birthdayMonth);
   const day = Number(customer.birthdayDay);
@@ -429,6 +439,10 @@ function formatCustomerBirthday(customer) {
 
 function getCustomerName(customer) {
   return pickFirst(customer.name, customer.fullName, customer.firstName, "Wallet customer");
+}
+
+function getCustomerId(customer, index) {
+  return pickFirst(customer.id, customer.passSerialNumber, customer.email, `customer-${index}`);
 }
 
 function getCustomerStampProgress(customer) {
@@ -481,6 +495,18 @@ function getCustomerStatusClass(status) {
   if (status === "Almost there") return "bg-amber-50 text-amber-800";
   if (status === "Birthday saved") return "bg-violet-50 text-violet-700";
   return "bg-slate-100 text-slate-600";
+}
+
+function formatCustomerWalletStatus(customer) {
+  return toTitle(pickFirst(customer.walletPassStatus, customer.passStatus, "Active"));
+}
+
+function formatCustomerCardId(customer) {
+  const cardId = pickFirst(customer.passSerialNumber, customer.passId, customer.cardId);
+  if (!cardId) return "Not recorded";
+
+  const text = String(cardId);
+  return text.length > 18 ? `${text.slice(0, 8)}...${text.slice(-6)}` : text;
 }
 
 function formatActivityMeta(item) {
@@ -981,7 +1007,15 @@ function LoyaltyCustomersSection({
   onSearchChange,
   status,
   onStatusChange,
+  expandedCustomerId,
+  onExpandedCustomerChange,
 }) {
+  const customerSummary = isLoading
+    ? "Loading customers"
+    : `Showing ${customers.length} ${
+        customers.length === 1 ? "customer" : "customers"
+      }`;
+
   return (
     <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -991,6 +1025,9 @@ function LoyaltyCustomersSection({
           </h2>
           <p className="mt-1 max-w-2xl text-slate-500">
             See the customers who have joined your Apple Wallet loyalty program.
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-500">
+            {customerSummary}
           </p>
         </div>
 
@@ -1045,72 +1082,85 @@ function LoyaltyCustomersSection({
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {customers.map((customer) => {
+            {customers.map((customer, index) => {
+              const customerId = getCustomerId(customer, index);
               const customerStatus = getCustomerStatus(customer);
+              const isExpanded = expandedCustomerId === customerId;
+              const detailRows = [
+                ["Joined", formatCustomerDate(customer.joinedDate)],
+                ["Birthday", formatCustomerBirthday(customer)],
+                ["Wallet pass", formatCustomerWalletStatus(customer)],
+                ["Card ID", formatCustomerCardId(customer)],
+                ["Reward threshold", `${Number(customer.rewardThreshold ?? 10) || 10} stamps`],
+                ["Last activity", formatCustomerDate(customer.lastUpdated)],
+              ];
 
               return (
                 <div
-                  key={pickFirst(customer.id, customer.passSerialNumber, customer.email)}
-                  className="grid gap-4 p-5 lg:grid-cols-[minmax(180px,1.2fr)_110px_150px_150px_120px] lg:items-center"
+                  key={customerId}
+                  className="bg-white transition hover:bg-slate-50/70"
                 >
-                  <div>
-                    <p className="font-semibold text-slate-950">
-                      {getCustomerName(customer)}
-                    </p>
-                    {customer.email ? (
-                      <p className="mt-1 break-all text-sm text-slate-500">
-                        {customer.email}
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-sm text-slate-500">No email saved</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-slate-400">
-                      Stamps
-                    </p>
-                    <p className="mt-1 font-semibold text-slate-950">
-                      {getCustomerStampProgress(customer)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-slate-400">
-                      Status
-                    </p>
-                    <span
-                      className={`mt-1 inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${getCustomerStatusClass(
-                        customerStatus,
-                      )}`}
-                    >
-                      {customerStatus}
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
+                    onClick={() =>
+                      onExpandedCustomerChange(isExpanded ? null : customerId)
+                    }
+                    className="flex w-full flex-col gap-3 p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#16856f]/10 sm:p-5 lg:flex-row lg:items-center lg:justify-between"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-slate-950">
+                        {getCustomerName(customer)}
+                      </span>
+                      <span className="mt-1 block truncate text-sm text-slate-500">
+                        {customer.email || "No email saved"}
+                      </span>
                     </span>
-                  </div>
 
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-slate-400">
-                      Joined
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-700">
-                      {formatCustomerDate(customer.joinedDate)}
-                    </p>
-                    <p className="mt-2 text-xs font-semibold uppercase text-slate-400">
-                      Last activity
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-700">
-                      {formatCustomerDate(customer.lastUpdated)}
-                    </p>
-                  </div>
+                    <span className="flex flex-wrap items-center gap-2 text-sm lg:justify-end">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getCustomerStatusClass(
+                          customerStatus,
+                        )}`}
+                      >
+                        {customerStatus}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">
+                        {getCustomerStampProgress(customer)}
+                      </span>
+                      <span className="text-slate-500">
+                        Last activity {formatCustomerShortDate(customer.lastUpdated)}
+                      </span>
+                      <span
+                        className={`text-slate-400 transition ${
+                          isExpanded ? "rotate-180" : ""
+                        }`}
+                        aria-hidden="true"
+                      >
+                        ˅
+                      </span>
+                    </span>
+                  </button>
 
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-slate-400">
-                      Birthday
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-700">
-                      {formatCustomerBirthday(customer)}
-                    </p>
-                  </div>
+                  {isExpanded ? (
+                    <div className="border-t border-slate-100 bg-[#fbfaf7] px-4 py-4 sm:px-5">
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {detailRows.map(([label, value]) => (
+                          <div key={label} className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-400">
+                              {label}
+                            </p>
+                            <p
+                              className="mt-1 truncate text-sm font-semibold text-slate-700"
+                              title={String(value)}
+                            >
+                              {value}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -1256,6 +1306,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const [isCustomersLoading, setIsCustomersLoading] = useState(true);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerStatus, setCustomerStatus] = useState("all");
+  const [expandedCustomerId, setExpandedCustomerId] = useState(null);
   const [copyState, setCopyState] = useState("idle");
 
   const merchantSlug = useMemo(
@@ -1382,6 +1433,16 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     }
   }
 
+  function handleCustomerSearchChange(nextSearch) {
+    setCustomerSearch(nextSearch);
+    setExpandedCustomerId(null);
+  }
+
+  function handleCustomerStatusChange(nextStatus) {
+    setCustomerStatus(nextStatus);
+    setExpandedCustomerId(null);
+  }
+
   return (
     <main className="min-h-screen bg-[#fbfaf7] text-slate-950">
       <header className="border-b border-slate-200 bg-white">
@@ -1481,9 +1542,11 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             isLoading={isCustomersLoading}
             error={customerError}
             search={customerSearch}
-            onSearchChange={setCustomerSearch}
+            onSearchChange={handleCustomerSearchChange}
             status={customerStatus}
-            onStatusChange={setCustomerStatus}
+            onStatusChange={handleCustomerStatusChange}
+            expandedCustomerId={expandedCustomerId}
+            onExpandedCustomerChange={setExpandedCustomerId}
           />
         </div>
 
