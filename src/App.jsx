@@ -131,6 +131,21 @@ function fetchMerchantActivity(accessToken) {
   });
 }
 
+function fetchMerchantCustomers(accessToken, { search = "", status = "all", limit = 50 } = {}) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    status,
+  });
+
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
+
+  return requestJson(`/api/merchant/customers?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
 function fetchMerchantReminderSummary(accessToken) {
   return requestJson("/api/merchant/reminders/summary", {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -234,6 +249,19 @@ function extractActivityRows(payload) {
     payload?.data?.activity,
     payload?.data?.activities,
     payload?.data?.events,
+    payload?.data?.items,
+  ];
+
+  return candidates.find(Array.isArray) || [];
+}
+
+function extractCustomerRows(payload) {
+  const candidates = [
+    payload,
+    payload?.customers,
+    payload?.items,
+    payload?.data,
+    payload?.data?.customers,
     payload?.data?.items,
   ];
 
@@ -372,6 +400,87 @@ function formatActivityTitle(item) {
     backendTitle && backendTitle.length > 8 ? backendTitle : null,
     toTitle(getActivityType(item)),
   );
+}
+
+function formatCustomerDate(timestamp) {
+  if (!timestamp) return "Not recorded";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "Not recorded";
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+  }).format(date);
+}
+
+function formatCustomerBirthday(customer) {
+  const month = Number(customer.birthdayMonth);
+  const day = Number(customer.birthdayDay);
+
+  if (!month || !day) return "Not saved";
+
+  const date = new Date(2024, month - 1, day);
+  if (Number.isNaN(date.getTime())) return "Not saved";
+
+  const formattedMonth = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+  }).format(date);
+
+  return `${formattedMonth} ${day}`;
+}
+
+function getCustomerName(customer) {
+  return pickFirst(customer.name, customer.fullName, customer.firstName, "Wallet customer");
+}
+
+function getCustomerStampProgress(customer) {
+  const currentStamps = Number(customer.currentStamps ?? 0);
+  const rewardThreshold = Number(customer.rewardThreshold ?? 10);
+
+  return `${Number.isFinite(currentStamps) ? currentStamps : 0}/${
+    Number.isFinite(rewardThreshold) && rewardThreshold > 0 ? rewardThreshold : 10
+  }`;
+}
+
+function getCustomerStatus(customer) {
+  const statusText = [
+    customer.rewardStatus,
+    customer.status,
+    customer.walletPassStatus,
+    customer.birthdayActive ? "birthday_active" : null,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const currentStamps = Number(customer.currentStamps ?? 0);
+  const rewardThreshold = Number(customer.rewardThreshold ?? 10);
+  const hasBirthday = Boolean(customer.birthdayMonth && customer.birthdayDay);
+
+  if (statusText.includes("birthday_active")) return "Birthday reward active";
+  if (statusText.includes("reward_ready") || statusText.includes("ready")) {
+    return "Reward ready";
+  }
+  if (statusText.includes("almost_there") || statusText.includes("almost")) {
+    return "Almost there";
+  }
+  if (hasBirthday && statusText.includes("birthday")) return "Birthday saved";
+  if (
+    Number.isFinite(currentStamps) &&
+    Number.isFinite(rewardThreshold) &&
+    rewardThreshold > 0
+  ) {
+    if (currentStamps >= rewardThreshold) return "Reward ready";
+    if (rewardThreshold - currentStamps <= 2) return "Almost there";
+  }
+  if (hasBirthday) return "Birthday saved";
+  return "Active";
+}
+
+function getCustomerStatusClass(status) {
+  if (status === "Reward ready" || status === "Birthday reward active") {
+    return "bg-[#e7f7f3] text-[#16856f]";
+  }
+  if (status === "Almost there") return "bg-amber-50 text-amber-800";
+  if (status === "Birthday saved") return "bg-violet-50 text-violet-700";
+  return "bg-slate-100 text-slate-600";
 }
 
 function formatActivityMeta(item) {
@@ -857,6 +966,161 @@ function ActivityList({ activityRows, isLoading, error }) {
   );
 }
 
+const customerFilters = [
+  ["all", "All"],
+  ["almost_there", "Almost there"],
+  ["reward_ready", "Reward ready"],
+  ["birthday_saved", "Birthday saved"],
+];
+
+function LoyaltyCustomersSection({
+  customers,
+  isLoading,
+  error,
+  search,
+  onSearchChange,
+  status,
+  onStatusChange,
+}) {
+  return (
+    <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold text-slate-950">
+            Loyalty Customers
+          </h2>
+          <p className="mt-1 max-w-2xl text-slate-500">
+            See the customers who have joined your Apple Wallet loyalty program.
+          </p>
+        </div>
+
+        <label className="w-full lg:max-w-sm">
+          <span className="sr-only">Search loyalty customers</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search by name or email"
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#16856f] focus:ring-4 focus:ring-[#16856f]/10"
+          />
+        </label>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {customerFilters.map(([filterValue, label]) => {
+          const isSelected = status === filterValue;
+
+          return (
+            <button
+              key={filterValue}
+              type="button"
+              onClick={() => onStatusChange(filterValue)}
+              className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                isSelected
+                  ? "bg-[#143d3b] text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-950"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-6 overflow-hidden rounded-xl ring-1 ring-slate-100">
+        {isLoading ? (
+          <div className="flex items-center gap-3 p-5 text-slate-600">
+            <LoadingText label="Loading loyalty customers..." />
+          </div>
+        ) : error ? (
+          <div className="flex gap-3 p-5 text-red-700">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-bold">
+              !
+            </span>
+            <p>{error}</p>
+          </div>
+        ) : !customers.length ? (
+          <div className="p-5 text-slate-600">
+            No loyalty customers yet. Customers will appear here when they create an Apple Wallet card.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {customers.map((customer) => {
+              const customerStatus = getCustomerStatus(customer);
+
+              return (
+                <div
+                  key={pickFirst(customer.id, customer.passSerialNumber, customer.email)}
+                  className="grid gap-4 p-5 lg:grid-cols-[minmax(180px,1.2fr)_110px_150px_150px_120px] lg:items-center"
+                >
+                  <div>
+                    <p className="font-semibold text-slate-950">
+                      {getCustomerName(customer)}
+                    </p>
+                    {customer.email ? (
+                      <p className="mt-1 break-all text-sm text-slate-500">
+                        {customer.email}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-sm text-slate-500">No email saved</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-400">
+                      Stamps
+                    </p>
+                    <p className="mt-1 font-semibold text-slate-950">
+                      {getCustomerStampProgress(customer)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-400">
+                      Status
+                    </p>
+                    <span
+                      className={`mt-1 inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${getCustomerStatusClass(
+                        customerStatus,
+                      )}`}
+                    >
+                      {customerStatus}
+                    </span>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-400">
+                      Joined
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-700">
+                      {formatCustomerDate(customer.joinedDate)}
+                    </p>
+                    <p className="mt-2 text-xs font-semibold uppercase text-slate-400">
+                      Last activity
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-700">
+                      {formatCustomerDate(customer.lastUpdated)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-400">
+                      Birthday
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-700">
+                      {formatCustomerBirthday(customer)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function DashboardQrCode({ value }) {
   return (
     <div className="mt-5 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
@@ -987,6 +1251,11 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const [reminderSummary, setReminderSummary] = useState(null);
   const [reminderError, setReminderError] = useState("");
   const [isReminderSummaryLoading, setIsReminderSummaryLoading] = useState(true);
+  const [customerRows, setCustomerRows] = useState([]);
+  const [customerError, setCustomerError] = useState("");
+  const [isCustomersLoading, setIsCustomersLoading] = useState(true);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerStatus, setCustomerStatus] = useState("all");
   const [copyState, setCopyState] = useState("idle");
 
   const merchantSlug = useMemo(
@@ -1060,6 +1329,42 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
       isMounted = false;
     };
   }, [accessToken]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCustomers() {
+      setIsCustomersLoading(true);
+      setCustomerError("");
+
+      try {
+        const payload = await fetchMerchantCustomers(accessToken, {
+          search: customerSearch,
+          status: customerStatus,
+          limit: 50,
+        });
+
+        if (!isMounted) return;
+        setCustomerRows(extractCustomerRows(payload));
+      } catch (customerFetchError) {
+        if (!isMounted) return;
+        setCustomerError(
+          customerFetchError.message ||
+            "Unable to load loyalty customers right now.",
+        );
+      } finally {
+        if (isMounted) {
+          setIsCustomersLoading(false);
+        }
+      }
+    }
+
+    loadCustomers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken, customerSearch, customerStatus]);
 
   const metricFallback = dashboardSummaryError ? "Summary unavailable" : "—";
   const metricHelperFallback = dashboardSummaryError
@@ -1167,6 +1472,18 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             summary={reminderSummary}
             isLoading={isReminderSummaryLoading}
             error={reminderError}
+          />
+        </div>
+
+        <div className="mt-8">
+          <LoyaltyCustomersSection
+            customers={customerRows}
+            isLoading={isCustomersLoading}
+            error={customerError}
+            search={customerSearch}
+            onSearchChange={setCustomerSearch}
+            status={customerStatus}
+            onStatusChange={setCustomerStatus}
           />
         </div>
 
