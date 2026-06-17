@@ -1,24 +1,31 @@
 .ps-site {
-  --ps-ink: #09090b;
-  --ps-paper: #fbfaf7;
-  --ps-blue: #2563ff;
-  --ps-blue-soft: #dce9ff;
+  --ps-ink: #26211d;
+  --ps-muted: #6f6860;
+  --ps-paper: #fbf7ef;
+  --ps-cream: #f4eee4;
+  --ps-blue: #2f6df6;
+  --ps-blue-soft: #e8f0ff;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
 }
 
+.ps-hero {
+  background:
+    radial-gradient(circle at 77% 36%, rgba(47, 109, 246, 0.13), transparent 31rem),
+    linear-gradient(180deg, #fbf7ef 0%, #f7f3ec 100%);
+}
+
 .ps-display {
   color: var(--ps-ink);
-  font-weight: 900;
+  font-weight: 760;
   letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 .ps-eyebrow {
-  color: #2563ff;
+  color: var(--ps-blue);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 760;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -26,13 +33,12 @@
 .ps-wordmark {
   color: var(--ps-ink);
   font-size: 1.05rem;
-  font-weight: 900;
+  font-weight: 820;
   letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 .ps-nav-link {
-  color: #334155;
+  color: var(--ps-muted);
   font-size: 0.92rem;
   font-weight: 700;
   text-decoration: none;
@@ -46,11 +52,11 @@
   align-items: center;
   border-radius: 999px;
   display: inline-flex;
-  font-size: 0.95rem;
-  font-weight: 800;
+  font-size: 0.9rem;
+  font-weight: 760;
   justify-content: center;
-  min-height: 3rem;
-  padding: 0.78rem 1.25rem;
+  min-height: 2.65rem;
+  padding: 0.65rem 1.1rem;
   text-decoration: none;
   transition:
     background-color 160ms ease,
@@ -64,8 +70,9 @@
 }
 
 .ps-pill-dark {
-  background: var(--ps-ink);
+  background: #24201c;
   color: #ffffff;
+  box-shadow: 0 12px 28px rgba(38, 33, 29, 0.13);
 }
 
 .ps-pill-dark:hover {
@@ -76,8 +83,8 @@
   align-items: center;
   color: var(--ps-ink);
   display: inline-flex;
-  font-weight: 800;
-  min-height: 3rem;
+  font-weight: 760;
+  min-height: 2.65rem;
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 0.34em;
@@ -90,9 +97,9 @@
 
 .ps-blue-glow {
   background:
-    radial-gradient(circle at 45% 48%, rgba(37, 99, 255, 0.5), transparent 34%),
-    linear-gradient(90deg, transparent, rgba(37, 99, 255, 0.16), transparent);
-  filter: blur(2px);
+    radial-gradient(circle at 45% 48%, rgba(47, 109, 246, 0.28), transparent 36%),
+    linear-gradient(90deg, transparent, rgba(47, 109, 246, 0.08), transparent);
+  filter: blur(6px);
   height: min(56vw, 34rem);
   left: 50%;
   max-height: 34rem;
@@ -106,11 +113,11 @@
 
 .ps-join-card {
   align-items: center;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(80, 71, 61, 0.13);
+  border-radius: 1.25rem;
   bottom: 1.25rem;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 24px 70px rgba(71, 61, 48, 0.12);
   display: grid;
   gap: 0.65rem;
   justify-items: center;
@@ -120,37 +127,40 @@
 }
 
 .ps-manifesto {
-  background: var(--ps-ink);
-  color: #ffffff;
-  display: grid;
-  gap: 0.2rem;
-  padding: clamp(4rem, 10vw, 8rem) clamp(1.25rem, 5vw, 4rem);
+  background: #fffdf8;
+  border-block: 1px solid rgba(80, 71, 61, 0.12);
+  color: var(--ps-ink);
+  padding: clamp(2.5rem, 7vw, 5.5rem) clamp(1.25rem, 5vw, 4rem);
+  text-align: center;
 }
 
 .ps-manifesto p {
-  font-size: clamp(3rem, 11vw, 10rem);
-  font-weight: 900;
+  font-size: clamp(2rem, 5vw, 4.7rem);
+  font-weight: 720;
   letter-spacing: 0;
-  line-height: 0.86;
-  text-transform: uppercase;
+  line-height: 1.04;
+  margin: 0 auto;
+  max-width: 62rem;
 }
 
 .ps-feature-block {
-  border-top: 1px solid rgba(15, 23, 42, 0.18);
-  padding-top: 1.4rem;
+  background: rgba(255, 253, 248, 0.72);
+  border: 1px solid rgba(80, 71, 61, 0.12);
+  border-radius: 1.35rem;
+  box-shadow: 0 18px 50px rgba(71, 61, 48, 0.06);
+  padding: 1.35rem;
 }
 
 .ps-feature-block p {
   color: var(--ps-ink);
-  font-size: clamp(1.55rem, 2.7vw, 2.6rem);
-  font-weight: 900;
+  font-size: clamp(1.25rem, 2vw, 1.7rem);
+  font-weight: 760;
   letter-spacing: 0;
-  line-height: 0.98;
-  text-transform: uppercase;
+  line-height: 1.08;
 }
 
 .ps-feature-block span {
-  color: #475569;
+  color: var(--ps-muted);
   display: block;
   font-size: 1rem;
   line-height: 1.7;
@@ -159,30 +169,30 @@
 }
 
 .ps-step {
-  background: #f8f7f2;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  min-height: 15rem;
+  background: #fbf7ef;
+  border: 1px solid rgba(80, 71, 61, 0.12);
+  border-radius: 1.35rem;
+  min-height: 13.5rem;
   padding: 1.25rem;
 }
 
 .ps-step span {
-  color: #2563ff;
+  color: var(--ps-blue);
   font-size: 0.78rem;
   font-weight: 900;
 }
 
 .ps-step p {
   color: var(--ps-ink);
-  font-size: 1.7rem;
-  font-weight: 900;
+  font-size: 1.35rem;
+  font-weight: 760;
   letter-spacing: 0;
-  line-height: 0.98;
-  margin-top: 4rem;
-  text-transform: uppercase;
+  line-height: 1.08;
+  margin-top: 3.3rem;
 }
 
 .ps-step small {
-  color: #64748b;
+  color: var(--ps-muted);
   display: block;
   font-size: 0.95rem;
   line-height: 1.6;
@@ -191,17 +201,17 @@
 
 .ps-glow-band {
   background:
-    radial-gradient(circle at 72% 48%, rgba(65, 132, 255, 0.58), transparent 28rem),
-    linear-gradient(90deg, #05060b 0%, #0b1222 52%, #071534 100%);
+    radial-gradient(circle at 72% 45%, rgba(47, 109, 246, 0.18), transparent 27rem),
+    linear-gradient(180deg, #fffdf8 0%, #f4eee4 100%);
+  border-block: 1px solid rgba(80, 71, 61, 0.1);
 }
 
 .ps-glow-band .ps-display {
-  color: #ffffff;
+  color: var(--ps-ink);
 }
 
-.ps-glow-band .text-slate-700,
-.ps-glow-band .text-slate-600 {
-  color: rgba(255, 255, 255, 0.72);
+.ps-glow-band .text-slate-700 {
+  color: var(--ps-muted);
 }
 
 .ps-glow-band .bg-\[\#e7f7f3\] {
@@ -214,37 +224,50 @@
 
 .ps-proof-grid {
   display: grid;
-  gap: 1px;
+  gap: 0.9rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .ps-proof-grid > div {
-  background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  min-height: 17rem;
+  background: #fffdf8;
+  border: 1px solid rgba(80, 71, 61, 0.12);
+  border-radius: 1.35rem;
+  box-shadow: 0 18px 48px rgba(71, 61, 48, 0.06);
+  min-height: 15rem;
   padding: 1.5rem;
 }
 
 .ps-proof-grid p {
   color: var(--ps-ink);
-  font-size: clamp(1.5rem, 2.4vw, 2.35rem);
-  font-weight: 900;
+  font-size: clamp(1.3rem, 2vw, 1.85rem);
+  font-weight: 760;
   letter-spacing: 0;
-  line-height: 0.96;
-  text-transform: uppercase;
+  line-height: 1.08;
 }
 
 .ps-proof-grid span {
-  color: #64748b;
+  color: var(--ps-muted);
   display: block;
   line-height: 1.65;
-  margin-top: 5rem;
+  margin-top: 4rem;
 }
 
 .ps-pricing {
-  background: var(--ps-paper);
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: #fffdf8;
+  border: 1px solid rgba(80, 71, 61, 0.13);
+  border-radius: 1.5rem;
+  box-shadow: 0 24px 70px rgba(71, 61, 48, 0.08);
   padding: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.ps-badges span {
+  background: rgba(255, 253, 248, 0.74);
+  border: 1px solid rgba(80, 71, 61, 0.13);
+  border-radius: 999px;
+  color: #4d463f;
+  font-size: 0.86rem;
+  font-weight: 720;
+  padding: 0.48rem 0.78rem;
 }
 
 @media (max-width: 768px) {

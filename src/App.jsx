@@ -24,7 +24,7 @@ const steps = [
 
 const walletBullets = [
   "Branded with your logo and colours",
-  "No customer app",
+  "No customer app required",
   "Always on their phone",
   "Updates automatically",
   "Replaces the paper stamp card",
@@ -54,9 +54,9 @@ const setupSteps = [
 ];
 
 const cafeFeatures = [
-  ["Wallet card", "A branded Apple Wallet pass customers actually keep."],
+  ["Wallet card", "The stamp card your customers actually keep."],
   ["Join QR", "Customers scan. Wallet opens. Loyalty starts."],
-  ["Dashboard", "See joins, stamps, rewards and reader status in one place."],
+  ["Merchant dashboard", "See joins, stamps, rewards and reader status in one calm view."],
   ["Customer list", "A customer list paper cards never gave you."],
   ["Reminders", "Automatic nudges, straight from Apple Wallet."],
 ];
@@ -544,7 +544,7 @@ function IconMark({ label, className = "" }) {
 function CheckMark({ className = "" }) {
   return (
     <span
-      className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e7f7f3] text-xs font-bold text-[#16856f] ${className}`}
+      className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e8f0ff] text-xs font-bold text-[#2f6df6] ${className}`}
       aria-hidden="true"
     >
       ✓
@@ -559,14 +559,14 @@ function LoadingText({ label = "Loading..." }) {
 function WalletPassMockup({ hero = false }) {
   return (
     <div className={`mx-auto w-full ${hero ? "max-w-lg" : "max-w-sm"}`}>
-      <div className="rounded-[34px] bg-slate-950 p-3 shadow-2xl shadow-slate-900/20">
-        <div className="rounded-[28px] bg-white p-3">
-          <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-            <div className="bg-[#143d3b] p-6 text-white">
+      <div className="rounded-[34px] bg-[#24201c] p-3 shadow-2xl shadow-stone-900/10">
+        <div className="rounded-[28px] bg-[#fffdf8] p-3">
+          <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
+            <div className="bg-[#26354f] p-6 text-white">
               <div className="flex items-start justify-between gap-4">
-                <IconMark label="PS" className="h-12 w-12 bg-white text-[#143d3b]" />
+                <IconMark label="PS" className="h-12 w-12 bg-white text-[#26354f]" />
                 <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
-                  <span className="h-2 w-2 rounded-full bg-[#f4c15d]" />
+                  <span className="h-2 w-2 rounded-full bg-[#9ec5ff]" />
                   Apple Wallet
                 </div>
               </div>
@@ -592,10 +592,10 @@ function WalletPassMockup({ hero = false }) {
 
               <div className="mt-6 grid grid-cols-[1fr_auto] items-end gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400">
+                  <p className="text-xs font-semibold uppercase text-stone-400">
                     Reward
                   </p>
-                  <p className="mt-1 font-semibold text-slate-950">
+                  <p className="mt-1 font-semibold text-[#26211d]">
                     10th coffee free
                   </p>
                 </div>
@@ -621,7 +621,7 @@ function WalletPassMockup({ hero = false }) {
 function ReminderMockup() {
   return (
     <div className="mx-auto w-full max-w-xl">
-      <div className="overflow-hidden rounded-3xl bg-[#fbfaf7] p-3 shadow-2xl shadow-slate-900/10 ring-1 ring-slate-200">
+      <div className="overflow-hidden rounded-3xl bg-[#fffdf8] p-3 shadow-2xl shadow-stone-900/10 ring-1 ring-stone-200">
         <img
           src="/wallet-reminders-mockup.png"
           alt="iPhone lock screen showing PocketStamp Wallet reminder notifications"
@@ -630,11 +630,11 @@ function ReminderMockup() {
           decoding="async"
         />
       </div>
-      <div className="mt-5 rounded-2xl bg-white p-5 shadow-xl shadow-slate-900/10 ring-1 ring-slate-200">
-        <p className="text-lg font-semibold text-slate-950">
+      <div className="mt-5 rounded-2xl bg-[#fffdf8] p-5 shadow-xl shadow-stone-900/10 ring-1 ring-stone-200">
+        <p className="text-lg font-semibold text-[#26211d]">
           Automated Apple Wallet reminders
         </p>
-        <p className="mt-2 leading-7 text-slate-600">
+        <p className="mt-2 leading-7 text-stone-600">
           PocketStamp can remind customers when they’re close to a reward, have
           earned one, have a birthday reward, or haven’t visited in a while.
         </p>
@@ -652,17 +652,17 @@ function DashboardMockup() {
 
   return (
     <div className="mx-auto w-full max-w-xl">
-      <div className="rounded-2xl bg-white p-5 shadow-2xl shadow-slate-900/10 ring-1 ring-slate-200">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-5">
+      <div className="rounded-3xl bg-[#fffdf8] p-5 shadow-2xl shadow-stone-900/10 ring-1 ring-stone-200">
+        <div className="flex items-center justify-between border-b border-stone-200 pb-5">
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-400">
+            <p className="text-xs font-semibold uppercase text-stone-400">
               PocketStamp dashboard
             </p>
-            <p className="mt-1 text-lg font-semibold text-slate-950">
+            <p className="mt-1 text-lg font-semibold text-[#26211d]">
               Today at Harbour House
             </p>
           </div>
-          <div className="rounded-xl bg-[#e7f7f3] p-3 text-[#16856f]">
+          <div className="rounded-xl bg-[#e8f0ff] p-3 text-[#2f6df6]">
             <span className="text-xs font-bold">Live</span>
           </div>
         </div>
@@ -673,9 +673,9 @@ function DashboardMockup() {
             ["48", "stamps"],
             ["9", "rewards"],
           ].map(([value, label]) => (
-            <div key={label} className="rounded-xl bg-slate-50 p-4">
-              <p className="text-2xl font-semibold text-slate-950">{value}</p>
-              <p className="mt-1 text-sm text-slate-500">{label}</p>
+            <div key={label} className="rounded-xl bg-[#f7f3ec] p-4">
+              <p className="text-2xl font-semibold text-[#26211d]">{value}</p>
+              <p className="mt-1 text-sm text-stone-500">{label}</p>
             </div>
           ))}
         </div>
@@ -684,13 +684,13 @@ function DashboardMockup() {
           {rows.map(([time, event, tag]) => (
             <div
               key={`${time}-${event}`}
-              className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3"
+              className="flex items-center justify-between gap-3 rounded-xl bg-[#f7f3ec] px-4 py-3"
             >
               <div>
-                <p className="text-sm font-semibold text-slate-950">{event}</p>
-                <p className="mt-0.5 text-xs text-slate-500">{time}</p>
+                <p className="text-sm font-semibold text-[#26211d]">{event}</p>
+                <p className="mt-0.5 text-xs text-stone-500">{time}</p>
               </div>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-stone-200">
                 {tag}
               </span>
             </div>
@@ -1629,8 +1629,8 @@ function MerchantPortal() {
 
 function MarketingHomepage() {
   return (
-    <main className="ps-site min-h-screen bg-[#f8f7f2] text-slate-950">
-      <section className="relative overflow-hidden bg-[#fbfaf7]">
+    <main className="ps-site min-h-screen bg-[#f7f3ec] text-slate-950">
+      <section className="ps-hero relative overflow-hidden">
         <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-6 lg:px-8">
           <a href="/" className="ps-wordmark" aria-label="PocketStamp home">
             PocketStamp
@@ -1654,15 +1654,13 @@ function MarketingHomepage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
           >
-            <p className="ps-eyebrow">
-              Apple Wallet loyalty for cafés
-            </p>
-            <h1 className="ps-display mt-5 max-w-4xl text-[clamp(3.4rem,9vw,8.2rem)] leading-[0.88]">
-              Goodbye paper cards. Hello Wallet loyalty.
+            <p className="ps-eyebrow">Apple Wallet loyalty for independent cafés</p>
+            <h1 className="ps-display mt-5 max-w-4xl text-[clamp(3.05rem,7vw,6.7rem)] leading-[0.94]">
+              Paper stamp cards, rebuilt for Apple Wallet.
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-700 sm:text-xl">
               PocketStamp gives cafés a branded Apple Wallet rewards card,
-              customer list, and automatic reminders without asking customers
+              customer list, and automatic reminders — without asking customers
               to download an app.
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
@@ -1679,10 +1677,10 @@ function MarketingHomepage() {
                 Try a Wallet card
               </a>
             </div>
-            <div className="mt-12 grid max-w-xl gap-3 border-y border-slate-950/15 py-5 text-sm font-semibold uppercase text-slate-950 sm:grid-cols-3">
-              <span>No app</span>
-              <span>No paper</span>
-              <span>No forgotten cards</span>
+            <div className="ps-badges mt-10 flex flex-wrap gap-2.5">
+              <span>No customer app</span>
+              <span>Apple Wallet</span>
+              <span>Built for independent cafés</span>
             </div>
           </motion.div>
 
@@ -1710,16 +1708,14 @@ function MarketingHomepage() {
       </section>
 
       <section className="ps-manifesto">
-        <p>No app.</p>
-        <p>No paper.</p>
-        <p>No forgotten stamp cards.</p>
+        <p>No app. No paper. No forgotten stamp cards.</p>
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
-        <div className="grid gap-14 lg:grid-cols-[0.78fr_1.22fr]">
+        <div className="grid gap-14 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
           <div>
             <p className="ps-eyebrow">What cafés get</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.8rem,6vw,5.8rem)] leading-[0.9]">
+            <h2 className="ps-display mt-4 text-[clamp(2.4rem,5vw,4.8rem)] leading-[0.98]">
               The stamp card your customers actually keep.
             </h2>
           </div>
@@ -1738,7 +1734,7 @@ function MarketingHomepage() {
         <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
           <p className="ps-eyebrow">How it works</p>
           <div className="mt-6 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
-            <h2 className="ps-display text-[clamp(3rem,7vw,6.8rem)] leading-[0.9]">
+            <h2 className="ps-display text-[clamp(2.4rem,5vw,5rem)] leading-[0.98]">
               Scan. Add to Wallet. Stamp. Bring them back.
             </h2>
             <p className="max-w-2xl text-lg leading-8 text-slate-700">
@@ -1763,15 +1759,15 @@ function MarketingHomepage() {
         </div>
       </section>
 
-      <section className="ps-glow-band py-20 text-white lg:py-28">
+      <section className="ps-glow-band py-20 lg:py-28">
         <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-8">
           <div>
-            <p className="ps-eyebrow text-white/70">Branded Wallet cards</p>
-            <h2 className="ps-display mt-4 text-[clamp(3rem,7vw,6.4rem)] leading-[0.9]">
+            <p className="ps-eyebrow">Branded Wallet cards</p>
+            <h2 className="ps-display mt-4 text-[clamp(2.5rem,5vw,5rem)] leading-[0.98]">
               Your café, inside your customer’s Wallet.
             </h2>
-            <p className="mt-7 max-w-xl text-lg leading-8 text-white/75">
-              No loose paper. No app fatigue. Just a sharp branded pass that
+            <p className="mt-7 max-w-xl text-lg leading-8 text-slate-700">
+              No loose paper. No app fatigue. Just a polished branded pass that
               updates automatically as stamps are collected.
             </p>
             <SimpleBullets items={walletBullets} />
@@ -1785,7 +1781,7 @@ function MarketingHomepage() {
           <DashboardMockup />
           <div>
             <p className="ps-eyebrow">Dashboard and customer list</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.7rem,6vw,5.4rem)] leading-[0.9]">
+            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.7rem)] leading-[0.98]">
               See what paper cards never showed you.
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
@@ -1801,7 +1797,7 @@ function MarketingHomepage() {
         <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
           <div>
             <p className="ps-eyebrow">Wallet reminders</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.8rem,6vw,5.6rem)] leading-[0.9]">
+            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
               Automatic reminders, straight from Apple Wallet.
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
@@ -1818,7 +1814,7 @@ function MarketingHomepage() {
         <div className="grid gap-14 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
           <div>
             <p className="ps-eyebrow">Product proof</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.8rem,6vw,5.8rem)] leading-[0.9]">
+            <h2 className="ps-display mt-4 text-[clamp(2.3rem,5vw,4.7rem)] leading-[0.98]">
               Built for real café workflows.
             </h2>
           </div>
@@ -1837,7 +1833,7 @@ function MarketingHomepage() {
         <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[1fr_1fr] lg:items-center lg:px-8">
           <div>
             <p className="ps-eyebrow">Early café offer</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.8rem,6vw,5.8rem)] leading-[0.9]">
+            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
               Setup in days. Ready this week.
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
@@ -1868,7 +1864,7 @@ function MarketingHomepage() {
 
       <section className="px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
         <div className="mx-auto max-w-7xl border-t border-slate-950/15 pt-14">
-          <p className="ps-display max-w-5xl text-[clamp(3rem,8vw,7.2rem)] leading-[0.88]">
+          <p className="ps-display max-w-5xl text-[clamp(2.6rem,6vw,5.6rem)] leading-[0.96]">
             Your café’s Wallet card can be ready this week.
           </p>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
