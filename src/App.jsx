@@ -10,6 +10,8 @@ const demoHref =
   "mailto:hello@getpocketstamp.com?subject=PocketStamp demo enquiry";
 const pilotHref =
   "mailto:hello@getpocketstamp.com?subject=PocketStamp café pilot";
+const demoJoinUrl = "/join/pocket-stamp-demo";
+const demoJoinAbsoluteUrl = "https://getpocketstamp.com/join/pocket-stamp-demo";
 
 const steps = [
   ["Scan QR", "Customer scans your café’s join QR.", "QR"],
@@ -1671,10 +1673,10 @@ function MarketingHomepage() {
                 See demo
               </a>
               <a
-                href="/join/without-borders"
+                href={demoJoinUrl}
                 className="ps-text-link"
               >
-                Try a Wallet card
+                Try a demo Wallet card
               </a>
             </div>
             <div className="ps-badges mt-10 flex flex-wrap gap-2.5">
@@ -1693,14 +1695,16 @@ function MarketingHomepage() {
             <div className="ps-blue-glow" aria-hidden="true" />
             <WalletPassMockup hero />
             <div className="ps-join-card">
-              <p className="text-xs font-bold uppercase text-slate-500">Join QR</p>
+              <p className="text-xs font-bold uppercase text-slate-500">
+                Demo Wallet card
+              </p>
               <QRCodeSVG
-                value="https://getpocketstamp.com/join/without-borders"
+                value={demoJoinAbsoluteUrl}
                 size={82}
-                aria-label="Example PocketStamp join QR code"
+                aria-label="QR code for the PocketStamp demo Wallet card"
               />
               <p className="text-sm font-semibold text-slate-950">
-                Scan. Add. Stamp.
+                Scan to try the demo card
               </p>
             </div>
           </motion.div>
@@ -1885,8 +1889,8 @@ function MarketingHomepage() {
             <a href="mailto:hello@getpocketstamp.com" className="hover:text-slate-950">
               hello@getpocketstamp.com
             </a>
-            <a href="/join/without-borders" className="hover:text-slate-950">
-              Example join URL
+            <a href={demoJoinUrl} className="hover:text-slate-950">
+              Try the PocketStamp demo card
             </a>
           </div>
         </div>
