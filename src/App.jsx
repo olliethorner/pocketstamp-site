@@ -934,8 +934,6 @@ function DemoSuccessPage() {
             {hasPassUrl ? (
               <a
                 href={passUrl}
-                target="_blank"
-                rel="noreferrer"
                 className="ps-button-primary"
               >
                 Add Demo Card to Apple Wallet
@@ -948,7 +946,7 @@ function DemoSuccessPage() {
 
           <p className="mt-5 text-sm leading-6 text-[var(--ps-muted)]">
             {hasPassUrl
-              ? "Apple Wallet may open in a new tab or sheet. You can return to this page after adding the card."
+              ? "Safari may briefly open the pass file before Apple Wallet appears. After adding the card, you can return to this page."
               : "This is a sample PocketStamp card. It updates like a real café loyalty card."}
           </p>
         </section>
