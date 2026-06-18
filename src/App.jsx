@@ -13,7 +13,8 @@ const pilotHref =
 const demoJoinUrl = "/join/pocket-stamp-demo";
 const demoSuccessUrl = "/join/pocket-stamp-demo/success";
 const demoJoinAbsoluteUrl = "https://getpocketstamp.com/join/pocket-stamp-demo";
-const demoBackendJoinUrl = `${API_BASE_URL}/join/pocket-stamp-demo`;
+const demoCreateCardUrl = "/demo/pocket-stamp-demo/create";
+const demoPassStorageKey = "pocketstampDemoPassUrl";
 
 const steps = [
   ["Scan QR", "Customer scans your café’s join QR.", "QR"],
@@ -110,6 +111,29 @@ function loginMerchant(email, password) {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+}
+
+function toAbsoluteBackendUrl(pathOrUrl) {
+  if (!pathOrUrl) return "";
+
+  try {
+    return new URL(pathOrUrl, API_BASE_URL).toString();
+  } catch {
+    return "";
+  }
+}
+
+function extractDemoPassUrlFromLocation(location) {
+  const absoluteLocation = toAbsoluteBackendUrl(location);
+  if (!absoluteLocation) return "";
+
+  const url = new URL(absoluteLocation);
+  if (url.pathname.startsWith("/pass/")) return url.toString();
+
+  const serial = url.pathname.split("/").filter(Boolean).at(-1);
+  if (!serial) return "";
+
+  return `${API_BASE_URL}/pass/${encodeURIComponent(serial)}`;
 }
 
 function fetchMerchantMe(accessToken) {
@@ -766,17 +790,54 @@ function DemoWalletPreview() {
 function DemoJoinPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+
     const params = new URLSearchParams();
 
     if (fullName.trim()) params.set("name", fullName.trim());
     if (email.trim()) params.set("email", email.trim());
+    params.set("birthdayMonth", "");
+    params.set("birthdayDay", "");
 
-    window.location.href = params.toString()
-      ? `${demoSuccessUrl}?${params.toString()}`
-      : demoSuccessUrl;
+    try {
+      const response = await fetch(demoCreateCardUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+        redirect: "manual",
+      });
+
+      const location = response.headers.get("Location");
+      const passUrl = extractDemoPassUrlFromLocation(location || response.url);
+
+      if (!passUrl) {
+        throw new Error("Demo card was created, but no Wallet pass URL was returned.");
+      }
+
+      sessionStorage.setItem(demoPassStorageKey, passUrl);
+
+      const successParams = new URLSearchParams({
+        passUrl,
+      });
+
+      if (fullName.trim()) successParams.set("name", fullName.trim());
+
+      window.location.href = `${demoSuccessUrl}?${successParams.toString()}`;
+    } catch (submitError) {
+      setError(
+        submitError.message ||
+          "Unable to create the demo Wallet card right now. Please try again.",
+      );
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -832,8 +893,14 @@ function DemoJoinPage() {
               />
             </label>
 
-            <button type="submit" className="ps-button-primary w-full">
-              Create Demo Wallet Card
+            {error ? (
+              <div className="rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-700 ring-1 ring-red-100">
+                {error}
+              </div>
+            ) : null}
+
+            <button type="submit" disabled={isSubmitting} className="ps-button-primary w-full">
+              {isSubmitting ? "Creating demo card..." : "Create Demo Wallet Card"}
             </button>
           </form>
 
@@ -856,6 +923,8 @@ function DemoJoinPage() {
 function DemoSuccessPage() {
   const params = new URLSearchParams(window.location.search);
   const customerName = params.get("name")?.trim();
+  const passUrl = params.get("passUrl") || sessionStorage.getItem(demoPassStorageKey) || "";
+  const hasPassUrl = Boolean(passUrl);
 
   return (
     <main className="ps-flow min-h-screen px-5 py-8 text-[var(--ps-espresso)] sm:px-6 lg:px-8">
@@ -869,20 +938,25 @@ function DemoSuccessPage() {
           <div className="mt-10">
             <p className="ps-eyebrow">Demo card ready</p>
             <h1 className="mt-4 text-4xl font-semibold leading-tight text-[var(--ps-espresso)] sm:text-5xl">
-              Your PocketStamp demo card is ready.
+              {hasPassUrl
+                ? "Your PocketStamp demo card is ready."
+                : "Create your PocketStamp demo card."}
             </h1>
             <p className="mt-5 text-lg leading-8 text-[var(--ps-muted)]">
-              {customerName ? `${customerName}, open this` : "Open this"} on
-              your iPhone and add the demo card to Apple Wallet.
+              {hasPassUrl
+                ? `${customerName ? `${customerName}, open this` : "Open this"} on your iPhone and add the demo card to Apple Wallet.`
+                : "This success page needs a fresh demo Wallet card link. Head back to create a sample card first."}
             </p>
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <a href={demoBackendJoinUrl} className="ps-button-primary">
-              Add Demo Card to Apple Wallet
-            </a>
+            {hasPassUrl ? (
+              <a href={passUrl} className="ps-button-primary">
+                Add Demo Card to Apple Wallet
+              </a>
+            ) : null}
             <a href={demoJoinUrl} className="ps-button-secondary">
-              Edit details
+              {hasPassUrl ? "Edit details" : "Create a demo card"}
             </a>
           </div>
 
