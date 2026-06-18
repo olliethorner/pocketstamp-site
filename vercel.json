@@ -1,12 +1,20 @@
 {
   "redirects": [
     {
-      "source": "/join/:merchantSlug",
+      "source": "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)",
       "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug",
       "permanent": false
     }
   ],
   "rewrites": [
+    {
+      "source": "/join/pocket-stamp-demo",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/join/pocket-stamp-demo/success",
+      "destination": "/index.html"
+    },
     {
       "source": "/merchant",
       "destination": "/index.html"

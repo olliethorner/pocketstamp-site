@@ -4,7 +4,7 @@ This template provides a minimal setup to get React working in Vite with HMR and
 
 ## Customer Join Redirect
 
-`https://getpocketstamp.com/join/:merchantSlug` redirects to the Railway backend join page at `https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug`.
+`https://getpocketstamp.com/join/:merchantSlug` redirects to the Railway backend join page at `https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug`, except `/join/pocket-stamp-demo`, which is the frontend demo flow.
 
 This is a temporary branded redirect until customer join pages are fully hosted on the website frontend.
 

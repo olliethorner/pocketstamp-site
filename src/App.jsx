@@ -11,7 +11,9 @@ const demoHref =
 const pilotHref =
   "mailto:hello@getpocketstamp.com?subject=PocketStamp café pilot";
 const demoJoinUrl = "/join/pocket-stamp-demo";
+const demoSuccessUrl = "/join/pocket-stamp-demo/success";
 const demoJoinAbsoluteUrl = "https://getpocketstamp.com/join/pocket-stamp-demo";
+const demoBackendJoinUrl = `${API_BASE_URL}/join/pocket-stamp-demo`;
 
 const steps = [
   ["Scan QR", "Customer scans your café’s join QR.", "QR"],
@@ -65,7 +67,7 @@ const cafeFeatures = [
 
 const proofPanels = [
   ["Customer list", "Names, emails, stamp progress and reward status."],
-  ["Join flow", "QR code to branded Wallet pass without a downloaded app."],
+  ["Join flow", "QR code to a branded Apple Wallet loyalty card without a downloaded app."],
   ["Wallet reminders", "Halfway, almost there, reward-ready and birthday messages."],
 ];
 
@@ -79,7 +81,7 @@ async function requestJson(path, options = {}) {
   });
 
   const text = await response.text();
-  let payload = null;
+  let payload;
 
   try {
     payload = text ? JSON.parse(text) : null;
@@ -309,14 +311,6 @@ function getActivityCustomerName(item) {
   );
 }
 
-function isToday(timestamp) {
-  if (!timestamp) return false;
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return false;
-  const today = new Date();
-  return date.toDateString() === today.toDateString();
-}
-
 function looksLikeStamp(item) {
   const haystack = getActivityText(item);
   return haystack.includes("stamp") || haystack.includes("+1");
@@ -383,9 +377,9 @@ function formatActivityTitle(item) {
   if (looksLikeReminder(item)) return "Wallet reminder";
   if (looksLikeJoin(item)) return "Customer joined";
   if (looksLikeWalletPass(item) && haystack.includes("creat")) {
-    return "Wallet pass created";
+    return "Apple Wallet card created";
   }
-  if (looksLikeWalletPass(item)) return "Wallet pass updated";
+  if (looksLikeWalletPass(item)) return "Apple Wallet card updated";
 
   return pickFirst(
     backendTitle && backendTitle.length > 8 ? backendTitle : null,
@@ -732,6 +726,181 @@ function FeatureBullets({ items }) {
   );
 }
 
+function DemoWalletPreview() {
+  return (
+    <div className="ps-demo-pass">
+      <div className="ps-demo-pass-top">
+        <div>
+          <p className="ps-demo-pass-brand">PocketStamp</p>
+          <p className="ps-demo-pass-subtitle">Apple Wallet loyalty card</p>
+        </div>
+        <span>Demo</span>
+      </div>
+
+      <div className="ps-demo-pass-stamps">
+        <p>Stamps</p>
+        <strong>0/10</strong>
+      </div>
+
+      <div className="ps-demo-stamp-grid" aria-label="Ten empty demo stamp circles">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <span key={index} />
+        ))}
+      </div>
+
+      <div className="ps-demo-pass-bottom">
+        <div>
+          <p>Reward</p>
+          <strong>10th coffee free</strong>
+        </div>
+        <div className="ps-demo-marker" aria-hidden="true">
+          {Array.from({ length: 16 }).map((_, index) => (
+            <span key={index} className={index % 3 === 0 ? "is-dark" : ""} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DemoJoinPage() {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    const params = new URLSearchParams();
+
+    if (fullName.trim()) params.set("name", fullName.trim());
+    if (email.trim()) params.set("email", email.trim());
+
+    window.location.href = params.toString()
+      ? `${demoSuccessUrl}?${params.toString()}`
+      : demoSuccessUrl;
+  }
+
+  return (
+    <main className="ps-flow min-h-screen px-5 py-8 text-[var(--ps-espresso)] sm:px-6 lg:px-8">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="ps-flow-card">
+          <a href="/" className="ps-flow-brand" aria-label="PocketStamp home">
+            <span>POCKETSTAMP</span>
+            <small>Apple Wallet loyalty for cafés</small>
+          </a>
+
+          <div className="mt-10">
+            <p className="ps-eyebrow">Demo Wallet card</p>
+            <h1 className="mt-4 text-4xl font-semibold leading-tight text-[var(--ps-espresso)] sm:text-5xl">
+              Try a PocketStamp demo card
+            </h1>
+            <p className="mt-5 text-lg leading-8 text-[var(--ps-muted)]">
+              Create a sample loyalty card and add it to Apple Wallet on your
+              iPhone.
+            </p>
+            <p className="mt-3 leading-7 text-[var(--ps-muted)]">
+              PocketStamp helps cafés replace paper stamp cards with a branded
+              Apple Wallet loyalty card, customer list, and automatic reminders.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            <label className="block">
+              <span className="text-sm font-semibold text-[var(--ps-espresso)]">
+                Full name
+              </span>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                autoComplete="name"
+                required
+                className="ps-input mt-2"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-semibold text-[var(--ps-espresso)]">
+                Email address
+              </span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                required
+                className="ps-input mt-2"
+              />
+            </label>
+
+            <button type="submit" className="ps-button-primary w-full">
+              Create Demo Wallet Card
+            </button>
+          </form>
+
+          <p className="mt-5 text-sm leading-6 text-[var(--ps-muted)]">
+            Best opened on iPhone. After signup, your demo card will open in
+            Apple Wallet. This is a sample PocketStamp card. No purchase
+            required.
+          </p>
+        </section>
+
+        <section className="relative">
+          <div className="ps-flow-glow" aria-hidden="true" />
+          <DemoWalletPreview />
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function DemoSuccessPage() {
+  const params = new URLSearchParams(window.location.search);
+  const customerName = params.get("name")?.trim();
+
+  return (
+    <main className="ps-flow min-h-screen px-5 py-8 text-[var(--ps-espresso)] sm:px-6 lg:px-8">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-12 lg:grid-cols-[0.95fr_1.05fr]">
+        <section className="ps-flow-card">
+          <a href="/" className="ps-flow-brand" aria-label="PocketStamp home">
+            <span>POCKETSTAMP</span>
+            <small>Apple Wallet loyalty for cafés</small>
+          </a>
+
+          <div className="mt-10">
+            <p className="ps-eyebrow">Demo card ready</p>
+            <h1 className="mt-4 text-4xl font-semibold leading-tight text-[var(--ps-espresso)] sm:text-5xl">
+              Your PocketStamp demo card is ready.
+            </h1>
+            <p className="mt-5 text-lg leading-8 text-[var(--ps-muted)]">
+              {customerName ? `${customerName}, open this` : "Open this"} on
+              your iPhone and add the demo card to Apple Wallet.
+            </p>
+          </div>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a href={demoBackendJoinUrl} className="ps-button-primary">
+              Add Demo Card to Apple Wallet
+            </a>
+            <a href={demoJoinUrl} className="ps-button-secondary">
+              Edit details
+            </a>
+          </div>
+
+          <p className="mt-5 text-sm leading-6 text-[var(--ps-muted)]">
+            This is a sample PocketStamp card. It updates like a real café
+            loyalty card.
+          </p>
+        </section>
+
+        <section className="relative">
+          <div className="ps-flow-glow" aria-hidden="true" />
+          <DemoWalletPreview />
+        </section>
+      </div>
+    </main>
+  );
+}
+
 function MerchantLogin({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -835,14 +1004,14 @@ function MerchantLogin({ onLogin }) {
 
 function OverviewCard({ label, value, helper, iconLabel }) {
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div className="ps-dashboard-card rounded-2xl p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-slate-500">{label}</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{value}</p>
-          {helper ? <p className="mt-2 text-sm text-slate-500">{helper}</p> : null}
+          <p className="text-sm font-semibold text-[var(--ps-muted)]">{label}</p>
+          <p className="mt-3 text-3xl font-semibold text-[var(--ps-espresso)]">{value}</p>
+          {helper ? <p className="mt-2 text-sm text-[var(--ps-muted)]">{helper}</p> : null}
         </div>
-        <div className="rounded-xl bg-[#e7f7f3] p-3 text-[#16856f]">
+        <div className="rounded-xl bg-[var(--ps-blue-soft)] p-3 text-[var(--ps-blue)]">
           <span className="text-xs font-bold">{iconLabel}</span>
         </div>
       </div>
@@ -998,7 +1167,7 @@ function LoyaltyCustomersSection({
               const detailRows = [
                 ["Joined", formatCustomerDate(customer.joinedDate)],
                 ["Birthday", formatCustomerBirthday(customer)],
-                ["Wallet pass", formatCustomerWalletStatus(customer)],
+                ["Apple Wallet card", formatCustomerWalletStatus(customer)],
                 ["Card ID", formatCustomerCardId(customer)],
                 ["Reward threshold", `${Number(customer.rewardThreshold ?? 10) || 10} stamps`],
                 ["Last activity", formatCustomerDate(customer.lastUpdated)],
@@ -1117,7 +1286,7 @@ function ReminderStatusSection({ summary, isLoading, error }) {
     [
       "Birthday rewards",
       "Active",
-      "Customers can add their birthday when joining. PocketStamp can make their Wallet pass reward-ready on their birthday.",
+      "Customers can add their birthday when joining. PocketStamp can make their Apple Wallet loyalty card reward-ready on their birthday.",
     ],
     [
       "Win-back reminders",
@@ -1265,7 +1434,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
         });
         setDashboardSummaryError(
           dashboardResult.reason?.message ||
-            "Unable to load dashboard summary right now.",
+            "Unable to load dashboard totals right now.",
         );
       }
 
@@ -1326,10 +1495,10 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     };
   }, [accessToken, customerSearch, customerStatus]);
 
-  const metricFallback = dashboardSummaryError ? "Summary unavailable" : "—";
+  const metricFallback = dashboardSummaryError ? "Totals unavailable" : "—";
   const metricHelperFallback = dashboardSummaryError
-    ? "Dashboard summary could not be loaded."
-    : "Loading summary...";
+    ? "Dashboard totals could not be loaded."
+    : "Loading totals...";
 
   async function handleCopyJoinUrl() {
     try {
@@ -1353,21 +1522,21 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#fbfaf7] text-slate-950">
-      <header className="border-b border-slate-200 bg-white">
+    <main className="ps-dashboard min-h-screen text-[var(--ps-espresso)]">
+      <header className="border-b border-[var(--ps-border)] bg-[rgba(255,253,248,0.86)]">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-6 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div className="flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#143d3b] text-white">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--ps-espresso)] text-white">
               PS
             </span>
             <div>
-              <p className="text-sm font-semibold uppercase text-[#16856f]">
+              <p className="text-sm font-semibold uppercase text-[var(--ps-blue)]">
                 PocketStamp Merchant
               </p>
-              <h1 className="mt-1 text-2xl font-semibold text-slate-950">
+              <h1 className="mt-1 text-2xl font-semibold text-[var(--ps-espresso)]">
                 {merchantContext.merchantName}
               </h1>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-[var(--ps-muted)]">
                 {merchantContext.locationName} · {merchantContext.role}
               </p>
             </div>
@@ -1376,7 +1545,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
           <button
             type="button"
             onClick={onLogout}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300"
           >
             Logout
           </button>
@@ -1411,7 +1580,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             helper={
               isDashboardSummaryLoading || dashboardSummaryError
                 ? metricHelperFallback
-                : "From dashboard summary."
+                  : "stamps collected today"
             }
             iconLabel="Stamps"
           />
@@ -1425,14 +1594,14 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             helper={
               isDashboardSummaryLoading || dashboardSummaryError
                 ? metricHelperFallback
-                : "From dashboard summary."
+                  : "rewards claimed"
             }
             iconLabel="✓"
           />
           <OverviewCard
             label="Reader status"
             value="Ready"
-            helper="Ready for reader events."
+            helper="QR scanning works now. Reader setup can be connected when available."
             iconLabel="Tap"
           />
         </div>
@@ -1463,11 +1632,11 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
           <section>
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-semibold text-slate-950">
+                <h2 className="text-2xl font-semibold text-[var(--ps-espresso)]">
                   Recent activity
                 </h2>
-                <p className="mt-1 text-slate-500">
-                  Latest joins, stamps and rewards from the backend.
+                <p className="mt-1 text-[var(--ps-muted)]">
+                  Latest joins, stamps and rewards from your loyalty activity.
                 </p>
               </div>
             </div>
@@ -1479,20 +1648,20 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
           </section>
 
           <aside className="space-y-6">
-            <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="ps-dashboard-card rounded-2xl p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-950">
-                    Join URL
+                  <h2 className="text-xl font-semibold text-[var(--ps-espresso)]">
+                    Join QR
                   </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Share this branded link or display the counter QR code.
+                  <p className="mt-2 text-sm leading-6 text-[var(--ps-muted)]">
+                    Share this branded link or display the counter Join QR.
                   </p>
                 </div>
-                <span className="text-sm font-bold text-[#16856f]">QR</span>
+                <span className="text-sm font-bold text-[var(--ps-blue)]">QR</span>
               </div>
 
-              <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-800 break-all">
+              <div className="mt-5 rounded-xl bg-[var(--ps-cream)] p-4 text-sm font-semibold leading-6 text-[var(--ps-espresso)] break-all">
                 {joinUrl}
               </div>
 
@@ -1502,7 +1671,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                 <button
                   type="button"
                   onClick={handleCopyJoinUrl}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#143d3b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f302f]"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--ps-blue)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#255ddd]"
                 >
                   {copyState === "copied"
                     ? "Copied"
@@ -1514,28 +1683,28 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                   href={joinUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300"
                 >
                   Open
                 </a>
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="ps-dashboard-card rounded-2xl p-6">
               <div className="flex items-start gap-4">
-                <div className="rounded-xl bg-[#e7f7f3] p-3 text-[#16856f]">
+                <div className="rounded-xl bg-[var(--ps-blue-soft)] p-3 text-[var(--ps-blue)]">
                   <span className="text-xs font-bold">Tap</span>
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-950">
-                    Reader/device
+                  <h2 className="text-xl font-semibold text-[var(--ps-espresso)]">
+                    Reader setup
                   </h2>
-                  <p className="mt-3 font-semibold text-slate-800">
-                    Reader integration: VTAP-style endpoint prepared
+                  <p className="mt-3 font-semibold text-[var(--ps-espresso)]">
+                    QR scanning works now.
                   </p>
-                  <p className="mt-2 leading-7 text-slate-500">
-                    Next: connect hardware reader once Apple/VAS details are
-                    confirmed.
+                  <p className="mt-2 leading-7 text-[var(--ps-muted)]">
+                    PocketStamp is prepared for Apple Wallet reader support
+                    once Apple approval and compatible hardware are confirmed.
                   </p>
                 </div>
               </div>
@@ -1757,8 +1926,8 @@ function MarketingHomepage() {
             ))}
           </div>
           <p className="mt-8 max-w-3xl text-sm leading-6 text-slate-500">
-            Designed around compatible Apple Wallet reader workflows, including
-            VTAP-style Apple VAS-compatible hardware.
+            Designed around compatible Apple Wallet reader workflows, with QR
+            scanning available now and reader setup ready for the next layer.
           </p>
         </div>
       </section>
@@ -1901,6 +2070,14 @@ function MarketingHomepage() {
 
 export default function App() {
   const pathname = window.location.pathname;
+
+  if (pathname === demoJoinUrl) {
+    return <DemoJoinPage />;
+  }
+
+  if (pathname === demoSuccessUrl) {
+    return <DemoSuccessPage />;
+  }
 
   if (pathname.startsWith("/merchant")) {
     return <MerchantPortal />;
