@@ -9,7 +9,7 @@
   "rewrites": [
     {
       "source": "/demo/pocket-stamp-demo/create",
-      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/join/pocket-stamp-demo"
+      "destination": "/api/demo-pocket-stamp-demo-create"
     },
     {
       "source": "/join/pocket-stamp-demo",

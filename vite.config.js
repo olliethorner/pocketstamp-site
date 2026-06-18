@@ -2,15 +2,68 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  server: {
-    proxy: {
-      '/demo/pocket-stamp-demo/create': {
-        target: 'https://pocketstamp-wallet-backend-production.up.railway.app',
-        changeOrigin: true,
-        rewrite: () => '/join/pocket-stamp-demo',
-      },
+const API_BASE_URL = 'https://pocketstamp-wallet-backend-production.up.railway.app'
+
+function demoCreateMiddleware() {
+  return {
+    name: 'pocketstamp-demo-create-middleware',
+    configureServer(server) {
+      server.middlewares.use('/demo/pocket-stamp-demo/create', async (request, response) => {
+        if (request.method !== 'POST') {
+          response.statusCode = 405
+          response.setHeader('Allow', 'POST')
+          response.end(JSON.stringify({ error: 'Method not allowed' }))
+          return
+        }
+
+        try {
+          const chunks = []
+
+          for await (const chunk of request) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+          }
+
+          const createResponse = await fetch(`${API_BASE_URL}/join/pocket-stamp-demo`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': request.headers['content-type'] || 'application/x-www-form-urlencoded',
+            },
+            body: Buffer.concat(chunks).toString('utf8'),
+            redirect: 'manual',
+          })
+          const location = createResponse.headers.get('location')
+
+          if (!location) {
+            response.statusCode = 502
+            response.end(JSON.stringify({ error: 'Demo card was created, but no success URL was returned.' }))
+            return
+          }
+
+          const successUrl = new URL(location, API_BASE_URL).toString()
+          const successResponse = await fetch(successUrl)
+          const successHtml = await successResponse.text()
+          const passHref = successHtml.match(/<a\b[^>]*href=["']([^"']+)["'][^>]*>\s*Add Demo Card to Apple Wallet\s*<\/a>/i)?.[1]
+
+          if (!passHref) {
+            response.statusCode = 502
+            response.end(JSON.stringify({ error: 'Demo card was created, but no Wallet pass URL was found.' }))
+            return
+          }
+
+          response.setHeader('Content-Type', 'application/json')
+          response.end(JSON.stringify({
+            successUrl,
+            passUrl: new URL(passHref, API_BASE_URL).toString(),
+          }))
+        } catch (error) {
+          response.statusCode = 500
+          response.end(JSON.stringify({ error: error.message || 'Unable to create the demo Wallet card.' }))
+        }
+      })
     },
-  },
+  }
+}
+
+export default defineConfig({
+  plugins: [react(), tailwindcss(), demoCreateMiddleware()],
 })

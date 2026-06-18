@@ -113,29 +113,6 @@ function loginMerchant(email, password) {
   });
 }
 
-function toAbsoluteBackendUrl(pathOrUrl) {
-  if (!pathOrUrl) return "";
-
-  try {
-    return new URL(pathOrUrl, API_BASE_URL).toString();
-  } catch {
-    return "";
-  }
-}
-
-function extractDemoPassUrlFromLocation(location) {
-  const absoluteLocation = toAbsoluteBackendUrl(location);
-  if (!absoluteLocation) return "";
-
-  const url = new URL(absoluteLocation);
-  if (url.pathname.startsWith("/pass/")) return url.toString();
-
-  const serial = url.pathname.split("/").filter(Boolean).at(-1);
-  if (!serial) return "";
-
-  return `${API_BASE_URL}/pass/${encodeURIComponent(serial)}`;
-}
-
 function fetchMerchantMe(accessToken) {
   return requestJson("/api/auth/me", {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -812,14 +789,16 @@ function DemoJoinPage() {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: params.toString(),
-        redirect: "manual",
       });
 
-      const location = response.headers.get("Location");
-      const passUrl = extractDemoPassUrlFromLocation(location || response.url);
+      const payload = await response.json();
+      const passUrl = payload?.passUrl || "";
 
-      if (!passUrl) {
-        throw new Error("Demo card was created, but no Wallet pass URL was returned.");
+      if (!response.ok || !passUrl) {
+        throw new Error(
+          payload?.error ||
+            "Demo card was created, but no Wallet pass URL was returned.",
+        );
       }
 
       sessionStorage.setItem(demoPassStorageKey, passUrl);
@@ -827,6 +806,8 @@ function DemoJoinPage() {
       const successParams = new URLSearchParams({
         passUrl,
       });
+
+      if (payload?.successUrl) successParams.set("successUrl", payload.successUrl);
 
       if (fullName.trim()) successParams.set("name", fullName.trim());
 
