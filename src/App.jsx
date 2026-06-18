@@ -925,14 +925,19 @@ function DemoSuccessPage() {
             </h1>
             <p className="mt-5 text-lg leading-8 text-[var(--ps-muted)]">
               {hasPassUrl
-                ? `${customerName ? `${customerName}, open this` : "Open this"} on your iPhone and add the demo card to Apple Wallet.`
+                ? `${customerName ? `${customerName}, tap below` : "Tap below"} to open Apple Wallet and add your card.`
                 : "This success page needs a fresh demo Wallet card link. Head back to create a sample card first."}
             </p>
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             {hasPassUrl ? (
-              <a href={passUrl} className="ps-button-primary">
+              <a
+                href={passUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="ps-button-primary"
+              >
                 Add Demo Card to Apple Wallet
               </a>
             ) : null}
@@ -942,8 +947,9 @@ function DemoSuccessPage() {
           </div>
 
           <p className="mt-5 text-sm leading-6 text-[var(--ps-muted)]">
-            This is a sample PocketStamp card. It updates like a real café
-            loyalty card.
+            {hasPassUrl
+              ? "Apple Wallet may open in a new tab or sheet. You can return to this page after adding the card."
+              : "This is a sample PocketStamp card. It updates like a real café loyalty card."}
           </p>
         </section>
 
