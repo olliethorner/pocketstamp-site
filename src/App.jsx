@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
+import AdminPortal from "./AdminPortal.jsx";
 import "./App.css";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
@@ -2140,6 +2141,10 @@ export default function App() {
 
   if (pathname.startsWith("/merchant")) {
     return <MerchantPortal />;
+  }
+
+  if (pathname.startsWith("/admin")) {
+    return <AdminPortal path={pathname} />;
   }
 
   return <MarketingHomepage />;
