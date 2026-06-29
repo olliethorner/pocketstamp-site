@@ -794,6 +794,7 @@ function OnboardCafePage() {
                     ) : null}
                     {form.colorSuggestions ? (
                       <div className="mt-4">
+                        <p className="mb-2 text-xs font-semibold text-slate-500">Suggested only. Current colours stay unchanged unless applied.</p>
                         <div className="flex flex-wrap gap-2">
                           {(form.colorSuggestions.palette || []).map((color) => (
                             <span key={color} className="h-7 w-7 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: color }} />
@@ -1300,6 +1301,7 @@ function MerchantDetailPage({ merchantId }) {
                   />
                   {form.colorSuggestions ? (
                     <div className="mt-4">
+                      <p className="mb-2 text-xs font-semibold text-slate-500">Suggested only. Current colours stay unchanged unless applied.</p>
                       <div className="flex flex-wrap gap-2">
                         {(form.colorSuggestions.palette || []).map((color) => (
                           <span key={color} className="h-7 w-7 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: color }} />
