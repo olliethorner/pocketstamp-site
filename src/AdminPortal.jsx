@@ -274,6 +274,14 @@ function extractLinks(payload, merchant = {}) {
       merchant.merchantDashboardUrl,
       slug || getMerchantId(merchant) ? `${origin}/merchant` : null,
     ),
+    merchantSetupUrl: pickFirst(
+      links.merchantSetupUrl,
+      payload?.merchantSetupUrl,
+      payload?.result?.merchantSetupUrl,
+      payload?.data?.merchantSetupUrl,
+      payload?.data?.result?.merchantSetupUrl,
+      merchant.merchantSetupUrl,
+    ),
     staffDashboardUrl: pickFirst(
       links.staffDashboardUrl,
       payload?.staffDashboardUrl,
@@ -368,12 +376,33 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
     links.demoPassUrl,
     merchant.demoPassUrl,
   );
+  const merchantSetupUrl = pickFirst(
+    response.merchantSetupUrl,
+    data.merchantSetupUrl,
+    result.merchantSetupUrl,
+    welcomePack.merchantSetupUrl,
+    links.merchantSetupUrl,
+    merchant.merchantSetupUrl,
+  );
 
   return {
     merchantId,
     merchantSlug,
     joinUrl,
     merchantDashboardUrl,
+    merchantSetupUrl,
+    merchantOwnerStatus: pickFirst(
+      response.merchantOwnerStatus,
+      data.merchantOwnerStatus,
+      result.merchantOwnerStatus,
+      merchant.merchantOwnerStatus,
+    ),
+    merchantOwnerInviteExpiresAt: pickFirst(
+      response.merchantOwnerInviteExpiresAt,
+      data.merchantOwnerInviteExpiresAt,
+      result.merchantOwnerInviteExpiresAt,
+      merchant.merchantOwnerInviteExpiresAt,
+    ),
     staffDashboardUrl,
     demoPassUrl,
     welcomeEmailSubject: pickFirst(
@@ -382,7 +411,7 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
       result.welcomeEmailSubject,
       welcomePack.welcomeEmailSubject,
       welcomePack.subject,
-      buildWelcomeEmail(formState, { joinUrl, merchantDashboardUrl, staffDashboardUrl, demoPassUrl }).subject,
+      buildWelcomeEmail(formState, { joinUrl, merchantDashboardUrl, merchantSetupUrl, staffDashboardUrl, demoPassUrl }).subject,
     ),
     welcomeEmailBody: pickFirst(
       response.welcomeEmailBody,
@@ -390,7 +419,7 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
       result.welcomeEmailBody,
       welcomePack.welcomeEmailBody,
       welcomePack.body,
-      buildWelcomeEmail(formState, { joinUrl, merchantDashboardUrl, staffDashboardUrl, demoPassUrl }).body,
+      buildWelcomeEmail(formState, { joinUrl, merchantDashboardUrl, merchantSetupUrl, staffDashboardUrl, demoPassUrl }).body,
     ),
   };
 }
@@ -403,11 +432,12 @@ function buildWelcomeEmail(form, links) {
     `${form.cafeName || "Your café"} is set up in PocketStamp.`,
     "",
     `Join URL: ${links.joinUrl || "Not returned"}`,
-    `Merchant dashboard: ${links.merchantDashboardUrl || "Not returned"}`,
-    links.staffDashboardUrl ? `Staff dashboard: ${links.staffDashboardUrl}` : null,
+    `Merchant owner setup: ${links.merchantSetupUrl || "Ask PocketStamp to resend your setup link."}`,
+    `Merchant dashboard after setup: ${links.merchantDashboardUrl || "Not returned"}`,
+    links.staffDashboardUrl ? `Staff dashboard: ${links.staffDashboardUrl}` : "Staff accounts can be created later.",
     links.demoPassUrl ? `Demo pass: ${links.demoPassUrl}` : null,
     "",
-    "Next step: share the join QR with staff and test the customer Wallet flow.",
+    "Next step: create your merchant password, then test the customer Wallet flow.",
     "",
     "Thanks,",
     "PocketStamp",
@@ -721,8 +751,11 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
             <Detail label="Merchant ID" value={normalizedCreated.merchantId} />
             <Detail label="Merchant slug" value={normalizedCreated.merchantSlug} />
             <Detail label="Join URL" value={normalizedCreated.joinUrl} />
-            <Detail label="Merchant dashboard URL" value={normalizedCreated.merchantDashboardUrl} />
-            <Detail label="Staff dashboard URL" value={normalizedCreated.staffDashboardUrl} />
+            <Detail label="Merchant owner setup URL" value={normalizedCreated.merchantSetupUrl} />
+            <Detail label="Merchant dashboard URL after setup" value={normalizedCreated.merchantDashboardUrl} />
+            <Detail label="Merchant owner status" value={normalizedCreated.merchantOwnerStatus} />
+            <Detail label="Owner invite expires" value={formatDate(normalizedCreated.merchantOwnerInviteExpiresAt)} />
+            <Detail label="Staff dashboard URL" value={normalizedCreated.staffDashboardUrl || "Staff accounts can be created later"} />
             <Detail label="Demo pass URL" value={normalizedCreated.demoPassUrl} />
           </div>
 
@@ -743,6 +776,15 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
             >
               Copy join URL
             </button>
+            {normalizedCreated.merchantSetupUrl ? (
+              <button
+                type="button"
+                onClick={() => copyText("Merchant setup URL", normalizedCreated.merchantSetupUrl)}
+                className="ps-button-secondary"
+              >
+                Copy merchant setup URL
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => copyText("Welcome email", `${welcomeEmail.subject}\n\n${welcomeEmail.body}`)}
@@ -1130,6 +1172,8 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [ownerInviteUrl, setOwnerInviteUrl] = useState("");
+  const [isRegeneratingInvite, setIsRegeneratingInvite] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -1292,6 +1336,27 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     }
   }
 
+  async function handleRegenerateOwnerInvite() {
+    setIsRegeneratingInvite(true);
+    setError("");
+    setSaveMessage("");
+
+    try {
+      const payload = await adminFetch(`/api/admin/merchants/${merchantId}/owner-invite`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }, accessToken);
+      const result = payload?.result || {};
+      setOwnerInviteUrl(result.merchantSetupUrl || "");
+      if (result.merchant) setMerchant(result.merchant);
+      setSaveMessage("Owner setup link regenerated.");
+    } catch (inviteError) {
+      setError(inviteError.message || "Unable to regenerate owner setup link.");
+    } finally {
+      setIsRegeneratingInvite(false);
+    }
+  }
+
   return (
     <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
       <section className="ps-flow-card">
@@ -1325,10 +1390,41 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
               <h2 className="text-xl font-semibold">Links</h2>
               <div className="mt-4 grid gap-3">
                 <Detail label="Join URL" value={links.joinUrl} />
-                <Detail label="Merchant dashboard URL" value={links.merchantDashboardUrl} />
-                <Detail label="Staff dashboard URL" value={links.staffDashboardUrl} />
+                <Detail label="Merchant dashboard URL after setup" value={links.merchantDashboardUrl} />
+                <Detail label="Staff dashboard URL" value={links.staffDashboardUrl || "Staff accounts can be created later"} />
                 <Detail label="Demo pass URL" value={links.demoPassUrl} />
               </div>
+            </div>
+            <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+              <h2 className="text-xl font-semibold">Merchant owner account</h2>
+              <div className="mt-4 grid gap-3">
+                <Detail label="Owner email" value={getContactEmail(merchant)} />
+                <Detail label="Owner status" value={pickFirst(merchant.merchantOwnerStatus, "Not returned")} />
+                <Detail label="Invite expires" value={formatDate(merchant.merchantOwnerInviteExpiresAt)} />
+                <Detail label="Activated" value={formatDate(merchant.merchantOwnerActivatedAt)} />
+                {ownerInviteUrl ? <Detail label="New setup URL" value={ownerInviteUrl} /> : null}
+              </div>
+              {merchant.merchantOwnerStatus === "invited" || merchant.merchantOwnerHasSetupInvite ? (
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleRegenerateOwnerInvite}
+                    disabled={isRegeneratingInvite}
+                    className="ps-button-secondary disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isRegeneratingInvite ? "Regenerating..." : "Regenerate setup link"}
+                  </button>
+                  {ownerInviteUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(ownerInviteUrl)}
+                      className="ps-button-secondary"
+                    >
+                      Copy setup URL
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
               <h2 className="text-xl font-semibold">Overview</h2>
