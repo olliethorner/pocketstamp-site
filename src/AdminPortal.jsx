@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const ADMIN_API_SECRET = import.meta.env.VITE_ADMIN_API_SECRET;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const ADMIN_SESSION_STORAGE_KEY = "pocketstampAdminSession";
 
 const initialOnboardingForm = {
   cafeName: "",
@@ -36,22 +39,24 @@ const wizardSteps = [
   "Review",
 ];
 
-function adminFetch(path, options = {}) {
+function adminFetch(path, options = {}, accessToken = "") {
   if (!ADMIN_API_BASE_URL) {
     throw new Error("Missing VITE_POCKETSTAMP_BACKEND_URL.");
   }
 
-  if (!ADMIN_API_SECRET) {
-    throw new Error("Missing VITE_ADMIN_API_SECRET.");
+  if (!accessToken && !ADMIN_API_SECRET) {
+    throw new Error("Admin login is required.");
   }
 
-  // TODO: Replace this temporary frontend secret with Supabase role-based auth
-  // and a server-side proxy before any production admin launch.
+  const authHeaders = accessToken
+    ? { Authorization: `Bearer ${accessToken}` }
+    : { "x-pocketstamp-admin-secret": ADMIN_API_SECRET };
+
   return fetch(`${ADMIN_API_BASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "x-pocketstamp-admin-secret": ADMIN_API_SECRET,
+      ...authHeaders,
       ...options.headers,
     },
   }).then(async (response) => {
@@ -77,6 +82,68 @@ function adminFetch(path, options = {}) {
     }
 
     return payload;
+  });
+}
+
+function getStoredAdminSession() {
+  try {
+    const raw = window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeAdminSession(session) {
+  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+function clearAdminSession() {
+  window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+}
+
+function normalizeSupabaseSession(payload) {
+  return {
+    accessToken: payload.access_token,
+    refreshToken: payload.refresh_token,
+    expiresAt: Date.now() + (Number(payload.expires_in) || 3600) * 1000,
+    user: payload.user || null,
+  };
+}
+
+async function supabaseTokenRequest(body) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.");
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=${body.grant_type}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body.payload),
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.error_description || payload.msg || payload.message || "Unable to sign in.");
+  }
+
+  return normalizeSupabaseSession(payload);
+}
+
+function signInAdmin(email, password) {
+  return supabaseTokenRequest({
+    grant_type: "password",
+    payload: { email, password },
+  });
+}
+
+function refreshAdminSession(refreshToken) {
+  return supabaseTokenRequest({
+    grant_type: "refresh_token",
+    payload: { refresh_token: refreshToken },
   });
 }
 
@@ -351,7 +418,7 @@ function buildWelcomeEmail(form, links) {
   return { subject, body };
 }
 
-function AdminShell({ children, active }) {
+function AdminShell({ children, active, adminContext, onLogout }) {
   const navItems = [
     ["/admin/onboard", "Onboard Café"],
     ["/admin/cafes", "Cafés"],
@@ -372,24 +439,36 @@ function AdminShell({ children, active }) {
             </span>
           </a>
 
-          <nav className="flex flex-wrap gap-2">
-            {navItems.map(([href, label]) => {
-              const isActive = active === href;
-              return (
-                <a
-                  key={href}
-                  href={href}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold no-underline transition ${
-                    isActive
-                      ? "bg-[var(--ps-blue)] text-white"
-                      : "border border-[var(--ps-border)] bg-[var(--ps-card)] text-[var(--ps-espresso)] hover:border-stone-300"
-                  }`}
-                >
-                  {label}
-                </a>
-              );
-            })}
-          </nav>
+          <div className="flex flex-col gap-3 lg:items-end">
+            <nav className="flex flex-wrap gap-2">
+              {navItems.map(([href, label]) => {
+                const isActive = active === href;
+                return (
+                  <a
+                    key={href}
+                    href={href}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold no-underline transition ${
+                      isActive
+                        ? "bg-[var(--ps-blue)] text-white"
+                        : "border border-[var(--ps-border)] bg-[var(--ps-card)] text-[var(--ps-espresso)] hover:border-stone-300"
+                    }`}
+                  >
+                    {label}
+                  </a>
+                );
+              })}
+            </nav>
+            {adminContext ? (
+              <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--ps-muted)]">
+                <span>
+                  {adminContext.fullName || adminContext.email} · {adminContext.role}
+                </span>
+                <button type="button" onClick={onLogout} className="font-semibold text-[var(--ps-blue)]">
+                  Sign out
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -487,7 +566,7 @@ function PassPreview({ form }) {
   );
 }
 
-function OnboardCafePage() {
+function OnboardCafePage({ accessToken, adminContext, onLogout }) {
   const [form, setForm] = useState(initialOnboardingForm);
   const [step, setStep] = useState(0);
   const [slugEdited, setSlugEdited] = useState(false);
@@ -499,7 +578,6 @@ function OnboardCafePage() {
   const warnings = useMemo(() => {
     const items = [];
     if (!ADMIN_API_BASE_URL) items.push("VITE_POCKETSTAMP_BACKEND_URL is missing.");
-    if (!ADMIN_API_SECRET) items.push("VITE_ADMIN_API_SECRET is missing.");
     if (!form.cafeName.trim()) items.push("Café name is required.");
     if (!form.merchantSlug.trim()) items.push("Merchant slug is required.");
     if (!form.locationName.trim()) items.push("Location name is required.");
@@ -529,7 +607,7 @@ function OnboardCafePage() {
       const payload = await adminFetch("/api/admin/logo-suggestions", {
         method: "POST",
         body: JSON.stringify({ logoUpload }),
-      });
+      }, accessToken);
       updateField("colorSuggestions", payload?.suggestions || null);
     } catch (logoError) {
       setError(logoError.message || "Unable to read logo.");
@@ -580,7 +658,7 @@ function OnboardCafePage() {
           ...form,
           rewardThreshold: Number(form.rewardThreshold),
         }),
-      });
+      }, accessToken);
       const normalized = normalizeOnboardResponse(payload || {}, form);
       if (import.meta.env.DEV) {
         console.log("Admin onboard response", payload);
@@ -622,7 +700,7 @@ function OnboardCafePage() {
 
   if (step === 5) {
     return (
-      <AdminShell active="/admin/onboard">
+      <AdminShell active="/admin/onboard" adminContext={adminContext} onLogout={onLogout}>
         <section className="ps-flow-card">
           <p className="ps-eyebrow">Success / handoff</p>
           <h1 className="mt-3 text-3xl font-semibold">Café merchant created</h1>
@@ -688,7 +766,7 @@ function OnboardCafePage() {
   }
 
   return (
-    <AdminShell active="/admin/onboard">
+    <AdminShell active="/admin/onboard" adminContext={adminContext} onLogout={onLogout}>
       <div className="grid gap-6 lg:grid-cols-[0.72fr_0.28fr]">
         <section className="ps-flow-card">
           <p className="ps-eyebrow">Onboard café</p>
@@ -933,7 +1011,7 @@ function OnboardCafePage() {
   );
 }
 
-function CafesListPage() {
+function CafesListPage({ accessToken, adminContext, onLogout }) {
   const [merchants, setMerchants] = useState([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -947,7 +1025,7 @@ function CafesListPage() {
       setError("");
 
       try {
-        const payload = await adminFetch("/api/admin/merchants");
+        const payload = await adminFetch("/api/admin/merchants", {}, accessToken);
         if (isMounted) setMerchants(extractMerchants(payload));
       } catch (loadError) {
         if (isMounted) setError(loadError.message || "Unable to load cafés.");
@@ -961,7 +1039,7 @@ function CafesListPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [accessToken]);
 
   const filteredMerchants = merchants.filter((merchant) => {
     const needle = search.trim().toLowerCase();
@@ -973,12 +1051,14 @@ function CafesListPage() {
   });
 
   return (
-    <AdminShell active="/admin/cafes">
+    <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
       <section className="ps-flow-card">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="ps-eyebrow">Cafés</p>
-            <h1 className="mt-3 text-3xl font-semibold">Merchant list</h1>
+            <h1 className="mt-3 text-3xl font-semibold">
+              {adminContext?.role === "owner" ? "All cafés" : "Your onboarded cafés"}
+            </h1>
           </div>
           <label className="w-full lg:max-w-sm">
             <span className="sr-only">Search cafés</span>
@@ -1023,7 +1103,7 @@ function CafesListPage() {
                         <td className="px-4 py-4 text-slate-600">{getContactEmail(merchant) || "Not returned"}</td>
                         <td className="px-4 py-4 text-slate-600">{pickFirst(merchant.status, merchant.state, "Not returned")}</td>
                         <td className="px-4 py-4 text-slate-600">{formatDate(pickFirst(merchant.createdAt, merchant.created_at))}</td>
-                        <td className="px-4 py-4 text-slate-600">{pickFirst(merchant.createdBy, merchant.created_by, "Not returned")}</td>
+                        <td className="px-4 py-4 text-slate-600">{pickFirst(merchant.createdByEmail, merchant.createdBy, merchant.created_by, "Not returned")}</td>
                         <td className="px-4 py-4">
                           <a href={`/admin/cafes/${merchantId}`} className="font-semibold text-[var(--ps-blue)] no-underline">
                             View/Edit
@@ -1042,7 +1122,7 @@ function CafesListPage() {
   );
 }
 
-function MerchantDetailPage({ merchantId }) {
+function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout }) {
   const [merchant, setMerchant] = useState(null);
   const [form, setForm] = useState({});
   const [isLoading, setIsLoading] = useState(true);
@@ -1059,7 +1139,7 @@ function MerchantDetailPage({ merchantId }) {
       setError("");
 
       try {
-        const payload = await adminFetch(`/api/admin/merchants/${merchantId}`);
+        const payload = await adminFetch(`/api/admin/merchants/${merchantId}`, {}, accessToken);
         const nextMerchant = extractMerchant(payload);
         if (!isMounted) return;
         setMerchant(nextMerchant);
@@ -1093,11 +1173,11 @@ function MerchantDetailPage({ merchantId }) {
     return () => {
       isMounted = false;
     };
-  }, [merchantId]);
+  }, [merchantId, accessToken]);
 
   if (isLoading) {
     return (
-      <AdminShell active="/admin/cafes">
+      <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
         <section className="ps-flow-card">Loading café...</section>
       </AdminShell>
     );
@@ -1105,7 +1185,7 @@ function MerchantDetailPage({ merchantId }) {
 
   if (error || !merchant) {
     return (
-      <AdminShell active="/admin/cafes">
+      <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
         <section className="ps-flow-card"><Alert tone="red">{error || "Café not found."}</Alert></section>
       </AdminShell>
     );
@@ -1146,7 +1226,7 @@ function MerchantDetailPage({ merchantId }) {
       const payload = await adminFetch("/api/admin/logo-suggestions", {
         method: "POST",
         body: JSON.stringify({ logoUpload }),
-      });
+      }, accessToken);
       setForm((current) => ({
         ...current,
         colorSuggestions: payload?.suggestions || null,
@@ -1179,7 +1259,7 @@ function MerchantDetailPage({ merchantId }) {
           ...form,
           rewardThreshold: form.rewardThreshold ? Number(form.rewardThreshold) : undefined,
         }),
-      });
+      }, accessToken);
       const nextMerchant = extractMerchant(payload);
       setMerchant(nextMerchant || { ...merchant, ...form });
       if (nextMerchant) {
@@ -1213,7 +1293,7 @@ function MerchantDetailPage({ merchantId }) {
   }
 
   return (
-    <AdminShell active="/admin/cafes">
+    <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
       <section className="ps-flow-card">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -1335,37 +1415,209 @@ function MerchantDetailPage({ merchantId }) {
   );
 }
 
-function AccountPlaceholderPage() {
+function AdminLoginPage({ onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError("");
+
+    try {
+      await onLogin(email, password);
+    } catch (loginError) {
+      setError(loginError.message || "Unable to sign in.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
-    <AdminShell active="/admin/account">
+    <main className="ps-dashboard min-h-screen px-5 py-10 text-[var(--ps-espresso)]">
+      <section className="ps-flow-card mx-auto max-w-xl">
+        <p className="ps-eyebrow">PocketStamp Admin</p>
+        <h1 className="mt-3 text-3xl font-semibold">Sign in</h1>
+        <p className="mt-3 leading-7 text-[var(--ps-muted)]">
+          Use your PocketStamp admin account.
+        </p>
+
+        {error ? <div className="mt-5"><Alert tone="red">{error}</Alert></div> : null}
+
+        <form onSubmit={handleSubmit} className="mt-6 grid gap-5">
+          <Field label="Email">
+            <TextInput
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </Field>
+          <Field label="Password">
+            <TextInput
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+          </Field>
+          <button type="submit" disabled={isSubmitting} className="ps-button-primary disabled:opacity-70">
+            {isSubmitting ? "Signing in..." : "Sign in"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function AccountPage({ adminContext, onLogout }) {
+  return (
+    <AdminShell active="/admin/account" adminContext={adminContext} onLogout={onLogout}>
       <section className="ps-flow-card">
         <p className="ps-eyebrow">My Account</p>
-        <h1 className="mt-3 text-3xl font-semibold">Account placeholder</h1>
-        <p className="mt-3 max-w-2xl leading-7 text-[var(--ps-muted)]">
-          Admin identity and permissions will move behind Supabase role-based auth before production.
-        </p>
+        <h1 className="mt-3 text-3xl font-semibold">{adminContext.fullName || adminContext.email}</h1>
+        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Detail label="Email" value={adminContext.email} />
+          <Detail label="Role" value={adminContext.role} />
+          <Detail label="Status" value={adminContext.status} />
+          <Detail label="Cafés visible" value={String(adminContext.cafesOnboarded ?? 0)} />
+          <Detail label="Admin ID" value={adminContext.id || "Secret fallback"} />
+          <Detail label="Created" value={formatDate(adminContext.createdAt)} />
+        </div>
+        <button type="button" onClick={onLogout} className="ps-button-secondary mt-6">
+          Sign out
+        </button>
       </section>
     </AdminShell>
   );
 }
 
 export default function AdminPortal({ path }) {
-  if (path === "/admin") {
-    window.history.replaceState(null, "", "/admin/onboard");
-    return <OnboardCafePage />;
+  const [session, setSession] = useState(() => getStoredAdminSession());
+  const [adminContext, setAdminContext] = useState(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [authError, setAuthError] = useState("");
+
+  const accessToken = session?.accessToken || "";
+
+  function handleLogout() {
+    clearAdminSession();
+    setSession(null);
+    setAdminContext(null);
+    window.history.replaceState(null, "", "/admin/login");
   }
 
-  if (path === "/admin/onboard") return <OnboardCafePage />;
-  if (path === "/admin/cafes") return <CafesListPage />;
-  if (path === "/admin/account") return <AccountPlaceholderPage />;
+  async function loadAdminContext(nextSession) {
+    const payload = await adminFetch("/api/admin/me", {}, nextSession.accessToken);
+    const nextAdmin = payload?.admin;
+    if (!nextAdmin) throw new Error("Admin profile was not returned.");
+    setAdminContext(nextAdmin);
+    return nextAdmin;
+  }
+
+  async function handleLogin(email, password) {
+    const nextSession = await signInAdmin(email, password);
+    try {
+      await loadAdminContext(nextSession);
+    } catch (error) {
+      clearAdminSession();
+      throw error;
+    }
+    storeAdminSession(nextSession);
+    setSession(nextSession);
+    window.history.replaceState(null, "", "/admin/onboard");
+  }
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function bootstrap() {
+      if (!session?.accessToken) {
+        setIsBootstrapping(false);
+        return;
+      }
+
+      try {
+        let nextSession = session;
+        if (session.refreshToken && session.expiresAt && session.expiresAt < Date.now() + 60000) {
+          nextSession = await refreshAdminSession(session.refreshToken);
+          storeAdminSession(nextSession);
+          if (isMounted) setSession(nextSession);
+        }
+
+        await loadAdminContext(nextSession);
+        if (isMounted) setAuthError("");
+      } catch (error) {
+        clearAdminSession();
+        if (isMounted) {
+          setSession(null);
+          setAdminContext(null);
+          setAuthError(error.message || "Admin login is required.");
+        }
+      } finally {
+        if (isMounted) setIsBootstrapping(false);
+      }
+    }
+
+    bootstrap();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (isBootstrapping) {
+    return (
+      <main className="ps-dashboard min-h-screen px-5 py-10 text-[var(--ps-espresso)]">
+        <section className="ps-flow-card mx-auto max-w-xl">Loading admin...</section>
+      </main>
+    );
+  }
+
+  if (!session?.accessToken || !adminContext) {
+    return (
+      <>
+        {authError ? (
+          <div className="ps-dashboard px-5 pt-5">
+            <div className="mx-auto max-w-xl"><Alert tone="red">{authError}</Alert></div>
+          </div>
+        ) : null}
+        <AdminLoginPage onLogin={handleLogin} />
+      </>
+    );
+  }
+
+  const pageProps = {
+    accessToken,
+    adminContext,
+    onLogout: handleLogout,
+  };
+
+  if (path === "/admin") {
+    window.history.replaceState(null, "", "/admin/onboard");
+    return <OnboardCafePage {...pageProps} />;
+  }
+
+  if (path === "/admin/login") {
+    window.history.replaceState(null, "", "/admin/onboard");
+    return <OnboardCafePage {...pageProps} />;
+  }
+
+  if (path === "/admin/onboard") return <OnboardCafePage {...pageProps} />;
+  if (path === "/admin/cafes") return <CafesListPage {...pageProps} />;
+  if (path === "/admin/account") return <AccountPage adminContext={adminContext} onLogout={handleLogout} />;
 
   const detailMatch = path.match(/^\/admin\/cafes\/([^/]+)$/);
   if (detailMatch) {
-    return <MerchantDetailPage merchantId={decodeURIComponent(detailMatch[1])} />;
+    return <MerchantDetailPage merchantId={decodeURIComponent(detailMatch[1])} {...pageProps} />;
   }
 
   return (
-    <AdminShell active="/admin/onboard">
+    <AdminShell active="/admin/onboard" adminContext={adminContext} onLogout={handleLogout}>
       <section className="ps-flow-card">
         <h1 className="text-3xl font-semibold">Admin page not found</h1>
         <a href="/admin/onboard" className="ps-button-primary mt-6">
