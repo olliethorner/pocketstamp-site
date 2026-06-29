@@ -19,6 +19,10 @@ const initialOnboardingForm = {
   brandColor: "#26354f",
   backgroundColor: "#fff8ea",
   textColor: "#26211d",
+  logoUpload: null,
+  logoPreviewUrl: "",
+  logoUrl: "",
+  colorSuggestions: null,
   setupMode: "qr_only",
   staffDashboardAccess: true,
   createDemoCustomer: true,
@@ -91,6 +95,24 @@ function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
 }
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Unable to read file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function makeLogoUpload(file, dataUrl) {
+  if (!file || !dataUrl) return null;
+  return {
+    fileName: file.name,
+    mimeType: file.type || "image/png",
+    dataUrl,
+  };
+}
+
 function formatDate(value) {
   if (!value) return "Not returned";
   const date = new Date(value);
@@ -122,6 +144,10 @@ function getMerchantSlug(merchant) {
 
 function getContactEmail(merchant) {
   return pickFirst(merchant.contactEmail, merchant.contact?.email, merchant.email);
+}
+
+function getLogoUrl(merchant) {
+  return pickFirst(merchant.logoUrl, merchant.logoPath, merchant.branding?.logoUrl, merchant.branding?.logoPath);
 }
 
 function extractMerchants(payload) {
@@ -413,6 +439,7 @@ function Alert({ tone = "amber", children }) {
 
 function PassPreview({ form }) {
   const threshold = Number(form.rewardThreshold) || 9;
+  const logoSrc = form.logoPreviewUrl || form.logoUrl;
 
   return (
     <div
@@ -428,9 +455,13 @@ function PassPreview({ form }) {
             <p className="text-xs font-bold uppercase opacity-70">Apple Wallet</p>
             <p className="mt-2 text-xl font-semibold">{form.cafeName || "Café name"}</p>
           </div>
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-sm font-bold">
-            PS
-          </span>
+          {logoSrc ? (
+            <img src={logoSrc} alt="" className="h-12 w-12 rounded-xl bg-white/15 object-contain p-1" />
+          ) : (
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-sm font-bold">
+              PS
+            </span>
+          )}
         </div>
 
         <p className="mt-10 text-xs font-bold uppercase opacity-65">Stamps</p>
@@ -485,6 +516,36 @@ function OnboardCafePage() {
     body: normalizedCreated.welcomeEmailBody,
   };
   const missingCreatedSlug = createdPayload && !normalizedCreated.merchantSlug;
+
+  async function handleLogoFile(file) {
+    if (!file) return;
+    setError("");
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const logoUpload = makeLogoUpload(file, dataUrl);
+      updateField("logoUpload", logoUpload);
+      updateField("logoPreviewUrl", dataUrl);
+      const payload = await adminFetch("/api/admin/logo-suggestions", {
+        method: "POST",
+        body: JSON.stringify({ logoUpload }),
+      });
+      updateField("colorSuggestions", payload?.suggestions || null);
+    } catch (logoError) {
+      setError(logoError.message || "Unable to read logo.");
+    }
+  }
+
+  function applyColorSuggestions() {
+    const suggestions = form.colorSuggestions;
+    if (!suggestions) return;
+    setForm((current) => ({
+      ...current,
+      brandColor: suggestions.brandColor || current.brandColor,
+      backgroundColor: suggestions.backgroundColor || current.backgroundColor,
+      textColor: suggestions.textColor || current.textColor,
+    }));
+  }
 
   function updateField(name, value) {
     setForm((current) => {
@@ -720,8 +781,29 @@ function OnboardCafePage() {
                   <Field label="Text color">
                     <TextInput type="color" value={form.textColor} onChange={(event) => updateField("textColor", event.target.value)} />
                   </Field>
-                  <div className="rounded-xl bg-white p-4 text-sm font-semibold text-slate-500 ring-1 ring-slate-200">
-                    Logo upload placeholder. Upload/storage is not connected in Stage 1.
+                  <div className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
+                    <p className="text-sm font-semibold text-[var(--ps-espresso)]">Logo</p>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      onChange={(event) => handleLogoFile(event.target.files?.[0])}
+                      className="mt-3 block w-full text-sm"
+                    />
+                    {form.logoPreviewUrl ? (
+                      <img src={form.logoPreviewUrl} alt="" className="mt-4 max-h-24 rounded-lg bg-[#fbfaf7] object-contain p-3 ring-1 ring-slate-100" />
+                    ) : null}
+                    {form.colorSuggestions ? (
+                      <div className="mt-4">
+                        <div className="flex flex-wrap gap-2">
+                          {(form.colorSuggestions.palette || []).map((color) => (
+                            <span key={color} className="h-7 w-7 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: color }} />
+                          ))}
+                        </div>
+                        <button type="button" onClick={applyColorSuggestions} className="ps-button-secondary mt-3">
+                          Apply suggested colours
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <PassPreview form={form} />
@@ -796,6 +878,7 @@ function OnboardCafePage() {
                   <Detail label="Terms" value={form.termsText} />
                   <Detail label="Setup mode" value={form.setupMode} />
                   <Detail label="Sales notes" value={form.salesNotes} />
+                  <Detail label="Logo" value={form.logoUpload?.fileName || form.logoUrl} />
                 </div>
               </div>
             ) : null}
@@ -984,12 +1067,18 @@ function MerchantDetailPage({ merchantId }) {
           contactName: pickFirst(nextMerchant.contactName, nextMerchant.contact?.name),
           contactEmail: getContactEmail(nextMerchant),
           contactPhone: pickFirst(nextMerchant.contactPhone, nextMerchant.contact?.phone),
+          address: pickFirst(nextMerchant.address, nextMerchant.location?.address),
           salesNotes: pickFirst(nextMerchant.salesNotes, nextMerchant.notes),
           rewardThreshold: pickFirst(nextMerchant.rewardThreshold, nextMerchant.loyalty?.rewardThreshold),
           rewardText: pickFirst(nextMerchant.rewardText, nextMerchant.loyalty?.rewardText),
           brandColor: pickFirst(nextMerchant.brandColor, nextMerchant.branding?.brandColor),
           backgroundColor: pickFirst(nextMerchant.backgroundColor, nextMerchant.branding?.backgroundColor),
           textColor: pickFirst(nextMerchant.textColor, nextMerchant.branding?.textColor),
+          status: pickFirst(nextMerchant.status, nextMerchant.state, "active"),
+          logoUpload: null,
+          logoPreviewUrl: "",
+          logoUrl: getLogoUrl(nextMerchant),
+          colorSuggestions: null,
         });
       } catch (loadError) {
         if (isMounted) setError(loadError.message || "Unable to load café.");
@@ -1027,7 +1116,9 @@ function MerchantDetailPage({ merchantId }) {
     ["contactName", "Contact name", "text"],
     ["contactEmail", "Contact email", "email"],
     ["contactPhone", "Contact phone", "text"],
+    ["address", "Address", "textarea"],
     ["salesNotes", "Notes", "textarea"],
+    ["status", "Status", "text"],
     ["rewardThreshold", "Reward threshold", "number"],
     ["rewardText", "Reward text", "textarea"],
     ["brandColor", "Brand color", "color"],
@@ -1037,6 +1128,42 @@ function MerchantDetailPage({ merchantId }) {
 
   function updateForm(name, value) {
     setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function handleDetailLogoFile(file) {
+    if (!file) return;
+    setError("");
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const logoUpload = makeLogoUpload(file, dataUrl);
+      setForm((current) => ({
+        ...current,
+        logoUpload,
+        logoPreviewUrl: dataUrl,
+      }));
+      const payload = await adminFetch("/api/admin/logo-suggestions", {
+        method: "POST",
+        body: JSON.stringify({ logoUpload }),
+      });
+      setForm((current) => ({
+        ...current,
+        colorSuggestions: payload?.suggestions || null,
+      }));
+    } catch (logoError) {
+      setError(logoError.message || "Unable to read logo.");
+    }
+  }
+
+  function applyDetailColorSuggestions() {
+    const suggestions = form.colorSuggestions;
+    if (!suggestions) return;
+    setForm((current) => ({
+      ...current,
+      brandColor: suggestions.brandColor || current.brandColor,
+      backgroundColor: suggestions.backgroundColor || current.backgroundColor,
+      textColor: suggestions.textColor || current.textColor,
+    }));
   }
 
   async function handleSave() {
@@ -1054,6 +1181,27 @@ function MerchantDetailPage({ merchantId }) {
       });
       const nextMerchant = extractMerchant(payload);
       setMerchant(nextMerchant || { ...merchant, ...form });
+      if (nextMerchant) {
+        setForm((current) => ({
+          ...current,
+          cafeName: getMerchantName(nextMerchant),
+          contactName: pickFirst(nextMerchant.contactName, nextMerchant.contact?.name),
+          contactEmail: getContactEmail(nextMerchant),
+          contactPhone: pickFirst(nextMerchant.contactPhone, nextMerchant.contact?.phone),
+          address: pickFirst(nextMerchant.address, nextMerchant.location?.address),
+          salesNotes: pickFirst(nextMerchant.salesNotes, nextMerchant.notes),
+          rewardThreshold: pickFirst(nextMerchant.rewardThreshold, nextMerchant.loyalty?.rewardThreshold),
+          rewardText: pickFirst(nextMerchant.rewardText, nextMerchant.loyalty?.rewardText),
+          brandColor: pickFirst(nextMerchant.brandColor, nextMerchant.branding?.brandColor),
+          backgroundColor: pickFirst(nextMerchant.backgroundColor, nextMerchant.branding?.backgroundColor),
+          textColor: pickFirst(nextMerchant.textColor, nextMerchant.branding?.textColor),
+          status: pickFirst(nextMerchant.status, nextMerchant.state, "active"),
+          logoUpload: null,
+          logoPreviewUrl: "",
+          logoUrl: getLogoUrl(nextMerchant),
+          colorSuggestions: null,
+        }));
+      }
       setIsEditing(false);
       setSaveMessage("Saved.");
     } catch (saveError) {
@@ -1106,8 +1254,10 @@ function MerchantDetailPage({ merchantId }) {
               <div className="mt-4 grid gap-3">
                 <Detail label="Contact email" value={getContactEmail(merchant)} />
                 <Detail label="Contact phone" value={pickFirst(merchant.contactPhone, merchant.contact?.phone)} />
+                <Detail label="Address" value={pickFirst(merchant.address, merchant.location?.address)} />
                 <Detail label="Reward" value={pickFirst(merchant.rewardText, merchant.loyalty?.rewardText)} />
                 <Detail label="Notes" value={pickFirst(merchant.salesNotes, merchant.notes)} />
+                <Detail label="Logo" value={getLogoUrl(merchant)} />
               </div>
             </div>
           </div>
@@ -1131,6 +1281,37 @@ function MerchantDetailPage({ merchantId }) {
                   )}
                 </Field>
               ))}
+            </div>
+
+            <div className="mt-6 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+              <p className="text-sm font-semibold text-[var(--ps-espresso)]">Logo</p>
+              {form.logoPreviewUrl || form.logoUrl ? (
+                <img src={form.logoPreviewUrl || form.logoUrl} alt="" className="mt-3 max-h-24 rounded-lg bg-white object-contain p-3 ring-1 ring-slate-100" />
+              ) : (
+                <p className="mt-2 text-sm font-semibold text-slate-500">No logo uploaded.</p>
+              )}
+              {isEditing ? (
+                <div className="mt-4">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={(event) => handleDetailLogoFile(event.target.files?.[0])}
+                    className="block w-full text-sm"
+                  />
+                  {form.colorSuggestions ? (
+                    <div className="mt-4">
+                      <div className="flex flex-wrap gap-2">
+                        {(form.colorSuggestions.palette || []).map((color) => (
+                          <span key={color} className="h-7 w-7 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: color }} />
+                        ))}
+                      </div>
+                      <button type="button" onClick={applyDetailColorSuggestions} className="ps-button-secondary mt-3">
+                        Apply suggested colours
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             {isEditing ? (
