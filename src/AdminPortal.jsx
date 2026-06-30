@@ -281,6 +281,9 @@ function extractLinks(payload, merchant = {}) {
       payload?.data?.merchantSetupUrl,
       payload?.data?.result?.merchantSetupUrl,
       merchant.merchantSetupUrl,
+      merchant.merchantOwnerSetupUrl,
+      merchant.ownerInviteUrl,
+      merchant.setupUrl,
     ),
     staffDashboardUrl: pickFirst(
       links.staffDashboardUrl,
@@ -460,6 +463,209 @@ function buildWelcomeEmail(form, links) {
     .join("\n");
 
   return { subject, body };
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function isFutureDate(value) {
+  if (!value) return true;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return true;
+  return date.getTime() > Date.now();
+}
+
+function getWelcomeEmailFromPayload(payload, merchant = {}) {
+  const response = payload || {};
+  const data = response.data || {};
+  const result = response.result || data.result || {};
+  const welcomePack =
+    response.welcomePack ||
+    data.welcomePack ||
+    result.welcomePack ||
+    data.result?.welcomePack ||
+    merchant.welcomePack ||
+    {};
+
+  return {
+    subject: pickFirst(
+      response.welcomeEmailSubject,
+      data.welcomeEmailSubject,
+      result.welcomeEmailSubject,
+      welcomePack.welcomeEmailSubject,
+      welcomePack.subject,
+      merchant.welcomeEmailSubject,
+    ),
+    body: pickFirst(
+      response.welcomeEmailBody,
+      data.welcomeEmailBody,
+      result.welcomeEmailBody,
+      welcomePack.welcomeEmailBody,
+      welcomePack.body,
+      merchant.welcomeEmailBody,
+    ),
+    text: pickFirst(
+      response.welcomeEmailText,
+      data.welcomeEmailText,
+      result.welcomeEmailText,
+      welcomePack.welcomeEmailText,
+      welcomePack.text,
+      merchant.welcomeEmailText,
+    ),
+    html: pickFirst(
+      response.welcomeEmailHtml,
+      data.welcomeEmailHtml,
+      result.welcomeEmailHtml,
+      welcomePack.welcomeEmailHtml,
+      welcomePack.html,
+      merchant.welcomeEmailHtml,
+    ),
+  };
+}
+
+function buildDetailWelcomeEmail(payload, merchant, links, ownerInviteUrl = "") {
+  const backendEmail = getWelcomeEmailFromPayload(payload, merchant);
+  const setupUrl = pickFirst(ownerInviteUrl, links.merchantSetupUrl);
+  const ownerStatus = String(pickFirst(merchant.merchantOwnerStatus, merchant.ownerStatus, "")).toLowerCase();
+  const inviteExpiresAt = pickFirst(merchant.merchantOwnerInviteExpiresAt, merchant.ownerInviteExpiresAt);
+  const hasValidSetupUrl = Boolean(setupUrl && isFutureDate(inviteExpiresAt));
+  const isOwnerActive = Boolean(
+    merchant.merchantOwnerActivatedAt ||
+      merchant.ownerActivatedAt ||
+      merchant.merchantOwnerIsActive ||
+      ownerStatus === "active" ||
+      ownerStatus === "activated",
+  );
+  const needsSetupLink = !isOwnerActive && !hasValidSetupUrl;
+  const cafeName = getMerchantName(merchant);
+  const contactName = pickFirst(merchant.contactName, merchant.contact?.name, "there");
+  const subject = pickFirst(backendEmail.subject, `Welcome to PocketStamp, ${cafeName}`);
+  const primaryLabel = isOwnerActive ? "Open merchant dashboard" : "Set up merchant dashboard";
+  const primaryUrl = isOwnerActive ? links.merchantDashboardUrl : setupUrl;
+  const source = backendEmail.html || backendEmail.text || backendEmail.body ? "backend response" : "frontend detail data";
+  const status = needsSetupLink ? "Regenerate setup link before resending" : "Ready to send";
+  const note = needsSetupLink
+    ? "Regenerate setup link before sending this email."
+    : isOwnerActive
+      ? "Your merchant dashboard is ready."
+      : "Set up merchant dashboard";
+
+  if (needsSetupLink) {
+    return {
+      subject,
+      body: note,
+      text: note,
+      html: "",
+      setupUrl: "",
+      source,
+      status,
+      note,
+      canSend: false,
+    };
+  }
+
+  if (backendEmail.html || backendEmail.text || backendEmail.body) {
+    const text = pickFirst(backendEmail.text, backendEmail.body, subject);
+    return {
+      subject,
+      body: pickFirst(backendEmail.body, backendEmail.text, subject),
+      text,
+      html: backendEmail.html,
+      setupUrl: hasValidSetupUrl ? setupUrl : "",
+      source,
+      status,
+      note,
+      canSend: true,
+    };
+  }
+
+  const text = [
+    `Hi ${contactName},`,
+    "",
+    `${cafeName} is set up in PocketStamp.`,
+    "",
+    isOwnerActive ? "Your merchant dashboard is ready." : "Set up merchant dashboard:",
+    primaryUrl || "Not returned",
+    "",
+    `Customer join page: ${links.joinUrl || "Not returned"}`,
+    `Merchant dashboard: ${links.merchantDashboardUrl || "Not returned"}`,
+    links.demoPassUrl ? `Demo pass: ${links.demoPassUrl}` : null,
+    "Staff accounts can be created later.",
+    "",
+    "Thanks,",
+    "PocketStamp",
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+
+  const brandColor = pickFirst(merchant.brandColor, merchant.branding?.brandColor, "#26354f");
+  const backgroundColor = pickFirst(merchant.backgroundColor, merchant.branding?.backgroundColor, "#fff8ea");
+  const textColor = pickFirst(merchant.textColor, merchant.branding?.textColor, "#26211d");
+  const logoUrl = getLogoUrl(merchant);
+  const html = `
+    <div style="margin:0;padding:0;background:${escapeHtml(backgroundColor)};font-family:Arial,Helvetica,sans-serif;color:${escapeHtml(textColor)};">
+      <div style="max-width:640px;margin:0 auto;padding:28px 18px;">
+        <div style="background:#ffffff;border:1px solid #eee4d3;border-radius:18px;overflow:hidden;">
+          <div style="background:${escapeHtml(brandColor)};padding:26px;color:#ffffff;">
+            ${logoUrl ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(cafeName)}" style="display:block;max-width:140px;max-height:58px;margin-bottom:18px;">` : ""}
+            <h1 style="margin:0;font-size:26px;line-height:1.25;">Welcome to PocketStamp</h1>
+            <p style="margin:10px 0 0;font-size:16px;line-height:1.5;">${escapeHtml(cafeName)} is ready.</p>
+          </div>
+          <div style="padding:28px;">
+            <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">Hi ${escapeHtml(contactName)},</p>
+            <p style="margin:0 0 20px;font-size:16px;line-height:1.6;">${escapeHtml(note)}</p>
+            ${primaryUrl ? `<p style="margin:0 0 24px;"><a href="${escapeHtml(primaryUrl)}" style="display:inline-block;border-radius:999px;background:${escapeHtml(brandColor)};color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;">${escapeHtml(primaryLabel)}</a></p>` : ""}
+            <div style="background:#fbfaf7;border:1px solid #eee4d3;border-radius:14px;padding:18px;">
+              <p style="margin:0 0 10px;font-size:13px;font-weight:700;text-transform:uppercase;color:#6f675d;">Useful links</p>
+              <p style="margin:0 0 10px;font-size:15px;line-height:1.5;"><strong>Customer join page:</strong><br><a href="${escapeHtml(links.joinUrl)}" style="color:${escapeHtml(brandColor)};">${escapeHtml(links.joinUrl || "Not returned")}</a></p>
+              <p style="margin:0 0 10px;font-size:15px;line-height:1.5;"><strong>Merchant dashboard:</strong><br><a href="${escapeHtml(links.merchantDashboardUrl)}" style="color:${escapeHtml(brandColor)};">${escapeHtml(links.merchantDashboardUrl || "Not returned")}</a></p>
+              ${!isOwnerActive && setupUrl ? `<p style="margin:0 0 10px;font-size:15px;line-height:1.5;"><strong>Merchant owner setup:</strong><br><a href="${escapeHtml(setupUrl)}" style="color:${escapeHtml(brandColor)};">${escapeHtml(setupUrl)}</a></p>` : ""}
+              ${links.demoPassUrl ? `<p style="margin:0 0 10px;font-size:15px;line-height:1.5;"><strong>Demo pass:</strong><br><a href="${escapeHtml(links.demoPassUrl)}" style="color:${escapeHtml(brandColor)};">${escapeHtml(links.demoPassUrl)}</a></p>` : ""}
+              <p style="margin:0;font-size:15px;line-height:1.5;">Staff accounts can be created later.</p>
+            </div>
+            <p style="margin:24px 0 0;font-size:16px;line-height:1.6;">Thanks,<br>PocketStamp</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return {
+    subject,
+    body: text,
+    text,
+    html,
+    setupUrl: hasValidSetupUrl ? setupUrl : "",
+    source,
+    status,
+    note,
+    canSend: true,
+  };
+}
+
+async function copyRichEmailToClipboard({ html = "", text = "" }) {
+  if (html && navigator.clipboard?.write && window.ClipboardItem) {
+    try {
+      await navigator.clipboard.write([
+        new window.ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([text], { type: "text/plain" }),
+        }),
+      ]);
+      return "rich";
+    } catch {
+      // Fall back to plain text when rich clipboard writes are blocked or unsupported.
+    }
+  }
+
+  await navigator.clipboard.writeText(text);
+  return "plain";
 }
 
 function AdminShell({ children, active, adminContext, onLogout }) {
@@ -740,25 +946,9 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
     const html = welcomeEmail.html || "";
     const text = welcomeEmail.text || "";
 
-    if (html && navigator.clipboard?.write && window.ClipboardItem) {
-      try {
-        await navigator.clipboard.write([
-          new window.ClipboardItem({
-            "text/html": new Blob([html], { type: "text/html" }),
-            "text/plain": new Blob([text], { type: "text/plain" }),
-          }),
-        ]);
-        setCopyState("Branded welcome email copied.");
-        window.setTimeout(() => setCopyState(""), 1800);
-        return;
-      } catch {
-        // Fall back to plain text when rich clipboard writes are blocked or unsupported.
-      }
-    }
-
     try {
-      await navigator.clipboard.writeText(text);
-      setCopyState("Plain text welcome email copied.");
+      const copyMode = await copyRichEmailToClipboard({ html, text });
+      setCopyState(copyMode === "rich" ? "Branded welcome email copied." : "Plain text welcome email copied.");
     } catch {
       setCopyState("Welcome email copy failed.");
     }
@@ -1222,12 +1412,14 @@ function CafesListPage({ accessToken, adminContext, onLogout }) {
 
 function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout }) {
   const [merchant, setMerchant] = useState(null);
+  const [detailPayload, setDetailPayload] = useState(null);
   const [form, setForm] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [detailCopyState, setDetailCopyState] = useState("");
   const [ownerInviteUrl, setOwnerInviteUrl] = useState("");
   const [isRegeneratingInvite, setIsRegeneratingInvite] = useState(false);
 
@@ -1242,6 +1434,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         const payload = await adminFetch(`/api/admin/merchants/${merchantId}`, {}, accessToken);
         const nextMerchant = extractMerchant(payload);
         if (!isMounted) return;
+        setDetailPayload(payload || {});
         setMerchant(nextMerchant);
         setForm({
           cafeName: getMerchantName(nextMerchant),
@@ -1291,7 +1484,8 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     );
   }
 
-  const links = extractLinks({}, merchant);
+  const links = extractLinks(detailPayload || {}, merchant);
+  const welcomeEmail = buildDetailWelcomeEmail(detailPayload || {}, merchant, links, ownerInviteUrl);
   const editableFields = [
     ["cafeName", "Café/display name", "text"],
     ["contactName", "Contact name", "text"],
@@ -1361,6 +1555,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         }),
       }, accessToken);
       const nextMerchant = extractMerchant(payload);
+      setDetailPayload(payload || detailPayload);
       setMerchant(nextMerchant || { ...merchant, ...form });
       if (nextMerchant) {
         setForm((current) => ({
@@ -1404,6 +1599,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
       }, accessToken);
       const result = payload?.result || {};
       setOwnerInviteUrl(result.merchantSetupUrl || "");
+      setDetailPayload(payload || detailPayload);
       if (result.merchant) setMerchant(result.merchant);
       setSaveMessage("Owner setup link regenerated.");
     } catch (inviteError) {
@@ -1411,6 +1607,45 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     } finally {
       setIsRegeneratingInvite(false);
     }
+  }
+
+  async function copyDetailWelcomeEmail() {
+    if (!welcomeEmail.canSend) {
+      setDetailCopyState("Regenerate setup link before resending.");
+      window.setTimeout(() => setDetailCopyState(""), 1800);
+      return;
+    }
+
+    try {
+      const copyMode = await copyRichEmailToClipboard({
+        html: welcomeEmail.html,
+        text: welcomeEmail.text,
+      });
+      setDetailCopyState(copyMode === "rich" ? "Branded welcome email copied." : "Plain text welcome email copied.");
+    } catch {
+      setDetailCopyState("Welcome email copy failed.");
+    }
+    window.setTimeout(() => setDetailCopyState(""), 1800);
+  }
+
+  async function copyDetailPlainWelcomeEmail() {
+    try {
+      await navigator.clipboard.writeText(welcomeEmail.text || "");
+      setDetailCopyState("Plain text welcome email copied.");
+    } catch {
+      setDetailCopyState("Welcome email copy failed.");
+    }
+    window.setTimeout(() => setDetailCopyState(""), 1800);
+  }
+
+  async function copyDetailSetupUrl() {
+    try {
+      await navigator.clipboard.writeText(welcomeEmail.setupUrl);
+      setDetailCopyState("Merchant setup URL copied.");
+    } catch {
+      setDetailCopyState("Merchant setup URL copy failed.");
+    }
+    window.setTimeout(() => setDetailCopyState(""), 1800);
   }
 
   return (
@@ -1481,6 +1716,88 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                   ) : null}
                 </div>
               ) : null}
+            </div>
+            <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <h2 className="text-xl font-semibold">Welcome email</h2>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    welcomeEmail.canSend
+                      ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
+                      : "bg-amber-50 text-amber-800 ring-1 ring-amber-100"
+                  }`}
+                >
+                  {welcomeEmail.status}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <Detail label="Subject" value={welcomeEmail.subject} />
+                <Detail label="Note" value={welcomeEmail.note} />
+              </div>
+
+              {welcomeEmail.canSend ? (
+                welcomeEmail.html ? (
+                  <div className="mt-4 overflow-hidden rounded-xl bg-[#fbfaf7] ring-1 ring-slate-100">
+                    <iframe
+                      title="Welcome email preview"
+                      srcDoc={welcomeEmail.html}
+                      sandbox=""
+                      className="h-[520px] w-full bg-white"
+                    />
+                  </div>
+                ) : (
+                  <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-[#fbfaf7] p-4 text-sm leading-6 text-slate-700 ring-1 ring-slate-100">
+                    {welcomeEmail.text}
+                  </pre>
+                )
+              ) : (
+                <div className="mt-4">
+                  <Alert>Regenerate setup link before sending this email.</Alert>
+                </div>
+              )}
+
+              {detailCopyState ? (
+                <p className="mt-4 text-sm font-semibold text-[var(--ps-blue)]">{detailCopyState}</p>
+              ) : null}
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={copyDetailWelcomeEmail}
+                  disabled={!welcomeEmail.canSend}
+                  className="ps-button-secondary disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  Copy welcome email
+                </button>
+                <button
+                  type="button"
+                  onClick={copyDetailPlainWelcomeEmail}
+                  disabled={!welcomeEmail.canSend}
+                  className="ps-button-secondary disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  Copy plain text
+                </button>
+                {welcomeEmail.setupUrl ? (
+                  <button
+                    type="button"
+                    onClick={copyDetailSetupUrl}
+                    className="ps-button-secondary"
+                  >
+                    Copy merchant setup URL
+                  </button>
+                ) : null}
+                {!welcomeEmail.canSend || merchant.merchantOwnerStatus === "invited" || merchant.merchantOwnerHasSetupInvite ? (
+                  <button
+                    type="button"
+                    onClick={handleRegenerateOwnerInvite}
+                    disabled={isRegeneratingInvite}
+                    className="ps-button-secondary disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isRegeneratingInvite ? "Regenerating..." : "Regenerate setup link"}
+                  </button>
+                ) : null}
+              </div>
             </div>
             <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
               <h2 className="text-xl font-semibold">Overview</h2>
