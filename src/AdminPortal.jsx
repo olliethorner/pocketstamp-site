@@ -67,6 +67,7 @@ const walletColorFields = [
 ];
 
 const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
+const rgbColorPattern = /^rgba?\(\s*(\d{1,3}\s*,\s*){2}\d{1,3}\s*(,\s*(0|1|0?\.\d+))?\s*\)$/i;
 
 function adminFetch(path, options = {}, accessToken = "") {
   if (!ADMIN_API_BASE_URL) {
@@ -289,26 +290,52 @@ function normalizeWalletThemeState(merchant = {}) {
   };
 }
 
-function getColorWarnings(form) {
-  return walletColorFields
-    .filter(([name]) => form[name] && !hexColorPattern.test(form[name]))
-    .map(([, label]) => `${label} should use #RRGGBB.`);
+function isValidHexColor(value) {
+  return hexColorPattern.test(String(value || ""));
 }
 
-function safeHex(value, fallback) {
-  return hexColorPattern.test(String(value || "")) ? value : fallback;
+function isCssRgbColor(value) {
+  const text = String(value || "").trim();
+  if (!rgbColorPattern.test(text)) return false;
+  const channels = text
+    .replace(/^rgba?\(/i, "")
+    .replace(/\)$/, "")
+    .split(",")
+    .slice(0, 3)
+    .map((channel) => Number(channel.trim()));
+  return channels.every((channel) => Number.isFinite(channel) && channel >= 0 && channel <= 255);
+}
+
+function normalizePreviewColor(value, fallback) {
+  const text = String(value || "").trim();
+  if (isValidHexColor(text) || isCssRgbColor(text)) return text;
+  return fallback;
+}
+
+function getColorWarnings(form) {
+  return walletColorFields
+    .filter(([name]) => form[name] && !isValidHexColor(form[name]) && !isCssRgbColor(form[name]))
+    .map(([, label]) => `${label} should use #RRGGBB.`);
 }
 
 function getWalletPreviewTheme(form = {}) {
   return {
-    backgroundColor: safeHex(pickFirst(form.finalBackgroundColor, form.backgroundColor), "#26354f"),
-    foregroundColor: safeHex(pickFirst(form.finalForegroundColor, form.foregroundColor, form.textColor), "#ffffff"),
-    labelColor: safeHex(pickFirst(form.finalLabelColor, form.labelColor), "#d8d2c5"),
-    stampFilledColor: safeHex(pickFirst(form.stampFilledColor, form.passStampFilledColor, form.passAccentColor, form.brandColor), "#f0c36a"),
-    stampEmptyColor: safeHex(pickFirst(form.stampEmptyColor, form.passStampEmptyColor), "#ffffff"),
-    logoTileColor: safeHex(pickFirst(form.passLogoTileColor), "#ffffff"),
-    accentColor: safeHex(pickFirst(form.passAccentColor, form.brandColor), "#f0c36a"),
+    backgroundColor: normalizePreviewColor(pickFirst(form.finalBackgroundColor, form.backgroundColor), "#26354f"),
+    foregroundColor: normalizePreviewColor(pickFirst(form.finalForegroundColor, form.foregroundColor, form.textColor), "#ffffff"),
+    labelColor: normalizePreviewColor(pickFirst(form.finalLabelColor, form.labelColor), "#d8d2c5"),
+    stampFilledColor: normalizePreviewColor(pickFirst(form.finalStampFilledColor, form.stampFilledColor, form.passStampFilledColor, form.passAccentColor, form.brandColor), "#f0c36a"),
+    stampEmptyColor: normalizePreviewColor(pickFirst(form.finalStampEmptyColor, form.stampEmptyColor, form.passStampEmptyColor), "#ffffff"),
+    logoTileColor: normalizePreviewColor(pickFirst(form.passLogoTileColor), "#ffffff"),
+    accentColor: normalizePreviewColor(pickFirst(form.passAccentColor, form.brandColor), "#f0c36a"),
   };
+}
+
+function getInitials(value) {
+  const words = String(value || "PocketStamp")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "PS";
 }
 
 function extractMerchants(payload) {
@@ -863,7 +890,7 @@ function Alert({ tone = "amber", children }) {
 }
 
 function ColorInput({ value, onChange }) {
-  const colorValue = hexColorPattern.test(String(value || "")) ? value : "#26354f";
+  const colorValue = isValidHexColor(value) ? value : "#26354f";
 
   return (
     <div className="grid grid-cols-[3rem_1fr] gap-2">
@@ -912,7 +939,7 @@ function WalletDesignFields({ form, isEditing = true, onChange }) {
               <ColorInput value={form[name] || ""} onChange={(value) => onChange(name, value)} />
             ) : (
               <div className="flex items-center gap-3 rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
-                {form[name] && hexColorPattern.test(form[name]) ? (
+                {form[name] && (isValidHexColor(form[name]) || isCssRgbColor(form[name])) ? (
                   <span className="h-5 w-5 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: form[name] }} />
                 ) : null}
                 <span>{form[name] || "Not returned"}</span>
@@ -979,61 +1006,141 @@ function WalletDesignFields({ form, isEditing = true, onChange }) {
   );
 }
 
-function WalletPassPreview({ form }) {
-  const threshold = Number(form.rewardThreshold) || 9;
-  const logoSrc = form.logoPreviewUrl || form.logoUrl;
-  const theme = getWalletPreviewTheme(form);
+function WalletPassLivePreview({
+  cafeName,
+  logoUrl,
+  logoPreview,
+  rewardThreshold,
+  rewardText,
+  customerName = "Demo Customer",
+  themeMode,
+  backgroundColor,
+  foregroundColor,
+  labelColor,
+  accentColor,
+  stampFilledColor,
+  stampEmptyColor,
+  logoTileEnabled,
+  logoTileColor,
+  logoFit,
+  finalBackgroundColor,
+  finalForegroundColor,
+  finalLabelColor,
+  finalStampFilledColor,
+  finalStampEmptyColor,
+  themeWarnings = [],
+}) {
+  const threshold = Number(rewardThreshold) || 9;
   const stampCount = Math.min(Math.max(threshold, 1), 12);
+  const logoSrc = logoPreview || logoUrl;
+  const displayName = cafeName || "Café name";
+  const theme = getWalletPreviewTheme({
+    finalBackgroundColor,
+    finalForegroundColor,
+    finalLabelColor,
+    finalStampFilledColor,
+    finalStampEmptyColor,
+    backgroundColor,
+    foregroundColor,
+    labelColor,
+    passStampFilledColor: stampFilledColor,
+    passStampEmptyColor: stampEmptyColor,
+    passAccentColor: accentColor,
+    passLogoTileColor: logoTileColor,
+  });
+  const logoObjectFit = logoFit === "cover" ? "cover" : "contain";
+  const reward = String(rewardText || "Collect stamps to unlock your reward.");
+  const shortReward = reward.length > 92 ? `${reward.slice(0, 89)}...` : reward;
+  const modeLabel = themeModeOptions.find(([value]) => value === themeMode)?.[1] || "Wallet design";
 
   return (
-    <div
-      className="mx-auto w-full max-w-sm overflow-hidden rounded-[1.75rem] p-5 shadow-2xl shadow-stone-900/10 ring-1 ring-stone-200"
-      style={{ backgroundColor: theme.backgroundColor, color: theme.foregroundColor }}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-bold uppercase" style={{ color: theme.labelColor }}>Apple Wallet</p>
-          <p className="mt-2 truncate text-xl font-semibold">{form.cafeName || "Café name"}</p>
-        </div>
+    <div className="mx-auto w-full max-w-md">
+      <div className="rounded-[2rem] bg-slate-950/5 p-3 ring-1 ring-slate-200">
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-bold"
-          style={{ backgroundColor: form.passLogoTileEnabled || form.logoTileEnabled ? theme.logoTileColor : "transparent" }}
+          className="overflow-hidden rounded-[1.65rem] shadow-2xl shadow-slate-950/20 ring-1 ring-black/10"
+          style={{ backgroundColor: theme.backgroundColor, color: theme.foregroundColor }}
         >
-          {logoSrc ? (
-            <img src={logoSrc} alt="" className="h-full w-full object-contain p-1" />
-          ) : (
-            <span style={{ color: theme.accentColor }}>PS</span>
-          )}
-        </div>
-      </div>
+          <div
+            className="px-5 pb-5 pt-4"
+            style={{ background: `linear-gradient(180deg, rgba(255,255,255,0.16), rgba(0,0,0,0.04)), ${theme.backgroundColor}` }}
+          >
+            <div className="grid grid-cols-[1fr_auto] items-start gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div
+                  className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-bold ring-1 ring-white/20"
+                  style={{ backgroundColor: logoTileEnabled ? theme.logoTileColor : "rgba(255,255,255,0.08)" }}
+                >
+                  {logoSrc ? (
+                    <img
+                      src={logoSrc}
+                      alt=""
+                      className="h-full w-full p-1.5"
+                      style={{ objectFit: logoObjectFit }}
+                    />
+                  ) : (
+                    <span style={{ color: logoTileEnabled ? theme.accentColor : theme.foregroundColor }}>
+                      {getInitials(displayName)}
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-[0.68rem] font-bold uppercase tracking-normal" style={{ color: theme.labelColor }}>
+                    {modeLabel}
+                  </p>
+                  <p className="mt-1 truncate text-lg font-semibold leading-tight">{displayName}</p>
+                </div>
+              </div>
 
-      <div className="mt-8 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase" style={{ color: theme.labelColor }}>Stamps</p>
-          <p className="mt-1 text-3xl font-semibold">0/{threshold}</p>
-        </div>
-        <p className="text-xs font-bold uppercase" style={{ color: theme.labelColor }}>Customer</p>
-      </div>
+              <div className="text-right">
+                <p className="text-[0.68rem] font-bold uppercase tracking-normal" style={{ color: theme.labelColor }}>Stamps</p>
+                <p className="mt-1 text-3xl font-semibold leading-none">0/{threshold}</p>
+              </div>
+            </div>
+          </div>
 
-      <div className="mt-5 grid grid-cols-6 gap-2" aria-label={`${stampCount} empty stamp circles`}>
-        {Array.from({ length: stampCount }).map((_, index) => (
-          <span
-            key={index}
-            className="aspect-square rounded-full ring-1 ring-black/10"
-            style={{ backgroundColor: index === 0 ? theme.stampFilledColor : theme.stampEmptyColor }}
-          />
-        ))}
-      </div>
+          <div className="px-5 pb-5 pt-4">
+            <div className="h-px bg-white/20" />
+            <div className="mt-5 grid grid-cols-5 gap-2.5 sm:grid-cols-6" aria-label={`${stampCount} stamp circles`}>
+              {Array.from({ length: stampCount }).map((_, index) => (
+                <span
+                  key={index}
+                  className="aspect-square rounded-full shadow-inner ring-1 ring-black/15"
+                  style={{ backgroundColor: index === 0 ? theme.stampFilledColor : theme.stampEmptyColor }}
+                />
+              ))}
+            </div>
 
-      <div className="mt-6 grid grid-cols-[1fr_4.5rem] gap-4 border-t border-white/20 pt-5">
-        <div>
-          <p className="text-xs font-bold uppercase" style={{ color: theme.labelColor }}>Reward</p>
-          <p className="mt-1 text-sm font-semibold leading-5">{form.rewardText || "Reward text"}</p>
-        </div>
-        <div className="grid aspect-square place-items-center rounded-lg bg-white text-[10px] font-bold text-slate-400">
-          QR
+            <div className="mt-6 grid grid-cols-2 gap-4">
+              <div className="min-w-0">
+                <p className="text-[0.68rem] font-bold uppercase tracking-normal" style={{ color: theme.labelColor }}>Customer</p>
+                <p className="mt-1 truncate text-sm font-semibold">{customerName}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[0.68rem] font-bold uppercase tracking-normal" style={{ color: theme.labelColor }}>Reward</p>
+                <p className="mt-1 max-h-10 overflow-hidden text-sm font-semibold leading-5">{shortReward}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-[0.68rem] font-bold uppercase tracking-normal" style={{ color: theme.labelColor }}>PocketStamp</p>
+                <p className="mt-1 text-xs font-semibold opacity-80">Tap to collect in store</p>
+              </div>
+              <div className="grid h-24 w-24 shrink-0 place-items-center rounded-xl bg-white text-xs font-bold text-slate-400 shadow-sm">
+                QR
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+      {themeWarnings.length ? (
+        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800 ring-1 ring-amber-100">
+          {themeWarnings[0]}
+        </p>
+      ) : null}
+      <p className="mt-3 text-center text-xs font-semibold text-slate-500">
+        Preview only — final Apple Wallet rendering may vary slightly.
+      </p>
     </div>
   );
 }
@@ -1406,7 +1513,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
             ) : null}
 
             {step === 2 ? (
-              <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_25rem]">
                 <div className="grid gap-5">
                   <Field label="Brand color">
                     <ColorInput value={form.brandColor} onChange={(value) => updateField("brandColor", value)} />
@@ -1443,7 +1550,25 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
                     ) : null}
                   </div>
                 </div>
-                <WalletPassPreview form={form} />
+                <div className="xl:sticky xl:top-6 xl:self-start">
+                  <WalletPassLivePreview
+                    cafeName={form.cafeName}
+                    logoUrl={form.logoUrl}
+                    logoPreview={form.logoPreviewUrl}
+                    rewardThreshold={form.rewardThreshold}
+                    rewardText={form.rewardText}
+                    themeMode={form.passThemeMode}
+                    backgroundColor={form.backgroundColor}
+                    foregroundColor={form.foregroundColor || form.textColor}
+                    labelColor={form.labelColor}
+                    accentColor={form.passAccentColor || form.brandColor}
+                    stampFilledColor={form.passStampFilledColor}
+                    stampEmptyColor={form.passStampEmptyColor}
+                    logoTileEnabled={form.passLogoTileEnabled}
+                    logoTileColor={form.passLogoTileColor}
+                    logoFit={form.passLogoFit}
+                  />
+                </div>
               </div>
             ) : null}
 
@@ -2100,14 +2225,41 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
 
           <div className="space-y-6">
             <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
-              <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[1fr_18rem]">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_25rem]">
                 <div>
                   <h2 className="text-xl font-semibold">Wallet card design</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Preview updates live. Save changes to apply this design to newly generated passes.
+                  </p>
                   <div className="mt-5">
                     <WalletDesignFields form={form} isEditing={isEditing} onChange={updateForm} />
                   </div>
                 </div>
-                <WalletPassPreview form={form} />
+                <div className="xl:sticky xl:top-6 xl:self-start">
+                  <WalletPassLivePreview
+                    cafeName={form.cafeName}
+                    logoUrl={form.logoUrl}
+                    logoPreview={form.logoPreviewUrl}
+                    rewardThreshold={form.rewardThreshold}
+                    rewardText={form.rewardText}
+                    themeMode={form.passThemeMode}
+                    backgroundColor={form.backgroundColor}
+                    foregroundColor={form.foregroundColor || form.textColor}
+                    labelColor={form.labelColor}
+                    accentColor={form.passAccentColor || form.brandColor}
+                    stampFilledColor={form.passStampFilledColor}
+                    stampEmptyColor={form.passStampEmptyColor}
+                    logoTileEnabled={pickFirst(form.logoTileEnabled, form.passLogoTileEnabled)}
+                    logoTileColor={form.passLogoTileColor}
+                    logoFit={pickFirst(form.logoFit, form.passLogoFit)}
+                    finalBackgroundColor={form.finalBackgroundColor}
+                    finalForegroundColor={form.finalForegroundColor}
+                    finalLabelColor={form.finalLabelColor}
+                    finalStampFilledColor={form.stampFilledColor}
+                    finalStampEmptyColor={form.stampEmptyColor}
+                    themeWarnings={themeWarnings}
+                  />
+                </div>
               </div>
             </div>
 
