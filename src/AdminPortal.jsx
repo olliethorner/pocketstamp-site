@@ -22,6 +22,16 @@ const initialOnboardingForm = {
   brandColor: "#26354f",
   backgroundColor: "#fff8ea",
   textColor: "#26211d",
+  foregroundColor: "#26211d",
+  labelColor: "#6f675d",
+  passThemeMode: "premium_dark",
+  passAccentColor: "#26354f",
+  passStampEmptyColor: "#ffffff",
+  passStampFilledColor: "#26354f",
+  passLogoTileEnabled: true,
+  passLogoTileColor: "#ffffff",
+  passLogoFit: "contain",
+  passDesignNotes: "",
   logoUpload: null,
   logoPreviewUrl: "",
   logoUrl: "",
@@ -38,6 +48,25 @@ const wizardSteps = [
   "Hardware / setup",
   "Review",
 ];
+
+const themeModeOptions = [
+  ["premium_dark", "Premium dark (recommended)", "Recommended. Uses a premium darker Wallet card with café colour as an accent."],
+  ["light_clean", "Light clean", "Uses a lighter card while keeping readability safe."],
+  ["brand_bold", "Brand bold", "Uses more of the café brand colour while keeping contrast safe."],
+  ["custom", "Custom", "Advanced. PocketStamp may still adjust unsafe colours for readability."],
+];
+
+const walletColorFields = [
+  ["passAccentColor", "Accent colour"],
+  ["backgroundColor", "Background colour"],
+  ["foregroundColor", "Text colour"],
+  ["labelColor", "Label colour"],
+  ["passStampFilledColor", "Stamp filled colour"],
+  ["passStampEmptyColor", "Stamp empty colour"],
+  ["passLogoTileColor", "Logo tile colour"],
+];
+
+const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
 
 function adminFetch(path, options = {}, accessToken = "") {
   if (!ADMIN_API_BASE_URL) {
@@ -215,6 +244,71 @@ function getContactEmail(merchant) {
 
 function getLogoUrl(merchant) {
   return pickFirst(merchant.logoUrl, merchant.logoPath, merchant.branding?.logoUrl, merchant.branding?.logoPath);
+}
+
+function getThemeWarnings(merchant = {}, payload = {}) {
+  const warnings = pickFirst(
+    merchant.themeWarnings,
+    merchant.passThemeWarnings,
+    merchant.walletTheme?.themeWarnings,
+    merchant.walletTheme?.warnings,
+    payload.themeWarnings,
+    payload.passThemeWarnings,
+    payload?.data?.themeWarnings,
+    payload?.result?.themeWarnings,
+  );
+
+  if (Array.isArray(warnings)) return warnings.filter(Boolean);
+  return warnings ? [String(warnings)] : [];
+}
+
+function normalizeWalletThemeState(merchant = {}) {
+  const walletTheme = merchant.walletTheme || merchant.passTheme || merchant.branding?.walletTheme || {};
+  const finalTheme = merchant.finalTheme || merchant.generatedTheme || walletTheme.final || {};
+
+  return {
+    passThemeMode: pickFirst(merchant.passThemeMode, walletTheme.passThemeMode, walletTheme.mode, "premium_dark"),
+    passAccentColor: pickFirst(merchant.passAccentColor, walletTheme.passAccentColor, walletTheme.accentColor, merchant.brandColor, merchant.branding?.brandColor, ""),
+    backgroundColor: pickFirst(merchant.backgroundColor, walletTheme.backgroundColor, merchant.branding?.backgroundColor, ""),
+    foregroundColor: pickFirst(merchant.foregroundColor, walletTheme.foregroundColor, merchant.textColor, merchant.branding?.foregroundColor, merchant.branding?.textColor, ""),
+    textColor: pickFirst(merchant.textColor, merchant.foregroundColor, walletTheme.foregroundColor, merchant.branding?.textColor, ""),
+    labelColor: pickFirst(merchant.labelColor, walletTheme.labelColor, merchant.branding?.labelColor, ""),
+    passStampFilledColor: pickFirst(merchant.passStampFilledColor, merchant.stampFilledColor, walletTheme.passStampFilledColor, walletTheme.stampFilledColor, ""),
+    passStampEmptyColor: pickFirst(merchant.passStampEmptyColor, merchant.stampEmptyColor, walletTheme.passStampEmptyColor, walletTheme.stampEmptyColor, ""),
+    passLogoTileEnabled: Boolean(pickFirst(merchant.passLogoTileEnabled, merchant.logoTileEnabled, walletTheme.passLogoTileEnabled, walletTheme.logoTileEnabled, false)),
+    passLogoTileColor: pickFirst(merchant.passLogoTileColor, walletTheme.passLogoTileColor, walletTheme.logoTileColor, ""),
+    passLogoFit: pickFirst(merchant.passLogoFit, merchant.logoFit, walletTheme.passLogoFit, walletTheme.logoFit, "contain"),
+    passDesignNotes: pickFirst(merchant.passDesignNotes, walletTheme.passDesignNotes, walletTheme.designNotes, ""),
+    finalBackgroundColor: pickFirst(merchant.finalBackgroundColor, finalTheme.finalBackgroundColor, finalTheme.backgroundColor, ""),
+    finalForegroundColor: pickFirst(merchant.finalForegroundColor, finalTheme.finalForegroundColor, finalTheme.foregroundColor, finalTheme.textColor, ""),
+    finalLabelColor: pickFirst(merchant.finalLabelColor, finalTheme.finalLabelColor, finalTheme.labelColor, ""),
+    stampFilledColor: pickFirst(merchant.stampFilledColor, finalTheme.stampFilledColor, finalTheme.passStampFilledColor, ""),
+    stampEmptyColor: pickFirst(merchant.stampEmptyColor, finalTheme.stampEmptyColor, finalTheme.passStampEmptyColor, ""),
+    logoTileEnabled: Boolean(pickFirst(merchant.logoTileEnabled, finalTheme.logoTileEnabled, merchant.passLogoTileEnabled, walletTheme.logoTileEnabled, false)),
+    logoFit: pickFirst(merchant.logoFit, finalTheme.logoFit, merchant.passLogoFit, walletTheme.logoFit, "contain"),
+  };
+}
+
+function getColorWarnings(form) {
+  return walletColorFields
+    .filter(([name]) => form[name] && !hexColorPattern.test(form[name]))
+    .map(([, label]) => `${label} should use #RRGGBB.`);
+}
+
+function safeHex(value, fallback) {
+  return hexColorPattern.test(String(value || "")) ? value : fallback;
+}
+
+function getWalletPreviewTheme(form = {}) {
+  return {
+    backgroundColor: safeHex(pickFirst(form.finalBackgroundColor, form.backgroundColor), "#26354f"),
+    foregroundColor: safeHex(pickFirst(form.finalForegroundColor, form.foregroundColor, form.textColor), "#ffffff"),
+    labelColor: safeHex(pickFirst(form.finalLabelColor, form.labelColor), "#d8d2c5"),
+    stampFilledColor: safeHex(pickFirst(form.stampFilledColor, form.passStampFilledColor, form.passAccentColor, form.brandColor), "#f0c36a"),
+    stampEmptyColor: safeHex(pickFirst(form.stampEmptyColor, form.passStampEmptyColor), "#ffffff"),
+    logoTileColor: safeHex(pickFirst(form.passLogoTileColor), "#ffffff"),
+    accentColor: safeHex(pickFirst(form.passAccentColor, form.brandColor), "#f0c36a"),
+  };
 }
 
 function extractMerchants(payload) {
@@ -761,56 +855,221 @@ function Alert({ tone = "amber", children }) {
   const classes =
     tone === "red"
       ? "bg-red-50 text-red-700 ring-red-100"
+      : tone === "green"
+        ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
       : "bg-amber-50 text-amber-800 ring-amber-100";
 
   return <div className={`rounded-xl p-4 text-sm font-semibold ring-1 ${classes}`}>{children}</div>;
 }
 
-function PassPreview({ form }) {
+function ColorInput({ value, onChange }) {
+  const colorValue = hexColorPattern.test(String(value || "")) ? value : "#26354f";
+
+  return (
+    <div className="grid grid-cols-[3rem_1fr] gap-2">
+      <input
+        type="color"
+        value={colorValue}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-[2.9rem] w-12 rounded-xl border border-slate-200 bg-white p-1"
+      />
+      <TextInput value={value || ""} placeholder="#26354f" onChange={(event) => onChange(event.target.value)} />
+    </div>
+  );
+}
+
+function WalletDesignFields({ form, isEditing = true, onChange }) {
+  const colorWarnings = getColorWarnings(form);
+  const selectedMode = themeModeOptions.find(([value]) => value === form.passThemeMode) || themeModeOptions[0];
+
+  return (
+    <div className="grid gap-5">
+      <div>
+        <Field label="Theme style">
+          {isEditing ? (
+            <select
+              value={form.passThemeMode || "premium_dark"}
+              onChange={(event) => onChange("passThemeMode", event.target.value)}
+              className="ps-input min-h-[2.9rem]"
+            >
+              {themeModeOptions.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          ) : (
+            <div className="rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
+              {selectedMode[1]}
+            </div>
+          )}
+        </Field>
+        <p className="mt-2 text-sm leading-6 text-slate-500">{selectedMode[2]}</p>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        {walletColorFields.map(([name, label]) => (
+          <Field key={name} label={label}>
+            {isEditing ? (
+              <ColorInput value={form[name] || ""} onChange={(value) => onChange(name, value)} />
+            ) : (
+              <div className="flex items-center gap-3 rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
+                {form[name] && hexColorPattern.test(form[name]) ? (
+                  <span className="h-5 w-5 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: form[name] }} />
+                ) : null}
+                <span>{form[name] || "Not returned"}</span>
+              </div>
+            )}
+          </Field>
+        ))}
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <label className="flex items-center gap-3 rounded-xl bg-[#fbfaf7] p-4 font-semibold ring-1 ring-slate-100">
+          <input
+            type="checkbox"
+            checked={Boolean(form.passLogoTileEnabled)}
+            disabled={!isEditing}
+            onChange={(event) => onChange("passLogoTileEnabled", event.target.checked)}
+          />
+          Logo tile enabled
+        </label>
+        <Field label="Logo fit">
+          {isEditing ? (
+            <select
+              value={form.passLogoFit || "contain"}
+              onChange={(event) => onChange("passLogoFit", event.target.value)}
+              className="ps-input min-h-[2.9rem]"
+            >
+              <option value="contain">contain</option>
+              <option value="cover">cover</option>
+            </select>
+          ) : (
+            <div className="rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
+              {form.passLogoFit || "Not returned"}
+            </div>
+          )}
+        </Field>
+      </div>
+
+      <Field label="Optional design notes">
+        {isEditing ? (
+          <TextInput multiline value={form.passDesignNotes || ""} onChange={(event) => onChange("passDesignNotes", event.target.value)} />
+        ) : (
+          <div className="rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
+            {form.passDesignNotes || "Not returned"}
+          </div>
+        )}
+      </Field>
+
+      <div className="rounded-xl bg-[#fbfaf7] p-4 text-sm leading-6 text-slate-600 ring-1 ring-slate-100">
+        <p className="font-semibold text-slate-800">PocketStamp automatically corrects colours that are hard to read in Apple Wallet.</p>
+        <p className="mt-2">The card must stay readable. STAMPS, CUSTOMER, REWARD, and QR are fixed Wallet card elements. Unsafe contrast may be auto-corrected by PocketStamp.</p>
+        <p className="mt-2">Staff accounts are separate and not part of Wallet card design.</p>
+      </div>
+
+      {colorWarnings.length ? (
+        <Alert>
+          <ul className="space-y-1">
+            {colorWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
+function WalletPassPreview({ form }) {
   const threshold = Number(form.rewardThreshold) || 9;
   const logoSrc = form.logoPreviewUrl || form.logoUrl;
+  const theme = getWalletPreviewTheme(form);
+  const stampCount = Math.min(Math.max(threshold, 1), 12);
 
   return (
     <div
-      className="mx-auto max-w-sm overflow-hidden rounded-[2rem] p-5 shadow-2xl shadow-stone-900/10 ring-1 ring-stone-200"
-      style={{ backgroundColor: form.backgroundColor, color: form.textColor }}
+      className="mx-auto w-full max-w-sm overflow-hidden rounded-[1.75rem] p-5 shadow-2xl shadow-stone-900/10 ring-1 ring-stone-200"
+      style={{ backgroundColor: theme.backgroundColor, color: theme.foregroundColor }}
     >
-      <div
-        className="rounded-3xl p-5 text-white"
-        style={{ backgroundColor: form.brandColor }}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase opacity-70">Apple Wallet</p>
-            <p className="mt-2 text-xl font-semibold">{form.cafeName || "Café name"}</p>
-          </div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase" style={{ color: theme.labelColor }}>Apple Wallet</p>
+          <p className="mt-2 truncate text-xl font-semibold">{form.cafeName || "Café name"}</p>
+        </div>
+        <div
+          className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-bold"
+          style={{ backgroundColor: form.passLogoTileEnabled || form.logoTileEnabled ? theme.logoTileColor : "transparent" }}
+        >
           {logoSrc ? (
-            <img src={logoSrc} alt="" className="h-12 w-12 rounded-xl bg-white/15 object-contain p-1" />
+            <img src={logoSrc} alt="" className="h-full w-full object-contain p-1" />
           ) : (
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-sm font-bold">
-              PS
-            </span>
+            <span style={{ color: theme.accentColor }}>PS</span>
           )}
         </div>
-
-        <p className="mt-10 text-xs font-bold uppercase opacity-65">Stamps</p>
-        <p className="mt-1 text-5xl font-semibold">0/{threshold}</p>
       </div>
 
-      <div className="p-1 pt-5">
-        <div className="grid grid-cols-5 gap-2.5" aria-label={`${threshold} empty stamp circles`}>
-          {Array.from({ length: Math.min(Math.max(threshold, 1), 15) }).map((_, index) => (
-            <span
-              key={index}
-              className="aspect-square rounded-full border border-stone-300 bg-white/55"
-            />
-          ))}
+      <div className="mt-8 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold uppercase" style={{ color: theme.labelColor }}>Stamps</p>
+          <p className="mt-1 text-3xl font-semibold">0/{threshold}</p>
         </div>
+        <p className="text-xs font-bold uppercase" style={{ color: theme.labelColor }}>Customer</p>
+      </div>
 
-        <div className="mt-6 border-t border-stone-950/10 pt-5">
-          <p className="text-xs font-bold uppercase opacity-60">Reward</p>
-          <p className="mt-1 font-semibold">{form.rewardText || "Reward text"}</p>
+      <div className="mt-5 grid grid-cols-6 gap-2" aria-label={`${stampCount} empty stamp circles`}>
+        {Array.from({ length: stampCount }).map((_, index) => (
+          <span
+            key={index}
+            className="aspect-square rounded-full ring-1 ring-black/10"
+            style={{ backgroundColor: index === 0 ? theme.stampFilledColor : theme.stampEmptyColor }}
+          />
+        ))}
+      </div>
+
+      <div className="mt-6 grid grid-cols-[1fr_4.5rem] gap-4 border-t border-white/20 pt-5">
+        <div>
+          <p className="text-xs font-bold uppercase" style={{ color: theme.labelColor }}>Reward</p>
+          <p className="mt-1 text-sm font-semibold leading-5">{form.rewardText || "Reward text"}</p>
         </div>
+        <div className="grid aspect-square place-items-center rounded-lg bg-white text-[10px] font-bold text-slate-400">
+          QR
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FinalThemeDebug({ form, warnings = [] }) {
+  const rows = [
+    ["Final background", form.finalBackgroundColor],
+    ["Final text", form.finalForegroundColor],
+    ["Final label", form.finalLabelColor],
+    ["Final stamp filled", form.stampFilledColor],
+    ["Final stamp empty", form.stampEmptyColor],
+    ["Logo tile enabled", form.logoTileEnabled === undefined ? "" : String(Boolean(form.logoTileEnabled))],
+    ["Logo fit", form.logoFit],
+  ];
+
+  const hasValues = rows.some(([, value]) => value !== undefined && value !== null && value !== "") || warnings.length;
+  if (!hasValues) return null;
+
+  return (
+    <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+      <h2 className="text-xl font-semibold">Generated theme</h2>
+      {warnings.length ? (
+        <div className="mt-4">
+          <Alert>
+            <ul className="space-y-1">
+              {warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </Alert>
+        </div>
+      ) : null}
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <Detail key={label} label={label} value={value} />
+        ))}
       </div>
     </div>
   );
@@ -872,8 +1131,11 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
     setForm((current) => ({
       ...current,
       brandColor: suggestions.brandColor || current.brandColor,
+      passAccentColor: suggestions.brandColor || current.passAccentColor,
       backgroundColor: suggestions.backgroundColor || current.backgroundColor,
       textColor: suggestions.textColor || current.textColor,
+      foregroundColor: suggestions.textColor || current.foregroundColor,
+      labelColor: suggestions.labelColor || current.labelColor,
     }));
   }
 
@@ -887,6 +1149,14 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
 
       if (name === "merchantSlug") {
         next.merchantSlug = safeSlug(value);
+      }
+
+      if (name === "foregroundColor") {
+        next.textColor = value;
+      }
+
+      if (name === "textColor") {
+        next.foregroundColor = value;
       }
 
       return next;
@@ -1137,16 +1407,16 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
 
             {step === 2 ? (
               <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
-                <div className="grid gap-5 md:grid-cols-3 xl:grid-cols-1">
+                <div className="grid gap-5">
                   <Field label="Brand color">
-                    <TextInput type="color" value={form.brandColor} onChange={(event) => updateField("brandColor", event.target.value)} />
+                    <ColorInput value={form.brandColor} onChange={(value) => updateField("brandColor", value)} />
                   </Field>
-                  <Field label="Background color">
-                    <TextInput type="color" value={form.backgroundColor} onChange={(event) => updateField("backgroundColor", event.target.value)} />
-                  </Field>
-                  <Field label="Text color">
-                    <TextInput type="color" value={form.textColor} onChange={(event) => updateField("textColor", event.target.value)} />
-                  </Field>
+                  <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+                    <h2 className="text-xl font-semibold">Wallet card design</h2>
+                    <div className="mt-5">
+                      <WalletDesignFields form={form} onChange={updateField} />
+                    </div>
+                  </div>
                   <div className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
                     <p className="text-sm font-semibold text-[var(--ps-espresso)]">Logo</p>
                     <input
@@ -1173,7 +1443,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
                     ) : null}
                   </div>
                 </div>
-                <PassPreview form={form} />
+                <WalletPassPreview form={form} />
               </div>
             ) : null}
 
@@ -1246,6 +1516,15 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
                   <Detail label="Setup mode" value={form.setupMode} />
                   <Detail label="Sales notes" value={form.salesNotes} />
                   <Detail label="Logo" value={form.logoUpload?.fileName || form.logoUrl} />
+                  <Detail label="Wallet theme" value={themeModeOptions.find(([value]) => value === form.passThemeMode)?.[1]} />
+                  <Detail label="Wallet accent" value={form.passAccentColor} />
+                  <Detail label="Wallet text" value={form.foregroundColor} />
+                  <Detail label="Wallet label" value={form.labelColor} />
+                  <Detail label="Stamp filled" value={form.passStampFilledColor} />
+                  <Detail label="Stamp empty" value={form.passStampEmptyColor} />
+                  <Detail label="Logo tile" value={String(Boolean(form.passLogoTileEnabled))} />
+                  <Detail label="Logo fit" value={form.passLogoFit} />
+                  <Detail label="Design notes" value={form.passDesignNotes} />
                 </div>
               </div>
             ) : null}
@@ -1446,8 +1725,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
           rewardThreshold: pickFirst(nextMerchant.rewardThreshold, nextMerchant.loyalty?.rewardThreshold),
           rewardText: pickFirst(nextMerchant.rewardText, nextMerchant.loyalty?.rewardText),
           brandColor: pickFirst(nextMerchant.brandColor, nextMerchant.branding?.brandColor),
-          backgroundColor: pickFirst(nextMerchant.backgroundColor, nextMerchant.branding?.backgroundColor),
-          textColor: pickFirst(nextMerchant.textColor, nextMerchant.branding?.textColor),
+          ...normalizeWalletThemeState(nextMerchant),
           status: pickFirst(nextMerchant.status, nextMerchant.state, "active"),
           logoUpload: null,
           logoPreviewUrl: "",
@@ -1486,6 +1764,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
 
   const links = extractLinks(detailPayload || {}, merchant);
   const welcomeEmail = buildDetailWelcomeEmail(detailPayload || {}, merchant, links, ownerInviteUrl);
+  const themeWarnings = getThemeWarnings(merchant, detailPayload || {});
   const editableFields = [
     ["cafeName", "Café/display name", "text"],
     ["contactName", "Contact name", "text"],
@@ -1502,7 +1781,12 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   ];
 
   function updateForm(name, value) {
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) => {
+      const next = { ...current, [name]: value };
+      if (name === "foregroundColor") next.textColor = value;
+      if (name === "textColor") next.foregroundColor = value;
+      return next;
+    });
   }
 
   async function handleDetailLogoFile(file) {
@@ -1536,8 +1820,11 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     setForm((current) => ({
       ...current,
       brandColor: suggestions.brandColor || current.brandColor,
+      passAccentColor: suggestions.brandColor || current.passAccentColor,
       backgroundColor: suggestions.backgroundColor || current.backgroundColor,
       textColor: suggestions.textColor || current.textColor,
+      foregroundColor: suggestions.textColor || current.foregroundColor,
+      labelColor: suggestions.labelColor || current.labelColor,
     }));
   }
 
@@ -1569,8 +1856,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
           rewardThreshold: pickFirst(nextMerchant.rewardThreshold, nextMerchant.loyalty?.rewardThreshold),
           rewardText: pickFirst(nextMerchant.rewardText, nextMerchant.loyalty?.rewardText),
           brandColor: pickFirst(nextMerchant.brandColor, nextMerchant.branding?.brandColor),
-          backgroundColor: pickFirst(nextMerchant.backgroundColor, nextMerchant.branding?.backgroundColor),
-          textColor: pickFirst(nextMerchant.textColor, nextMerchant.branding?.textColor),
+          ...normalizeWalletThemeState(nextMerchant),
           status: pickFirst(nextMerchant.status, nextMerchant.state, "active"),
           logoUpload: null,
           logoPreviewUrl: "",
@@ -1662,7 +1948,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
             onClick={() => setIsEditing((current) => !current)}
             className="ps-button-secondary"
           >
-            {isEditing ? "Cancel edit" : "Edit safe fields"}
+            {isEditing ? "Cancel edit" : "Edit café"}
           </button>
         </div>
 
@@ -1812,71 +2098,91 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
-            <h2 className="text-xl font-semibold">Safe fields</h2>
-            <div className="mt-5 grid gap-5 md:grid-cols-2">
-              {editableFields.map(([name, label, type]) => (
-                <Field key={name} label={label}>
-                  {isEditing ? (
-                    <TextInput
-                      type={type === "textarea" ? undefined : type}
-                      multiline={type === "textarea"}
-                      value={form[name] || ""}
-                      onChange={(event) => updateForm(name, event.target.value)}
-                    />
-                  ) : (
-                    <div className="rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
-                      {form[name] || "Not returned"}
-                    </div>
-                  )}
-                </Field>
-              ))}
+          <div className="space-y-6">
+            <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+              <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[1fr_18rem]">
+                <div>
+                  <h2 className="text-xl font-semibold">Wallet card design</h2>
+                  <div className="mt-5">
+                    <WalletDesignFields form={form} isEditing={isEditing} onChange={updateForm} />
+                  </div>
+                </div>
+                <WalletPassPreview form={form} />
+              </div>
             </div>
 
-            <div className="mt-6 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
-              <p className="text-sm font-semibold text-[var(--ps-espresso)]">Logo</p>
-              {form.logoPreviewUrl || form.logoUrl ? (
-                <img src={form.logoPreviewUrl || form.logoUrl} alt="" className="mt-3 max-h-24 rounded-lg bg-white object-contain p-3 ring-1 ring-slate-100" />
-              ) : (
-                <p className="mt-2 text-sm font-semibold text-slate-500">No logo uploaded.</p>
-              )}
-              {isEditing ? (
-                <div className="mt-4">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    onChange={(event) => handleDetailLogoFile(event.target.files?.[0])}
-                    className="block w-full text-sm"
-                  />
-                  {form.colorSuggestions ? (
-                    <div className="mt-4">
-                      <p className="mb-2 text-xs font-semibold text-slate-500">Suggested only. Current colours stay unchanged unless applied.</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(form.colorSuggestions.palette || []).map((color) => (
-                          <span key={color} className="h-7 w-7 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: color }} />
-                        ))}
+            <FinalThemeDebug form={form} warnings={themeWarnings} />
+
+            <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+              <h2 className="text-xl font-semibold">Safe fields</h2>
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                {editableFields.map(([name, label, type]) => (
+                  <Field key={name} label={label}>
+                    {isEditing ? (
+                      type === "color" ? (
+                        <ColorInput value={form[name] || ""} onChange={(value) => updateForm(name, value)} />
+                      ) : (
+                        <TextInput
+                          type={type === "textarea" ? undefined : type}
+                          multiline={type === "textarea"}
+                          value={form[name] || ""}
+                          onChange={(event) => updateForm(name, event.target.value)}
+                        />
+                      )
+                    ) : (
+                      <div className="rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
+                        {form[name] || "Not returned"}
                       </div>
-                      <button type="button" onClick={applyDetailColorSuggestions} className="ps-button-secondary mt-3">
-                        Apply suggested colours
-                      </button>
-                    </div>
-                  ) : null}
+                    )}
+                  </Field>
+                ))}
+              </div>
+
+              <div className="mt-6 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+                <p className="text-sm font-semibold text-[var(--ps-espresso)]">Logo</p>
+                {form.logoPreviewUrl || form.logoUrl ? (
+                  <img src={form.logoPreviewUrl || form.logoUrl} alt="" className="mt-3 max-h-24 rounded-lg bg-white object-contain p-3 ring-1 ring-slate-100" />
+                ) : (
+                  <p className="mt-2 text-sm font-semibold text-slate-500">No logo uploaded.</p>
+                )}
+                {isEditing ? (
+                  <div className="mt-4">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      onChange={(event) => handleDetailLogoFile(event.target.files?.[0])}
+                      className="block w-full text-sm"
+                    />
+                    {form.colorSuggestions ? (
+                      <div className="mt-4">
+                        <p className="mb-2 text-xs font-semibold text-slate-500">Suggested only. Current colours stay unchanged unless applied.</p>
+                        <div className="flex flex-wrap gap-2">
+                          {(form.colorSuggestions.palette || []).map((color) => (
+                            <span key={color} className="h-7 w-7 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: color }} />
+                          ))}
+                        </div>
+                        <button type="button" onClick={applyDetailColorSuggestions} className="ps-button-secondary mt-3">
+                          Apply suggested colours
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              {isEditing ? (
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleSave}
+                    className="ps-button-primary disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isSaving ? "Saving..." : "Save changes"}
+                  </button>
                 </div>
               ) : null}
             </div>
-
-            {isEditing ? (
-              <div className="mt-6">
-                <button
-                  type="button"
-                  disabled={isSaving}
-                  onClick={handleSave}
-                  className="ps-button-primary disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isSaving ? "Saving..." : "Save changes"}
-                </button>
-              </div>
-            ) : null}
           </div>
         </div>
       </section>
