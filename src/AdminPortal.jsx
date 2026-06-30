@@ -338,6 +338,26 @@ function getInitials(value) {
   return words.slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "PS";
 }
 
+function buildMerchantEditForm(merchant = {}) {
+  return {
+    cafeName: getMerchantName(merchant),
+    contactName: pickFirst(merchant.contactName, merchant.contact?.name),
+    contactEmail: getContactEmail(merchant),
+    contactPhone: pickFirst(merchant.contactPhone, merchant.contact?.phone),
+    address: pickFirst(merchant.address, merchant.location?.address),
+    salesNotes: pickFirst(merchant.salesNotes, merchant.notes),
+    rewardThreshold: pickFirst(merchant.rewardThreshold, merchant.loyalty?.rewardThreshold),
+    rewardText: pickFirst(merchant.rewardText, merchant.loyalty?.rewardText),
+    brandColor: pickFirst(merchant.brandColor, merchant.branding?.brandColor),
+    ...normalizeWalletThemeState(merchant),
+    status: pickFirst(merchant.status, merchant.state, "active"),
+    logoUpload: null,
+    logoPreviewUrl: "",
+    logoUrl: getLogoUrl(merchant),
+    colorSuggestions: null,
+  };
+}
+
 function extractMerchants(payload) {
   const candidates = [
     payload,
@@ -1840,23 +1860,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         if (!isMounted) return;
         setDetailPayload(payload || {});
         setMerchant(nextMerchant);
-        setForm({
-          cafeName: getMerchantName(nextMerchant),
-          contactName: pickFirst(nextMerchant.contactName, nextMerchant.contact?.name),
-          contactEmail: getContactEmail(nextMerchant),
-          contactPhone: pickFirst(nextMerchant.contactPhone, nextMerchant.contact?.phone),
-          address: pickFirst(nextMerchant.address, nextMerchant.location?.address),
-          salesNotes: pickFirst(nextMerchant.salesNotes, nextMerchant.notes),
-          rewardThreshold: pickFirst(nextMerchant.rewardThreshold, nextMerchant.loyalty?.rewardThreshold),
-          rewardText: pickFirst(nextMerchant.rewardText, nextMerchant.loyalty?.rewardText),
-          brandColor: pickFirst(nextMerchant.brandColor, nextMerchant.branding?.brandColor),
-          ...normalizeWalletThemeState(nextMerchant),
-          status: pickFirst(nextMerchant.status, nextMerchant.state, "active"),
-          logoUpload: null,
-          logoPreviewUrl: "",
-          logoUrl: getLogoUrl(nextMerchant),
-          colorSuggestions: null,
-        });
+        setForm(buildMerchantEditForm(nextMerchant));
       } catch (loadError) {
         if (isMounted) setError(loadError.message || "Unable to load café.");
       } finally {
@@ -1890,6 +1894,18 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   const links = extractLinks(detailPayload || {}, merchant);
   const welcomeEmail = buildDetailWelcomeEmail(detailPayload || {}, merchant, links, ownerInviteUrl);
   const themeWarnings = getThemeWarnings(merchant, detailPayload || {});
+  const detailPreviewSource = isEditing
+    ? {
+        ...form,
+        finalBackgroundColor: "",
+        finalForegroundColor: "",
+        finalLabelColor: "",
+        stampFilledColor: "",
+        stampEmptyColor: "",
+        logoTileEnabled: form.passLogoTileEnabled,
+        logoFit: form.passLogoFit,
+      }
+    : form;
   const editableFields = [
     ["cafeName", "Café/display name", "text"],
     ["contactName", "Contact name", "text"],
@@ -1968,24 +1984,23 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
       }, accessToken);
       const nextMerchant = extractMerchant(payload);
       setDetailPayload(payload || detailPayload);
-      setMerchant(nextMerchant || { ...merchant, ...form });
       if (nextMerchant) {
+        setMerchant(nextMerchant);
+        setForm(buildMerchantEditForm(nextMerchant));
+      } else {
+        const fallbackMerchant = { ...merchant, ...form };
+        setMerchant(fallbackMerchant);
         setForm((current) => ({
           ...current,
-          cafeName: getMerchantName(nextMerchant),
-          contactName: pickFirst(nextMerchant.contactName, nextMerchant.contact?.name),
-          contactEmail: getContactEmail(nextMerchant),
-          contactPhone: pickFirst(nextMerchant.contactPhone, nextMerchant.contact?.phone),
-          address: pickFirst(nextMerchant.address, nextMerchant.location?.address),
-          salesNotes: pickFirst(nextMerchant.salesNotes, nextMerchant.notes),
-          rewardThreshold: pickFirst(nextMerchant.rewardThreshold, nextMerchant.loyalty?.rewardThreshold),
-          rewardText: pickFirst(nextMerchant.rewardText, nextMerchant.loyalty?.rewardText),
-          brandColor: pickFirst(nextMerchant.brandColor, nextMerchant.branding?.brandColor),
-          ...normalizeWalletThemeState(nextMerchant),
-          status: pickFirst(nextMerchant.status, nextMerchant.state, "active"),
+          finalBackgroundColor: "",
+          finalForegroundColor: "",
+          finalLabelColor: "",
+          stampFilledColor: "",
+          stampEmptyColor: "",
+          logoTileEnabled: current.passLogoTileEnabled,
+          logoFit: current.passLogoFit,
           logoUpload: null,
           logoPreviewUrl: "",
-          logoUrl: getLogoUrl(nextMerchant),
           colorSuggestions: null,
         }));
       }
@@ -2059,6 +2074,17 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     window.setTimeout(() => setDetailCopyState(""), 1800);
   }
 
+  function toggleDetailEditing() {
+    if (isEditing) {
+      setForm(buildMerchantEditForm(merchant));
+      setIsEditing(false);
+      return;
+    }
+
+    setSaveMessage("");
+    setIsEditing(true);
+  }
+
   return (
     <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
       <section className="ps-flow-card">
@@ -2070,7 +2096,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
           </div>
           <button
             type="button"
-            onClick={() => setIsEditing((current) => !current)}
+            onClick={toggleDetailEditing}
             className="ps-button-secondary"
           >
             {isEditing ? "Cancel edit" : "Edit café"}
@@ -2237,26 +2263,26 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                 </div>
                 <div className="xl:sticky xl:top-6 xl:self-start">
                   <WalletPassLivePreview
-                    cafeName={form.cafeName}
-                    logoUrl={form.logoUrl}
-                    logoPreview={form.logoPreviewUrl}
-                    rewardThreshold={form.rewardThreshold}
-                    rewardText={form.rewardText}
-                    themeMode={form.passThemeMode}
-                    backgroundColor={form.backgroundColor}
-                    foregroundColor={form.foregroundColor || form.textColor}
-                    labelColor={form.labelColor}
-                    accentColor={form.passAccentColor || form.brandColor}
-                    stampFilledColor={form.passStampFilledColor}
-                    stampEmptyColor={form.passStampEmptyColor}
-                    logoTileEnabled={pickFirst(form.logoTileEnabled, form.passLogoTileEnabled)}
-                    logoTileColor={form.passLogoTileColor}
-                    logoFit={pickFirst(form.logoFit, form.passLogoFit)}
-                    finalBackgroundColor={form.finalBackgroundColor}
-                    finalForegroundColor={form.finalForegroundColor}
-                    finalLabelColor={form.finalLabelColor}
-                    finalStampFilledColor={form.stampFilledColor}
-                    finalStampEmptyColor={form.stampEmptyColor}
+                    cafeName={detailPreviewSource.cafeName}
+                    logoUrl={detailPreviewSource.logoUrl}
+                    logoPreview={detailPreviewSource.logoPreviewUrl}
+                    rewardThreshold={detailPreviewSource.rewardThreshold}
+                    rewardText={detailPreviewSource.rewardText}
+                    themeMode={detailPreviewSource.passThemeMode}
+                    backgroundColor={detailPreviewSource.backgroundColor}
+                    foregroundColor={detailPreviewSource.foregroundColor || detailPreviewSource.textColor}
+                    labelColor={detailPreviewSource.labelColor}
+                    accentColor={detailPreviewSource.passAccentColor || detailPreviewSource.brandColor}
+                    stampFilledColor={detailPreviewSource.passStampFilledColor}
+                    stampEmptyColor={detailPreviewSource.passStampEmptyColor}
+                    logoTileEnabled={pickFirst(detailPreviewSource.logoTileEnabled, detailPreviewSource.passLogoTileEnabled)}
+                    logoTileColor={detailPreviewSource.passLogoTileColor}
+                    logoFit={pickFirst(detailPreviewSource.logoFit, detailPreviewSource.passLogoFit)}
+                    finalBackgroundColor={detailPreviewSource.finalBackgroundColor}
+                    finalForegroundColor={detailPreviewSource.finalForegroundColor}
+                    finalLabelColor={detailPreviewSource.finalLabelColor}
+                    finalStampFilledColor={detailPreviewSource.stampFilledColor}
+                    finalStampEmptyColor={detailPreviewSource.stampEmptyColor}
                     themeWarnings={themeWarnings}
                   />
                 </div>
