@@ -421,6 +421,20 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
       welcomePack.body,
       buildWelcomeEmail(formState, { joinUrl, merchantDashboardUrl, merchantSetupUrl, staffDashboardUrl, demoPassUrl }).body,
     ),
+    welcomeEmailText: pickFirst(
+      response.welcomeEmailText,
+      data.welcomeEmailText,
+      result.welcomeEmailText,
+      welcomePack.welcomeEmailText,
+      welcomePack.text,
+    ),
+    welcomeEmailHtml: pickFirst(
+      response.welcomeEmailHtml,
+      data.welcomeEmailHtml,
+      result.welcomeEmailHtml,
+      welcomePack.welcomeEmailHtml,
+      welcomePack.html,
+    ),
   };
 }
 
@@ -622,6 +636,8 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
   const welcomeEmail = {
     subject: normalizedCreated.welcomeEmailSubject,
     body: normalizedCreated.welcomeEmailBody,
+    text: pickFirst(normalizedCreated.welcomeEmailText, normalizedCreated.welcomeEmailBody),
+    html: normalizedCreated.welcomeEmailHtml,
   };
   const missingCreatedSlug = createdPayload && !normalizedCreated.merchantSlug;
 
@@ -720,6 +736,35 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
     window.setTimeout(() => setCopyState(""), 1800);
   }
 
+  async function copyWelcomeEmail() {
+    const html = welcomeEmail.html || "";
+    const text = welcomeEmail.text || "";
+
+    if (html && navigator.clipboard?.write && window.ClipboardItem) {
+      try {
+        await navigator.clipboard.write([
+          new window.ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" }),
+          }),
+        ]);
+        setCopyState("Branded welcome email copied.");
+        window.setTimeout(() => setCopyState(""), 1800);
+        return;
+      } catch {
+        // Fall back to plain text when rich clipboard writes are blocked or unsupported.
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState("Plain text welcome email copied.");
+    } catch {
+      setCopyState("Welcome email copy failed.");
+    }
+    window.setTimeout(() => setCopyState(""), 1800);
+  }
+
   function resetWizard() {
     setForm(initialOnboardingForm);
     setStep(0);
@@ -761,9 +806,20 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
 
           <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-slate-200">
             <Detail label="Welcome email subject" value={welcomeEmail.subject} />
-            <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-[#fbfaf7] p-4 text-sm leading-6 text-slate-700 ring-1 ring-slate-100">
-              {welcomeEmail.body}
-            </pre>
+            {welcomeEmail.html ? (
+              <div className="mt-4 overflow-hidden rounded-xl bg-[#fbfaf7] ring-1 ring-slate-100">
+                <iframe
+                  title="Branded welcome email preview"
+                  srcDoc={welcomeEmail.html}
+                  sandbox=""
+                  className="h-[520px] w-full bg-white"
+                />
+              </div>
+            ) : (
+              <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-[#fbfaf7] p-4 text-sm leading-6 text-slate-700 ring-1 ring-slate-100">
+                {welcomeEmail.body}
+              </pre>
+            )}
           </div>
 
           {copyState ? <p className="mt-4 text-sm font-semibold text-[var(--ps-blue)]">{copyState}</p> : null}
@@ -787,7 +843,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
             ) : null}
             <button
               type="button"
-              onClick={() => copyText("Welcome email", `${welcomeEmail.subject}\n\n${welcomeEmail.body}`)}
+              onClick={copyWelcomeEmail}
               className="ps-button-secondary"
             >
               Copy welcome email
