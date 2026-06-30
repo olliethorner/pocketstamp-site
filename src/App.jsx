@@ -633,7 +633,7 @@ function ReminderMockup() {
     <div className="mx-auto w-full max-w-xl">
       <div className="overflow-hidden rounded-3xl bg-[#fffdf8] p-3 shadow-2xl shadow-stone-900/10 ring-1 ring-stone-200">
         <img
-          src="/wallet-reminders-mockup.png"
+          src="/pocketstamp-notifications-phone.png"
           alt="iPhone lock screen showing PocketStamp Wallet reminder notifications"
           className="block w-full rounded-[22px]"
           loading="lazy"
