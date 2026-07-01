@@ -1,6 +1,7 @@
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
+import { BrowserQRCodeReader } from "@zxing/browser";
 import AdminPortal from "./AdminPortal.jsx";
 import "./App.css";
 
@@ -271,11 +272,15 @@ function buildScannerPassBody(scanResult = {}) {
   const scan = scanResult || {};
   const customerId = pickFirst(
     scan.customerId,
+    scan.customer_id,
     scan.passCustomerId,
     scan.customer?.id,
+    scan.id,
     scan.result?.customerId,
+    scan.result?.customer_id,
     scan.result?.customer?.id,
     scan.data?.customerId,
+    scan.data?.customer_id,
     scan.data?.customer?.id,
   );
   const passId = pickFirst(
@@ -288,19 +293,31 @@ function buildScannerPassBody(scanResult = {}) {
     scan.data?.pass?.id,
   );
   const serialNumber = pickFirst(
+    scan.passSerial,
+    scan.pass_serial,
     scan.serialNumber,
+    scan.serial_number,
     scan.passSerialNumber,
+    scan.pass?.serial_number,
     scan.pass?.serialNumber,
+    scan.result?.passSerial,
+    scan.result?.pass_serial,
     scan.result?.serialNumber,
+    scan.result?.serial_number,
+    scan.result?.pass?.serial_number,
     scan.result?.pass?.serialNumber,
+    scan.data?.passSerial,
+    scan.data?.pass_serial,
     scan.data?.serialNumber,
+    scan.data?.serial_number,
+    scan.data?.pass?.serial_number,
     scan.data?.pass?.serialNumber,
   );
 
   return {
     ...(customerId ? { customerId } : {}),
     ...(passId ? { passId } : {}),
-    ...(serialNumber ? { serialNumber, passSerialNumber: serialNumber } : {}),
+    ...(serialNumber ? { serialNumber, passSerial: serialNumber, passSerialNumber: serialNumber } : {}),
   };
 }
 
@@ -3105,21 +3122,79 @@ function getScanStamps(result = {}) {
 function getScanPassId(result = {}) {
   const scan = result || {};
   return pickFirst(
+    scan.passSerial,
+    scan.pass_serial,
     scan.passId,
     scan.walletPassId,
     scan.serialNumber,
+    scan.serial_number,
     scan.passSerialNumber,
     scan.pass?.id,
+    scan.pass?.serial_number,
     scan.pass?.serialNumber,
+    scan.customer?.passSerial,
+    scan.customer?.pass_serial,
     scan.customer?.passId,
+    scan.result?.passSerial,
+    scan.result?.pass_serial,
     scan.result?.passId,
     scan.result?.serialNumber,
+    scan.result?.serial_number,
     scan.result?.pass?.id,
+    scan.result?.pass?.serial_number,
     scan.result?.pass?.serialNumber,
+    scan.data?.passSerial,
+    scan.data?.pass_serial,
     scan.data?.passId,
     scan.data?.serialNumber,
+    scan.data?.serial_number,
     scan.data?.pass?.id,
+    scan.data?.pass?.serial_number,
     scan.data?.pass?.serialNumber,
+  );
+}
+
+function getScanPassSerial(result = {}) {
+  const scan = result || {};
+  return pickFirst(
+    scan.passSerial,
+    scan.pass_serial,
+    scan.serialNumber,
+    scan.serial_number,
+    scan.passSerialNumber,
+    scan.pass?.serial_number,
+    scan.pass?.serialNumber,
+    scan.result?.passSerial,
+    scan.result?.pass_serial,
+    scan.result?.serialNumber,
+    scan.result?.serial_number,
+    scan.result?.pass?.serial_number,
+    scan.result?.pass?.serialNumber,
+    scan.data?.passSerial,
+    scan.data?.pass_serial,
+    scan.data?.serialNumber,
+    scan.data?.serial_number,
+    scan.data?.pass?.serial_number,
+    scan.data?.pass?.serialNumber,
+  );
+}
+
+function getScanCustomerId(result = {}) {
+  const scan = result || {};
+  return pickFirst(
+    scan.customerId,
+    scan.customer_id,
+    scan.passCustomerId,
+    scan.customer?.id,
+    scan.id,
+    scan.result?.customerId,
+    scan.result?.customer_id,
+    scan.result?.customer?.id,
+    scan.result?.id,
+    scan.data?.customerId,
+    scan.data?.customer_id,
+    scan.data?.customer?.id,
+    scan.data?.id,
   );
 }
 
@@ -3154,6 +3229,12 @@ function formatScannerDateTime(value) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function cameraContextAllowsScanning() {
+  const hostname = window.location.hostname;
+  const isLocalhost = ["localhost", "127.0.0.1", "::1"].includes(hostname);
+  return window.location.protocol === "https:" || isLocalhost;
 }
 
 function getCooldownText(result = {}) {
@@ -3255,6 +3336,7 @@ function KioskStat({ label, value }) {
 function CameraScannerModal({ isOpen, isProcessing, onClose, onDetected }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const zxingControlsRef = useRef(null);
   const frameRef = useRef(null);
   const closingRef = useRef(false);
   const onDetectedRef = useRef(onDetected);
@@ -3269,6 +3351,8 @@ function CameraScannerModal({ isOpen, isProcessing, onClose, onDetected }) {
     closingRef.current = true;
     if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
+    zxingControlsRef.current?.stop?.();
+    zxingControlsRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
@@ -3277,71 +3361,103 @@ function CameraScannerModal({ isOpen, isProcessing, onClose, onDetected }) {
   useEffect(() => {
     if (!isOpen) return undefined;
 
-    let detector;
     closingRef.current = false;
     setCameraStatus("starting");
     setCameraError("");
 
+    function handleDetected(qrValue) {
+      if (!qrValue || closingRef.current) return;
+      setCameraStatus("detected");
+      stopCamera();
+      onDetectedRef.current(qrValue);
+    }
+
+    async function startNativeBarcodeDetector() {
+      if (!("BarcodeDetector" in window)) return false;
+
+      const supportedFormats = await window.BarcodeDetector.getSupportedFormats?.();
+      if (Array.isArray(supportedFormats) && !supportedFormats.includes("qr_code")) return false;
+
+      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+
+      if (closingRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return true;
+      }
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setCameraStatus("scanning");
+
+      const scanFrame = async () => {
+        if (closingRef.current || !videoRef.current) return;
+
+        try {
+          const codes = await detector.detect(videoRef.current);
+          const qrValue = codes?.find((code) => code.rawValue)?.rawValue;
+          if (qrValue) {
+            handleDetected(qrValue);
+            return;
+          }
+        } catch (scanError) {
+          console.warn("Camera QR scan failed", scanError);
+        }
+
+        frameRef.current = window.requestAnimationFrame(scanFrame);
+      };
+
+      frameRef.current = window.requestAnimationFrame(scanFrame);
+      return true;
+    }
+
+    async function startZxingScanner() {
+      const codeReader = new BrowserQRCodeReader();
+      const controls = await codeReader.decodeFromVideoDevice(
+        undefined,
+        videoRef.current,
+        (result, error, controlsFromCallback) => {
+          if (closingRef.current) return;
+          if (controlsFromCallback && !zxingControlsRef.current) {
+            zxingControlsRef.current = controlsFromCallback;
+          }
+          const qrValue = result?.getText?.();
+          if (qrValue) handleDetected(qrValue);
+          if (error && error.name && !/NotFoundException/i.test(error.name)) {
+            console.warn("ZXing QR scan failed", error);
+          }
+        },
+      );
+
+      zxingControlsRef.current = controls;
+      const stream = videoRef.current?.srcObject;
+      if (stream?.getTracks) streamRef.current = stream;
+      setCameraStatus("scanning");
+    }
+
     async function startCamera() {
-      if (!window.isSecureContext) {
+      if (!cameraContextAllowsScanning()) {
         setCameraStatus("unsupported");
-        setCameraError("Camera scanning must be opened over HTTPS.");
+        setCameraError("Camera scanning needs HTTPS. Use the counter scanner or manual code instead.");
         return;
       }
 
-      if (!navigator.mediaDevices?.getUserMedia || !("BarcodeDetector" in window)) {
+      if (!navigator.mediaDevices?.getUserMedia) {
         setCameraStatus("unsupported");
         setCameraError("Camera scanning is not available on this tablet. Use the counter scanner or manual code instead.");
         return;
       }
 
       try {
-        const supportedFormats = await window.BarcodeDetector.getSupportedFormats?.();
-        if (Array.isArray(supportedFormats) && !supportedFormats.includes("qr_code")) {
-          setCameraStatus("unsupported");
-          setCameraError("Camera scanning is not available on this tablet. Use the counter scanner or manual code instead.");
-          return;
-        }
-
-        detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-          audio: false,
-        });
-
-        if (closingRef.current) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-
-        setCameraStatus("scanning");
-
-        const scanFrame = async () => {
-          if (closingRef.current || !videoRef.current) return;
-
-          try {
-            const codes = await detector.detect(videoRef.current);
-            const qrValue = codes?.find((code) => code.rawValue)?.rawValue;
-            if (qrValue) {
-              setCameraStatus("detected");
-              stopCamera();
-              onDetectedRef.current(qrValue);
-              return;
-            }
-          } catch (scanError) {
-            console.warn("Camera QR scan failed", scanError);
-          }
-
-          frameRef.current = window.requestAnimationFrame(scanFrame);
-        };
-
-        frameRef.current = window.requestAnimationFrame(scanFrame);
+        const nativeStarted = await startNativeBarcodeDetector();
+        if (!nativeStarted && !closingRef.current) await startZxingScanner();
       } catch (error) {
         console.warn("Camera unavailable", error);
         setCameraStatus("error");
@@ -3426,7 +3542,10 @@ function CustomerAdjustmentModal({
   const currentStamps = Number(getScanCurrentStamps(customerResult) ?? 0);
   const threshold = Number(getScanRewardThreshold(customerResult) ?? fallbackThreshold ?? 10);
   const maxStamps = Number.isFinite(threshold) && threshold >= 0 ? threshold : 10;
-  const passId = maskScannerId(getScanPassId(customerResult));
+  const passSerial = getScanPassSerial(customerResult);
+  const customerId = getScanCustomerId(customerResult);
+  const identifierLabel = passSerial ? "Pass ID" : customerId ? "Customer ID" : "Pass ID";
+  const identifierValue = maskScannerId(passSerial || customerId);
   const lastActivity = formatScannerDateTime(getScanLastActivity(customerResult));
 
   if (!isOpen) return null;
@@ -3454,7 +3573,7 @@ function CustomerAdjustmentModal({
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <KioskStat label="Current stamps" value={`${currentStamps}/${maxStamps}`} />
-            <KioskStat label="Pass ID" value={passId || "Unavailable"} />
+            <KioskStat label={identifierLabel} value={identifierValue || "Unavailable"} />
             <KioskStat label="Last activity" value={lastActivity || "Unavailable"} />
           </div>
         </div>
@@ -3788,6 +3907,16 @@ function ScannerKioskPage() {
       setAdjustment((current) => ({
         ...current,
         error: `Enter a stamp count from 0 to ${maxStamps}.`,
+        success: "",
+      }));
+      return;
+    }
+
+    const passBody = buildScannerPassBody(adjustment.result);
+    if (!passBody.customerId && !passBody.passSerial && !passBody.passSerialNumber && !passBody.serialNumber) {
+      setAdjustment((current) => ({
+        ...current,
+        error: "Customer/pass identifier is missing. Please scan or look up the Wallet pass again.",
         success: "",
       }));
       return;
