@@ -2669,6 +2669,15 @@ function ScannerDevicesCard({ merchantId, accessToken }) {
 
   async function handleCreateDevice(event) {
     event.preventDefault();
+    const deviceName = createName.trim();
+
+    if (!deviceName) {
+      setError("Device name is required.");
+      setMessage("");
+      setSetupUrl("");
+      return;
+    }
+
     setIsCreating(true);
     setError("");
     setMessage("");
@@ -2678,10 +2687,10 @@ function ScannerDevicesCard({ merchantId, accessToken }) {
       const payload = await adminFetch(`/api/admin/merchants/${merchantId}/scanner-devices`, {
         method: "POST",
         body: JSON.stringify({
-          name: createName.trim() || "Counter scanner",
+          deviceName,
           mode: "auto_stamp",
-          cooldownSeconds: 60,
-          requireRewardConfirmation: true,
+          cooldownSeconds: 300,
+          requireConfirmationForRewards: true,
         }),
       }, accessToken);
       const createdDevice = extractScannerDevice(payload);
