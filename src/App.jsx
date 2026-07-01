@@ -395,12 +395,14 @@ function getActivityCustomerName(item) {
   return pickFirst(
     item.customerName,
     item.customer_name,
+    item.name,
     item.customer?.name,
     item.customer?.fullName,
     item.customer?.firstName && item.customer?.lastName
       ? `${item.customer.firstName} ${item.customer.lastName}`
       : null,
     item.customer?.firstName,
+    item.email,
   );
 }
 
@@ -440,10 +442,25 @@ function looksLikeReminder(item) {
   return haystack.includes("reminder") || haystack.includes("notification");
 }
 
-function formatActivityTime(timestamp) {
+function formatActivityTime(timestamp, { sentence = false } = {}) {
   if (!timestamp) return "Recent";
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return "Recent";
+
+  if (sentence) {
+    const datePart = new Intl.DateTimeFormat(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(date);
+    const timePart = new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+
+    return `${datePart} at ${timePart}`;
+  }
+
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -599,7 +616,7 @@ function formatActivityMeta(item) {
 }
 
 function formatActivitySource(item) {
-  const sourceText = [
+  const directSource = pickFirst(
     item.source,
     item.channel,
     item.origin,
@@ -607,6 +624,9 @@ function formatActivitySource(item) {
     item.createdBy,
     item.deviceType,
     item.device?.type,
+  );
+  const sourceText = [
+    directSource,
     item.scannerDeviceName,
     item.scannerDeviceId,
     item.readerName,
@@ -615,10 +635,68 @@ function formatActivitySource(item) {
     .join(" ")
     .toLowerCase();
 
-  if (sourceText.includes("scanner") || sourceText.includes("scan")) return "Via scanner";
+  if (sourceText.includes("scanner") || sourceText.includes("scan")) return "Via counter scanner";
   if (sourceText.includes("dashboard")) return "Via dashboard";
-  if (sourceText.includes("manual") || sourceText.includes("staff")) return "Via manual";
+  if (sourceText.includes("manual") || sourceText.includes("staff")) return "Manual";
+  if (directSource) return `Via ${toTitle(directSource).toLowerCase()}`;
   return "";
+}
+
+function getActivityStampProgress(item) {
+  const current = pickFirst(
+    item.currentStamps,
+    item.stamps,
+    item.stampCount,
+    item.current_stamps,
+    item.customer?.currentStamps,
+    item.result?.currentStamps,
+    item.result?.stamps,
+  );
+  const threshold = pickFirst(
+    item.rewardThreshold,
+    item.threshold,
+    item.reward_threshold,
+    item.customer?.rewardThreshold,
+    item.result?.rewardThreshold,
+    item.result?.threshold,
+  );
+  const currentNumber = Number(current);
+  const thresholdNumber = Number(threshold);
+
+  if (Number.isFinite(currentNumber) && Number.isFinite(thresholdNumber) && thresholdNumber > 0) {
+    return `${currentNumber}/${thresholdNumber} stamps`;
+  }
+  if (Number.isFinite(currentNumber)) return `${currentNumber} stamps`;
+  return "";
+}
+
+function formatActivityDetailParts(item) {
+  const customerName = getActivityCustomerName(item);
+  const source = formatActivitySource(item);
+  const parts = [];
+
+  if (customerName) parts.push(customerName);
+
+  if (looksLikeStamp(item)) {
+    if (!customerName) parts.push("Customer");
+    parts.push(pickFirst(getActivityStampProgress(item), "Stamp"));
+  } else if (looksLikeReward(item)) {
+    if (!customerName) parts.push("Customer");
+    parts.push("Reward claimed");
+  } else if (looksLikeJoin(item)) {
+    if (!customerName) parts.push("Customer");
+    parts.push("Added Apple Wallet pass");
+  } else if (looksLikeReminder(item)) {
+    parts.push("Wallet reminder");
+  }
+
+  if (source) parts.push(source);
+
+  return parts.length ? parts : [customerName || toTitle(getActivityType(item)) || "Activity"];
+}
+
+function formatActivityDetail(item) {
+  return formatActivityDetailParts(item).filter(Boolean).join(" · ");
 }
 
 function formatActivityBadge(item) {
@@ -1475,6 +1553,36 @@ function OverviewCard({ label, value, helper, iconLabel }) {
   );
 }
 
+function PaginationControls({ page, pageCount, onPageChange }) {
+  if (pageCount <= 1) return null;
+
+  return (
+    <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm font-semibold text-slate-500">
+        Page {page} of {pageCount}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+          disabled={page <= 1}
+          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(pageCount, page + 1))}
+          disabled={page >= pageCount}
+          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CounterScannerSection({ scanner }) {
   const detailRows = [
     ["Device", scanner.deviceName],
@@ -1550,7 +1658,28 @@ function CounterScannerSection({ scanner }) {
   );
 }
 
+const activityPageSize = 10;
+const customerPageSize = 10;
+
 function ActivityList({ activityRows, isLoading, error }) {
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(activityRows.length / activityPageSize));
+  const safePage = Math.min(page, pageCount);
+  const pageStart = (safePage - 1) * activityPageSize;
+  const pagedActivityRows = activityRows.slice(pageStart, pageStart + activityPageSize);
+  const activitySummary =
+    activityRows.length > activityPageSize
+      ? `Showing ${pageStart + 1}-${Math.min(pageStart + activityPageSize, activityRows.length)} of ${activityRows.length} activities`
+      : `Showing latest ${activityRows.length} ${activityRows.length === 1 ? "activity" : "activities"}`;
+
+  useEffect(() => {
+    setPage(1);
+  }, [activityRows]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-white p-6 text-slate-600 ring-1 ring-slate-200">
@@ -1579,25 +1708,30 @@ function ActivityList({ activityRows, isLoading, error }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
-      {activityRows.map((item, index) => (
-        <div
-          key={pickFirst(item.id, item._id, item.eventId, `${index}-${getActivityTimestamp(item)}`)}
-          className="flex flex-col gap-3 border-b border-slate-100 p-5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <p className="font-semibold text-slate-950">{formatActivityTitle(item)}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              {formatActivityTime(getActivityTimestamp(item))}
-              {formatActivityMeta(item) ? ` · ${formatActivityMeta(item)}` : ""}
-              {formatActivitySource(item) ? ` · ${formatActivitySource(item)}` : ""}
-            </p>
+    <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+      <p className="mb-3 text-sm font-semibold text-slate-500">{activitySummary}</p>
+      <div className="overflow-hidden rounded-xl ring-1 ring-slate-100">
+        {pagedActivityRows.map((item, index) => (
+          <div
+            key={pickFirst(item.id, item._id, item.eventId, `${pageStart + index}-${getActivityTimestamp(item)}`)}
+            className="flex flex-col gap-3 border-b border-slate-100 p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="min-w-0">
+              <p className="font-semibold text-slate-950">{formatActivityTitle(item)}</p>
+              <p className="mt-1 truncate text-sm text-slate-600" title={formatActivityDetail(item)}>
+                {formatActivityDetail(item)}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {formatActivityTime(getActivityTimestamp(item), { sentence: true })}
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
+              {formatActivityBadge(item)}
+            </span>
           </div>
-          <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
-            {formatActivityBadge(item)}
-          </span>
-        </div>
-      ))}
+        ))}
+      </div>
+      <PaginationControls page={safePage} pageCount={pageCount} onPageChange={setPage} />
     </div>
   );
 }
@@ -1620,6 +1754,7 @@ function LoyaltyCustomersSection({
   expandedCustomerId,
   onExpandedCustomerChange,
 }) {
+  const [page, setPage] = useState(1);
   const supportsScannedToday = customers.some((customer) =>
     ["scannedToday", "hasScannedToday", "lastScannedAt", "lastScanAt", "lastScannerScanAt"].some(
       (field) => customer[field] !== undefined && customer[field] !== null,
@@ -1630,11 +1765,23 @@ function LoyaltyCustomersSection({
     : baseCustomerFilters;
   const visibleCustomers =
     status === "scanned_today" ? customers.filter(customerWasScannedToday) : customers;
+  const pageCount = Math.max(1, Math.ceil(visibleCustomers.length / customerPageSize));
+  const safePage = Math.min(page, pageCount);
+  const pageStart = (safePage - 1) * customerPageSize;
+  const pagedCustomers = visibleCustomers.slice(pageStart, pageStart + customerPageSize);
   const customerSummary = isLoading
     ? "Loading customers"
-    : `Showing ${visibleCustomers.length} ${
-        visibleCustomers.length === 1 ? "customer" : "customers"
-      }`;
+    : visibleCustomers.length
+      ? `Showing ${pageStart + 1}-${Math.min(pageStart + customerPageSize, visibleCustomers.length)} of ${visibleCustomers.length} customers`
+      : "Showing 0 customers";
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, status]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   return (
     <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -1704,8 +1851,8 @@ function LoyaltyCustomersSection({
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {visibleCustomers.map((customer, index) => {
-              const customerId = getCustomerId(customer, index);
+            {pagedCustomers.map((customer, index) => {
+              const customerId = getCustomerId(customer, pageStart + index);
               const customerStatus = getCustomerStatus(customer);
               const isExpanded = expandedCustomerId === customerId;
               const detailRows = [
@@ -1789,6 +1936,7 @@ function LoyaltyCustomersSection({
           </div>
         )}
       </div>
+      <PaginationControls page={safePage} pageCount={pageCount} onPageChange={setPage} />
     </section>
   );
 }
