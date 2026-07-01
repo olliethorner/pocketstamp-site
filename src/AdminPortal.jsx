@@ -511,6 +511,89 @@ function extractMerchant(payload) {
   );
 }
 
+function extractScannerDevices(payload) {
+  const candidates = [
+    payload,
+    payload?.devices,
+    payload?.scannerDevices,
+    payload?.items,
+    payload?.data,
+    payload?.data?.devices,
+    payload?.data?.scannerDevices,
+    payload?.result?.devices,
+    payload?.result?.scannerDevices,
+  ];
+
+  return candidates.find(Array.isArray) || [];
+}
+
+function extractScannerDevice(payload) {
+  return (
+    payload?.device ||
+    payload?.scannerDevice ||
+    payload?.result?.device ||
+    payload?.result?.scannerDevice ||
+    payload?.data?.device ||
+    payload?.data?.scannerDevice ||
+    payload?.result ||
+    payload?.data ||
+    payload
+  );
+}
+
+function getScannerDeviceId(device) {
+  return pickFirst(device.id, device.deviceId, device._id);
+}
+
+function getScannerDeviceName(device) {
+  return pickFirst(device.name, device.deviceName, device.label, "Counter scanner");
+}
+
+function getScannerSetupUrl(payloadOrDevice = {}) {
+  const token = pickFirst(
+    payloadOrDevice.rawToken,
+    payloadOrDevice.deviceToken,
+    payloadOrDevice.token,
+    payloadOrDevice.setupToken,
+    payloadOrDevice.scannerToken,
+    payloadOrDevice.result?.rawToken,
+    payloadOrDevice.result?.deviceToken,
+    payloadOrDevice.result?.token,
+    payloadOrDevice.data?.rawToken,
+    payloadOrDevice.data?.deviceToken,
+    payloadOrDevice.data?.token,
+    payloadOrDevice.device?.rawToken,
+    payloadOrDevice.device?.deviceToken,
+    payloadOrDevice.scannerDevice?.rawToken,
+    payloadOrDevice.scannerDevice?.deviceToken,
+  );
+
+  return pickFirst(
+    payloadOrDevice.setupUrl,
+    payloadOrDevice.scannerUrl,
+    payloadOrDevice.deviceSetupUrl,
+    payloadOrDevice.result?.setupUrl,
+    payloadOrDevice.result?.scannerUrl,
+    payloadOrDevice.data?.setupUrl,
+    payloadOrDevice.data?.scannerUrl,
+    payloadOrDevice.device?.setupUrl,
+    payloadOrDevice.device?.scannerUrl,
+    token ? `https://www.getpocketstamp.com/merchant/scanner?deviceToken=${encodeURIComponent(token)}` : "",
+  );
+}
+
+function normalizeScannerForm(device = {}) {
+  return {
+    name: getScannerDeviceName(device),
+    status: pickFirst(device.status, device.state, device.active === false ? "inactive" : "active"),
+    mode: pickFirst(device.mode, device.scannerMode, "auto_stamp"),
+    cooldownSeconds: String(pickFirst(device.cooldownSeconds, device.stampCooldownSeconds, 60)),
+    requireRewardConfirmation: Boolean(
+      pickFirst(device.requireRewardConfirmation, device.confirmRewards, device.rewardConfirmationRequired, true),
+    ),
+  };
+}
+
 function extractLinks(payload, merchant = {}) {
   const links =
     payload?.links ||
@@ -2292,6 +2375,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                 </div>
               ) : null}
             </div>
+            <ScannerDevicesCard merchantId={merchantId} accessToken={accessToken} />
             <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <h2 className="text-xl font-semibold">Welcome email</h2>
@@ -2503,6 +2587,341 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         </div>
       </section>
     </AdminShell>
+  );
+}
+
+function ScannerDevicesCard({ merchantId, accessToken }) {
+  const [devices, setDevices] = useState([]);
+  const [deviceForms, setDeviceForms] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [busyDeviceId, setBusyDeviceId] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [setupUrl, setSetupUrl] = useState("");
+  const [createName, setCreateName] = useState("Counter scanner");
+  const [copyState, setCopyState] = useState("");
+
+  async function loadDevices() {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const payload = await adminFetch(`/api/admin/merchants/${merchantId}/scanner-devices`, {}, accessToken);
+      const nextDevices = extractScannerDevices(payload);
+      setDevices(nextDevices);
+      setDeviceForms(
+        nextDevices.reduce((forms, device) => {
+          const deviceId = getScannerDeviceId(device);
+          if (deviceId) forms[deviceId] = normalizeScannerForm(device);
+          return forms;
+        }, {}),
+      );
+    } catch (loadError) {
+      setError(loadError.message || "Unable to load scanner devices.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function load() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const payload = await adminFetch(`/api/admin/merchants/${merchantId}/scanner-devices`, {}, accessToken);
+        if (!isMounted) return;
+        const nextDevices = extractScannerDevices(payload);
+        setDevices(nextDevices);
+        setDeviceForms(
+          nextDevices.reduce((forms, device) => {
+            const deviceId = getScannerDeviceId(device);
+            if (deviceId) forms[deviceId] = normalizeScannerForm(device);
+            return forms;
+          }, {}),
+        );
+      } catch (loadError) {
+        if (isMounted) setError(loadError.message || "Unable to load scanner devices.");
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [merchantId, accessToken]);
+
+  function updateDeviceForm(deviceId, name, value) {
+    setDeviceForms((current) => ({
+      ...current,
+      [deviceId]: {
+        ...current[deviceId],
+        [name]: value,
+      },
+    }));
+  }
+
+  async function handleCreateDevice(event) {
+    event.preventDefault();
+    setIsCreating(true);
+    setError("");
+    setMessage("");
+    setSetupUrl("");
+
+    try {
+      const payload = await adminFetch(`/api/admin/merchants/${merchantId}/scanner-devices`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: createName.trim() || "Counter scanner",
+          mode: "auto_stamp",
+          cooldownSeconds: 60,
+          requireRewardConfirmation: true,
+        }),
+      }, accessToken);
+      const createdDevice = extractScannerDevice(payload);
+      const nextSetupUrl = getScannerSetupUrl(payload) || getScannerSetupUrl(createdDevice);
+      setSetupUrl(nextSetupUrl);
+      setMessage(nextSetupUrl ? "Scanner device created. Copy the one-time setup URL now." : "Scanner device created.");
+      setCreateName("Counter scanner");
+      await loadDevices();
+    } catch (createError) {
+      setError(createError.message || "Unable to create scanner device.");
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  async function patchDevice(device, patch) {
+    const deviceId = getScannerDeviceId(device);
+    if (!deviceId) return;
+
+    setBusyDeviceId(deviceId);
+    setError("");
+    setMessage("");
+
+    try {
+      await adminFetch(`/api/admin/merchants/${merchantId}/scanner-devices/${deviceId}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }, accessToken);
+      setMessage("Scanner device updated.");
+      await loadDevices();
+    } catch (patchError) {
+      setError(patchError.message || "Unable to update scanner device.");
+    } finally {
+      setBusyDeviceId("");
+    }
+  }
+
+  async function saveDevice(device) {
+    const deviceId = getScannerDeviceId(device);
+    const form = deviceForms[deviceId] || normalizeScannerForm(device);
+    await patchDevice(device, {
+      name: form.name,
+      status: form.status,
+      active: form.status !== "inactive",
+      mode: form.mode,
+      cooldownSeconds: Number(form.cooldownSeconds) || 0,
+      requireRewardConfirmation: Boolean(form.requireRewardConfirmation),
+    });
+  }
+
+  async function regenerateToken(device) {
+    const deviceId = getScannerDeviceId(device);
+    if (!deviceId) return;
+    const confirmed = window.confirm("Regenerate this scanner URL? The old kiosk URL will stop working.");
+    if (!confirmed) return;
+
+    setBusyDeviceId(deviceId);
+    setError("");
+    setMessage("");
+    setSetupUrl("");
+
+    try {
+      const payload = await adminFetch(
+        `/api/admin/merchants/${merchantId}/scanner-devices/${deviceId}/regenerate-token`,
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+        },
+        accessToken,
+      );
+      const nextSetupUrl = getScannerSetupUrl(payload);
+      setSetupUrl(nextSetupUrl);
+      setMessage(nextSetupUrl ? "Scanner token regenerated. Copy the one-time setup URL now." : "Scanner token regenerated.");
+      await loadDevices();
+    } catch (tokenError) {
+      setError(tokenError.message || "Unable to regenerate scanner token.");
+    } finally {
+      setBusyDeviceId("");
+    }
+  }
+
+  async function copySetupUrl() {
+    if (!setupUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(setupUrl);
+      setCopyState("Scanner URL copied.");
+    } catch {
+      setCopyState("Scanner URL copy failed.");
+    }
+
+    window.setTimeout(() => setCopyState(""), 1800);
+  }
+
+  return (
+    <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Scanner devices</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Scanner URLs are secret kiosk credentials. Only open them on the café tablet connected to the counter scanner.
+          </p>
+        </div>
+        <button type="button" onClick={loadDevices} className="ps-button-secondary">
+          Refresh
+        </button>
+      </div>
+
+      {error ? <div className="mt-4"><Alert tone="red">{error}</Alert></div> : null}
+      {message ? <p className="mt-4 text-sm font-semibold text-[var(--ps-blue)]">{message}</p> : null}
+
+      {setupUrl ? (
+        <div className="mt-4 rounded-xl bg-amber-50 p-4 ring-1 ring-amber-100">
+          <p className="text-sm font-bold text-amber-900">One-time scanner setup URL</p>
+          <p className="mt-2 break-all text-sm font-semibold text-amber-900">{setupUrl}</p>
+          <p className="mt-2 text-sm leading-6 text-amber-900">
+            Raw token URLs are only shown after create or regenerate. Copy this into the café tablet and keep it private.
+          </p>
+          <button type="button" onClick={copySetupUrl} className="ps-button-secondary mt-3 bg-white">
+            Copy scanner URL
+          </button>
+          {copyState ? <p className="mt-2 text-sm font-semibold text-amber-900">{copyState}</p> : null}
+        </div>
+      ) : null}
+
+      <form onSubmit={handleCreateDevice} className="mt-5 grid gap-3 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100 sm:grid-cols-[1fr_auto] sm:items-end">
+        <Field label="New device name">
+          <TextInput value={createName} onChange={(event) => setCreateName(event.target.value)} />
+        </Field>
+        <button type="submit" disabled={isCreating} className="ps-button-primary disabled:cursor-not-allowed disabled:opacity-70">
+          {isCreating ? "Creating..." : "Create device"}
+        </button>
+      </form>
+
+      <div className="mt-5 grid gap-4">
+        {isLoading ? (
+          <div className="rounded-xl bg-[#fbfaf7] p-4 text-sm font-semibold text-slate-500 ring-1 ring-slate-100">
+            Loading scanner devices...
+          </div>
+        ) : devices.length ? (
+          devices.map((device) => {
+            const deviceId = getScannerDeviceId(device);
+            const form = deviceForms[deviceId] || normalizeScannerForm(device);
+            const isBusy = busyDeviceId === deviceId;
+
+            return (
+              <div key={deviceId || getScannerDeviceName(device)} className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-base font-semibold text-[var(--ps-espresso)]">{getScannerDeviceName(device)}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">
+                      {pickFirst(device.status, device.state, device.active === false ? "inactive" : "active")} · {pickFirst(device.mode, device.scannerMode, "auto_stamp")}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold uppercase text-slate-400">ID {deviceId || "Not returned"}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => regenerateToken(device)}
+                    disabled={isBusy}
+                    className="ps-button-secondary bg-white disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    Regenerate token
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <Field label="Device name">
+                    <TextInput
+                      value={form.name || ""}
+                      onChange={(event) => updateDeviceForm(deviceId, "name", event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Status">
+                    <select
+                      value={form.status || "active"}
+                      onChange={(event) => updateDeviceForm(deviceId, "status", event.target.value)}
+                      className="ps-input min-h-[2.9rem]"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </Field>
+                  <Field label="Mode">
+                    <select
+                      value={form.mode || "auto_stamp"}
+                      onChange={(event) => updateDeviceForm(deviceId, "mode", event.target.value)}
+                      className="ps-input min-h-[2.9rem]"
+                    >
+                      <option value="auto_stamp">Auto stamp</option>
+                      <option value="confirm_stamp">Confirm stamp</option>
+                    </select>
+                  </Field>
+                  <Field label="Cooldown seconds">
+                    <TextInput
+                      type="number"
+                      min="0"
+                      value={form.cooldownSeconds || ""}
+                      onChange={(event) => updateDeviceForm(deviceId, "cooldownSeconds", event.target.value)}
+                    />
+                  </Field>
+                </div>
+
+                <label className="mt-4 flex items-start gap-3 rounded-xl bg-white p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.requireRewardConfirmation)}
+                    onChange={(event) => updateDeviceForm(deviceId, "requireRewardConfirmation", event.target.checked)}
+                    className="mt-1 h-4 w-4"
+                  />
+                  Require confirmation before rewards are redeemed
+                </label>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => saveDevice(device)}
+                    disabled={isBusy}
+                    className="ps-button-primary disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isBusy ? "Saving..." : "Save device"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => patchDevice(device, { status: form.status === "inactive" ? "active" : "inactive", active: form.status === "inactive" })}
+                    disabled={isBusy}
+                    className="ps-button-secondary bg-white disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {form.status === "inactive" ? "Set active" : "Set inactive"}
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="rounded-xl bg-[#fbfaf7] p-4 text-sm font-semibold text-slate-500 ring-1 ring-slate-100">
+            No scanner devices yet.
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

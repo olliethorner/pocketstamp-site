@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import AdminPortal from "./AdminPortal.jsx";
@@ -165,6 +165,32 @@ function fetchMerchantDashboardSummary(accessToken) {
   });
 }
 
+function fetchScannerDevice(deviceToken) {
+  const params = new URLSearchParams({ deviceToken });
+  return requestJson(`/api/merchant/scanner/device?${params.toString()}`);
+}
+
+function submitScannerScan({ deviceToken, scannedValue }) {
+  return requestJson("/api/merchant/scanner/scan", {
+    method: "POST",
+    body: JSON.stringify({ deviceToken, scannedValue }),
+  });
+}
+
+function redeemScannerReward({ deviceToken, scanResult }) {
+  return requestJson("/api/merchant/scanner/redeem", {
+    method: "POST",
+    body: JSON.stringify(buildScannerActionBody(deviceToken, scanResult)),
+  });
+}
+
+function undoScannerStamp({ deviceToken, scanResult }) {
+  return requestJson("/api/merchant/scanner/undo", {
+    method: "POST",
+    body: JSON.stringify(buildScannerActionBody(deviceToken, scanResult)),
+  });
+}
+
 function toTitle(value) {
   if (!value) return "Activity";
   return String(value)
@@ -185,6 +211,29 @@ function safeSlug(value) {
 
 function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
+}
+
+function buildScannerActionBody(deviceToken, scanResult = {}) {
+  const eventId = pickFirst(
+    scanResult.eventId,
+    scanResult.scanEventId,
+    scanResult.stampEventId,
+    scanResult.activityId,
+    scanResult.result?.eventId,
+    scanResult.event?.id,
+  );
+  const customerId = pickFirst(
+    scanResult.customerId,
+    scanResult.passCustomerId,
+    scanResult.customer?.id,
+    scanResult.result?.customerId,
+  );
+
+  return {
+    deviceToken,
+    ...(eventId ? { eventId, scanEventId: eventId } : {}),
+    ...(customerId ? { customerId } : {}),
+  };
 }
 
 function normalizeMerchantContext(payload) {
@@ -2317,6 +2366,522 @@ function MarketingHomepage() {
   );
 }
 
+function extractScannerDevice(payload = {}) {
+  return (
+    payload.device ||
+    payload.scannerDevice ||
+    payload.result?.device ||
+    payload.data?.device ||
+    payload.result ||
+    payload.data ||
+    payload
+  );
+}
+
+function getScannerMerchantName(device = {}) {
+  return pickFirst(
+    device.merchantName,
+    device.cafeName,
+    device.merchant?.name,
+    device.merchant?.cafeName,
+    device.merchant?.displayName,
+    "PocketStamp café",
+  );
+}
+
+function getScannerDeviceName(device = {}) {
+  return pickFirst(device.deviceName, device.name, device.label, "Counter scanner");
+}
+
+function getScanStatus(payload = {}) {
+  const text = [
+    payload.status,
+    payload.result,
+    payload.resultType,
+    payload.type,
+    payload.outcome,
+    payload.action,
+    payload.code,
+    payload.scan?.status,
+    payload.data?.status,
+    payload.result?.status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (text.includes("reward") && text.includes("redeem")) return "reward_redeemed";
+  if (text.includes("reward") && (text.includes("ready") || text.includes("earned"))) return "reward_ready";
+  if (text.includes("already") || text.includes("cooldown") || text.includes("recent")) {
+    return "already_stamped_recently";
+  }
+  if (text.includes("undo")) return "undo_success";
+  if (text.includes("stamp") || text.includes("success") || text.includes("added")) return "stamp_added";
+  return "stamp_added";
+}
+
+function getScanCustomerName(result = {}) {
+  return pickFirst(
+    result.customerName,
+    result.customer?.name,
+    result.customer?.fullName,
+    result.customer?.firstName && result.customer?.lastName
+      ? `${result.customer.firstName} ${result.customer.lastName}`
+      : null,
+    result.customer?.firstName,
+    result.pass?.customerName,
+  );
+}
+
+function getScanStamps(result = {}) {
+  const current = pickFirst(
+    result.currentStamps,
+    result.stamps,
+    result.stampCount,
+    result.customer?.currentStamps,
+    result.pass?.currentStamps,
+  );
+  const threshold = pickFirst(
+    result.rewardThreshold,
+    result.threshold,
+    result.customer?.rewardThreshold,
+    result.pass?.rewardThreshold,
+  );
+
+  if (current === undefined && threshold === undefined) return "";
+  return `${current ?? "?"}/${threshold ?? "?"}`;
+}
+
+function getCooldownText(result = {}) {
+  const seconds = Number(
+    pickFirst(
+      result.cooldownSecondsRemaining,
+      result.secondsUntilNextStamp,
+      result.retryAfterSeconds,
+      result.cooldownRemainingSeconds,
+    ),
+  );
+
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+  if (seconds < 60) return `${Math.ceil(seconds)} seconds until next stamp`;
+  return `${Math.ceil(seconds / 60)} minutes until next stamp`;
+}
+
+function getScanMessage(errorOrPayload) {
+  return pickFirst(
+    errorOrPayload?.message,
+    errorOrPayload?.error,
+    errorOrPayload?.details,
+    errorOrPayload?.payload?.message,
+    errorOrPayload?.payload?.error,
+    "Please try again.",
+  );
+}
+
+function KioskStat({ label, value }) {
+  return value ? (
+    <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-[var(--ps-border)]">
+      <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">{label}</p>
+      <p className="mt-1 text-xl font-semibold text-[var(--ps-espresso)]">{value}</p>
+    </div>
+  ) : null;
+}
+
+function ScannerKioskPage() {
+  const deviceToken = new URLSearchParams(window.location.search).get("deviceToken") || "";
+  const inputRef = useRef(null);
+  const readyTimerRef = useRef(null);
+  const [device, setDevice] = useState(null);
+  const [deviceError, setDeviceError] = useState("");
+  const [scanValue, setScanValue] = useState("");
+  const [status, setStatus] = useState("loading");
+  const [scanResult, setScanResult] = useState(null);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const merchantName = getScannerMerchantName(device || {});
+  const deviceName = getScannerDeviceName(device || {});
+  const mode = pickFirst(device?.mode, device?.scannerMode);
+  const cooldown = pickFirst(device?.cooldownSeconds, device?.stampCooldownSeconds);
+
+  function focusScannerInput() {
+    window.setTimeout(() => inputRef.current?.focus(), 40);
+  }
+
+  function scheduleReady(delay = 3600) {
+    window.clearTimeout(readyTimerRef.current);
+    readyTimerRef.current = window.setTimeout(() => {
+      setStatus("ready");
+      setScanResult(null);
+      setScanValue("");
+      focusScannerInput();
+    }, delay);
+  }
+
+  async function loadDevice() {
+    if (!deviceToken) {
+      setDeviceError("Missing scanner device token.");
+      setStatus("error");
+      return;
+    }
+
+    setStatus("loading");
+    setDeviceError("");
+
+    try {
+      const payload = await fetchScannerDevice(deviceToken);
+      setDevice(extractScannerDevice(payload));
+      setStatus("ready");
+    } catch (error) {
+      setDeviceError(getScanMessage(error));
+      setStatus("error");
+    } finally {
+      focusScannerInput();
+    }
+  }
+
+  useEffect(() => {
+    loadDevice();
+    return () => window.clearTimeout(readyTimerRef.current);
+  }, [deviceToken]);
+
+  useEffect(() => {
+    focusScannerInput();
+  }, [status, isProcessing]);
+
+  function addActivity(nextStatus, result) {
+    const label =
+      nextStatus === "stamp_added"
+        ? "Stamp added"
+        : nextStatus === "already_stamped_recently"
+          ? "Already stamped recently"
+          : nextStatus === "reward_ready"
+            ? "Reward ready"
+            : nextStatus === "reward_redeemed"
+              ? "Reward redeemed"
+              : nextStatus === "undo_success"
+                ? "Stamp undone"
+                : "Could not process scan";
+
+    setRecentActivity((current) => [
+      {
+        id: `${Date.now()}-${Math.random()}`,
+        time: new Intl.DateTimeFormat(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }).format(new Date()),
+        label,
+        customerName: getScanCustomerName(result),
+        stamps: getScanStamps(result),
+      },
+      ...current,
+    ].slice(0, 5));
+  }
+
+  async function handleScanSubmit(value = scanValue) {
+    const trimmedValue = String(value || "").trim();
+    if (!trimmedValue || isProcessing || status === "loading") {
+      focusScannerInput();
+      return;
+    }
+
+    window.clearTimeout(readyTimerRef.current);
+    setIsProcessing(true);
+    setScanValue("");
+    setStatus("processing");
+
+    try {
+      const payload = await submitScannerScan({ deviceToken, scannedValue: trimmedValue });
+      const nextStatus = getScanStatus(payload);
+      setScanResult(payload);
+      setStatus(nextStatus);
+      addActivity(nextStatus, payload);
+      if (nextStatus !== "reward_ready") scheduleReady(nextStatus === "stamp_added" ? 3200 : 5200);
+    } catch (error) {
+      const errorResult = { message: getScanMessage(error) };
+      setScanResult(errorResult);
+      setStatus("scan_error");
+      addActivity("scan_error", errorResult);
+      scheduleReady(6200);
+    } finally {
+      setIsProcessing(false);
+      focusScannerInput();
+    }
+  }
+
+  async function handleRedeemReward() {
+    if (!scanResult || isProcessing) return;
+    setIsProcessing(true);
+
+    try {
+      const payload = await redeemScannerReward({ deviceToken, scanResult });
+      setScanResult(payload);
+      setStatus("reward_redeemed");
+      addActivity("reward_redeemed", payload);
+      scheduleReady(3600);
+    } catch (error) {
+      setScanResult({ message: getScanMessage(error) });
+      setStatus("scan_error");
+      scheduleReady(6200);
+    } finally {
+      setIsProcessing(false);
+      focusScannerInput();
+    }
+  }
+
+  async function handleUndoStamp() {
+    if (!scanResult || isProcessing) return;
+    setIsProcessing(true);
+
+    try {
+      const payload = await undoScannerStamp({ deviceToken, scanResult });
+      setScanResult(payload);
+      setStatus("undo_success");
+      addActivity("undo_success", payload);
+      scheduleReady(3200);
+    } catch (error) {
+      setScanResult({ message: getScanMessage(error) });
+      setStatus("scan_error");
+      scheduleReady(6200);
+    } finally {
+      setIsProcessing(false);
+      focusScannerInput();
+    }
+  }
+
+  const statusContent = {
+    loading: {
+      tone: "neutral",
+      icon: "PS",
+      title: "Connecting scanner...",
+      body: "Checking this tablet can use Scanner Mode.",
+    },
+    ready: {
+      tone: "ready",
+      icon: "⌁",
+      title: "Ready to scan",
+      body: "Hold Apple Wallet pass under the scanner",
+    },
+    processing: {
+      tone: "neutral",
+      icon: "...",
+      title: "Processing scan",
+      body: "Keep the scanner pointed at the Wallet pass.",
+    },
+    stamp_added: {
+      tone: "success",
+      icon: "✓",
+      title: "Stamp added",
+      body: getScanCustomerName(scanResult) || "Wallet pass updated.",
+    },
+    already_stamped_recently: {
+      tone: "warning",
+      icon: "!",
+      title: "Already stamped recently",
+      body: getCooldownText(scanResult) || "This customer is still inside the cooldown window.",
+    },
+    reward_ready: {
+      tone: "reward",
+      icon: "★",
+      title: "Reward ready",
+      body: pickFirst(scanResult?.rewardText, scanResult?.reward?.text, "This customer has earned a reward."),
+    },
+    reward_redeemed: {
+      tone: "success",
+      icon: "✓",
+      title: "Reward redeemed",
+      body: getScanCustomerName(scanResult) || "Reward marked as redeemed.",
+    },
+    undo_success: {
+      tone: "success",
+      icon: "↶",
+      title: "Stamp undone",
+      body: getScanCustomerName(scanResult) || "Latest stamp was reversed.",
+    },
+    scan_error: {
+      tone: "error",
+      icon: "!",
+      title: "Could not process scan",
+      body: getScanMessage(scanResult),
+    },
+    error: {
+      tone: "error",
+      icon: "!",
+      title: "Could not process scan",
+      body: deviceError || getScanMessage(scanResult),
+    },
+  }[status] || {};
+
+  const toneClass =
+    statusContent.tone === "success"
+      ? "bg-[#e7f7f3] text-[#0f6f5f] ring-emerald-200"
+      : statusContent.tone === "warning"
+        ? "bg-amber-50 text-amber-900 ring-amber-200"
+        : statusContent.tone === "reward"
+          ? "bg-[#fff7d7] text-[#5d4215] ring-[#eecf70]"
+          : statusContent.tone === "error"
+            ? "bg-red-50 text-red-800 ring-red-200"
+            : "bg-white/78 text-[var(--ps-espresso)] ring-[var(--ps-border)]";
+
+  return (
+    <main
+      className="min-h-screen bg-[var(--ps-cream)] px-5 py-6 text-[var(--ps-espresso)] sm:px-8"
+      onClick={(event) => {
+        if (event.target.closest("button,input,select,textarea,a")) return;
+        focusScannerInput();
+      }}
+    >
+      <input
+        ref={inputRef}
+        value={scanValue}
+        onChange={(event) => setScanValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            handleScanSubmit(event.currentTarget.value);
+          }
+        }}
+        autoFocus
+        autoCapitalize="off"
+        autoComplete="off"
+        spellCheck="false"
+        aria-label="Scanner input"
+        className="fixed left-0 top-0 h-px w-px opacity-0"
+      />
+
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col gap-5">
+        <header className="flex flex-col gap-3 rounded-3xl bg-[#fffdf8]/80 p-5 ring-1 ring-[var(--ps-border)] sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold uppercase text-[var(--ps-blue)]">PocketStamp Scanner Mode</p>
+            <h1 className="mt-1 text-2xl font-semibold">{merchantName}</h1>
+            <p className="mt-1 text-sm font-semibold text-[var(--ps-muted)]">{deviceName}</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-sm font-semibold text-[var(--ps-muted)]">
+            {mode ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(mode)}</span> : null}
+            {cooldown ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{cooldown}s cooldown</span> : null}
+          </div>
+        </header>
+
+        <section className={`grid flex-1 place-items-center rounded-[2rem] p-7 text-center shadow-[var(--ps-shadow)] ring-2 ${toneClass}`}>
+          <div className="mx-auto max-w-4xl">
+            <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-white/70 text-5xl font-black ring-1 ring-current/15">
+              {statusContent.icon}
+            </div>
+            <h2 className="mt-8 text-[clamp(3.2rem,9vw,7.4rem)] font-black leading-[0.92] tracking-normal">
+              {statusContent.title}
+            </h2>
+            <p className="mx-auto mt-6 max-w-2xl text-[clamp(1.35rem,3vw,2.2rem)] font-semibold leading-tight">
+              {statusContent.body}
+            </p>
+
+            <div className="mx-auto mt-8 grid max-w-3xl gap-3 sm:grid-cols-2">
+              <KioskStat label="Customer" value={getScanCustomerName(scanResult)} />
+              <KioskStat label="Stamps" value={getScanStamps(scanResult)} />
+            </div>
+
+            <div className="mt-9 flex flex-wrap justify-center gap-3">
+              {status === "stamp_added" ? (
+                <button
+                  type="button"
+                  onClick={handleUndoStamp}
+                  disabled={isProcessing}
+                  className="ps-button-secondary bg-white text-lg disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Undo last stamp
+                </button>
+              ) : null}
+              {status === "reward_ready" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleRedeemReward}
+                    disabled={isProcessing}
+                    className="ps-button-primary bg-[var(--ps-espresso)] text-lg disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Redeem reward
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatus("ready");
+                      setScanResult(null);
+                      focusScannerInput();
+                    }}
+                    className="ps-button-secondary bg-white text-lg"
+                  >
+                    Cancel / Back to ready
+                  </button>
+                </>
+              ) : null}
+              {status === "scan_error" || status === "error" ? (
+                <>
+                  <button type="button" onClick={loadDevice} className="ps-button-secondary bg-white text-lg">
+                    Reconnect scanner
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatus("ready");
+                      setScanResult(null);
+                      focusScannerInput();
+                    }}
+                    className="ps-button-secondary bg-white text-lg"
+                  >
+                    Back to ready
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <footer className="grid gap-4 lg:grid-cols-[1fr_24rem]">
+          <div className="rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">
+            <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Recent activity</p>
+            <div className="mt-3 grid gap-2">
+              {recentActivity.length ? recentActivity.map((item) => (
+                <div key={item.id} className="grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_1fr_auto] sm:items-center">
+                  <span className="font-semibold text-[var(--ps-muted)]">{item.time}</span>
+                  <span className="font-bold">{item.label}</span>
+                  <span className="font-semibold text-[var(--ps-muted)]">
+                    {[item.customerName, item.stamps].filter(Boolean).join(" · ")}
+                  </span>
+                </div>
+              )) : (
+                <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[var(--ps-muted)] ring-1 ring-[var(--ps-border)]">
+                  No scans yet.
+                </p>
+              )}
+            </div>
+          </div>
+          <form
+            className="rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleScanSubmit(scanValue);
+            }}
+          >
+            <label className="block">
+              <span className="text-sm font-bold uppercase text-[var(--ps-muted)]">Manual scan</span>
+              <input
+                value={scanValue}
+                onChange={(event) => setScanValue(event.target.value)}
+                className="ps-input mt-3 bg-white"
+                placeholder="Paste or type a pass code"
+                disabled={isProcessing}
+              />
+            </label>
+            <button type="submit" disabled={isProcessing || !scanValue.trim()} className="ps-button-secondary mt-3 w-full bg-white disabled:cursor-not-allowed disabled:opacity-60">
+              Submit scan
+            </button>
+          </form>
+        </footer>
+      </div>
+    </main>
+  );
+}
+
 export default function App() {
   const pathname = window.location.pathname;
 
@@ -2330,6 +2895,10 @@ export default function App() {
 
   if (pathname === "/merchant/setup") {
     return <MerchantSetupPage />;
+  }
+
+  if (pathname === "/merchant/scanner") {
+    return <ScannerKioskPage />;
   }
 
   if (pathname.startsWith("/merchant")) {
