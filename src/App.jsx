@@ -206,6 +206,31 @@ function submitScannerScan({ deviceToken, scanValue }) {
   });
 }
 
+function lookupScannerPass({ deviceToken, scanValue, scanResult }) {
+  return requestJson("/api/merchant/scanner/lookup-pass", {
+    method: "POST",
+    body: JSON.stringify({
+      deviceToken,
+      ...(scanValue ? { scanValue } : {}),
+      ...buildScannerPassBody(scanResult),
+    }),
+  });
+}
+
+function adjustScannerStamps({ deviceToken, scanResult, stamps, note }) {
+  return requestJson("/api/merchant/scanner/adjust-stamps", {
+    method: "POST",
+    body: JSON.stringify({
+      deviceToken,
+      stamps,
+      stampCount: stamps,
+      currentStamps: stamps,
+      ...(note ? { note, reason: note } : {}),
+      ...buildScannerPassBody(scanResult),
+    }),
+  });
+}
+
 function redeemScannerReward({ deviceToken, scanResult }) {
   return requestJson("/api/merchant/scanner/redeem", {
     method: "POST",
@@ -240,6 +265,43 @@ function safeSlug(value) {
 
 function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
+}
+
+function buildScannerPassBody(scanResult = {}) {
+  const scan = scanResult || {};
+  const customerId = pickFirst(
+    scan.customerId,
+    scan.passCustomerId,
+    scan.customer?.id,
+    scan.result?.customerId,
+    scan.result?.customer?.id,
+    scan.data?.customerId,
+    scan.data?.customer?.id,
+  );
+  const passId = pickFirst(
+    scan.passId,
+    scan.walletPassId,
+    scan.pass?.id,
+    scan.result?.passId,
+    scan.result?.pass?.id,
+    scan.data?.passId,
+    scan.data?.pass?.id,
+  );
+  const serialNumber = pickFirst(
+    scan.serialNumber,
+    scan.passSerialNumber,
+    scan.pass?.serialNumber,
+    scan.result?.serialNumber,
+    scan.result?.pass?.serialNumber,
+    scan.data?.serialNumber,
+    scan.data?.pass?.serialNumber,
+  );
+
+  return {
+    ...(customerId ? { customerId } : {}),
+    ...(passId ? { passId } : {}),
+    ...(serialNumber ? { serialNumber, passSerialNumber: serialNumber } : {}),
+  };
 }
 
 function buildScannerActionBody(deviceToken, scanResult = {}) {
@@ -2971,27 +3033,127 @@ function getScanCustomerName(result = {}) {
       : null,
     scan.customer?.firstName,
     scan.pass?.customerName,
+    scan.result?.customerName,
+    scan.result?.customer?.name,
+    scan.data?.customerName,
+    scan.data?.customer?.name,
   );
 }
 
-function getScanStamps(result = {}) {
+function getScanCustomerEmail(result = {}) {
   const scan = result || {};
-  const current = pickFirst(
+  return pickFirst(
+    scan.customerEmail,
+    scan.email,
+    scan.customer?.email,
+    scan.pass?.customerEmail,
+    scan.pass?.email,
+    scan.result?.customerEmail,
+    scan.result?.customer?.email,
+    scan.data?.customerEmail,
+    scan.data?.customer?.email,
+  );
+}
+
+function getScanCurrentStamps(result = {}) {
+  const scan = result || {};
+  return pickFirst(
     scan.currentStamps,
     scan.stamps,
     scan.stampCount,
     scan.customer?.currentStamps,
+    scan.customer?.stamps,
     scan.pass?.currentStamps,
+    scan.pass?.stamps,
+    scan.result?.currentStamps,
+    scan.result?.stamps,
+    scan.result?.stampCount,
+    scan.result?.customer?.currentStamps,
+    scan.data?.currentStamps,
+    scan.data?.stamps,
+    scan.data?.stampCount,
+    scan.data?.customer?.currentStamps,
   );
-  const threshold = pickFirst(
+}
+
+function getScanRewardThreshold(result = {}) {
+  const scan = result || {};
+  return pickFirst(
     scan.rewardThreshold,
     scan.threshold,
     scan.customer?.rewardThreshold,
+    scan.customer?.threshold,
     scan.pass?.rewardThreshold,
+    scan.pass?.threshold,
+    scan.result?.rewardThreshold,
+    scan.result?.threshold,
+    scan.result?.customer?.rewardThreshold,
+    scan.data?.rewardThreshold,
+    scan.data?.threshold,
+    scan.data?.customer?.rewardThreshold,
   );
+}
+
+function getScanStamps(result = {}) {
+  const current = getScanCurrentStamps(result);
+  const threshold = getScanRewardThreshold(result);
 
   if (current === undefined && threshold === undefined) return "";
   return `${current ?? "?"}/${threshold ?? "?"}`;
+}
+
+function getScanPassId(result = {}) {
+  const scan = result || {};
+  return pickFirst(
+    scan.passId,
+    scan.walletPassId,
+    scan.serialNumber,
+    scan.passSerialNumber,
+    scan.pass?.id,
+    scan.pass?.serialNumber,
+    scan.customer?.passId,
+    scan.result?.passId,
+    scan.result?.serialNumber,
+    scan.result?.pass?.id,
+    scan.result?.pass?.serialNumber,
+    scan.data?.passId,
+    scan.data?.serialNumber,
+    scan.data?.pass?.id,
+    scan.data?.pass?.serialNumber,
+  );
+}
+
+function getScanLastActivity(result = {}) {
+  const scan = result || {};
+  return pickFirst(
+    scan.lastActivityAt,
+    scan.lastScanAt,
+    scan.lastScannedAt,
+    scan.customer?.lastActivityAt,
+    scan.customer?.lastScanAt,
+    scan.pass?.lastActivityAt,
+    scan.result?.lastActivityAt,
+    scan.result?.customer?.lastActivityAt,
+    scan.data?.lastActivityAt,
+    scan.data?.customer?.lastActivityAt,
+  );
+}
+
+function maskScannerId(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (text.length <= 10) return text;
+  return `${text.slice(0, 5)}...${text.slice(-4)}`;
+}
+
+function formatScannerDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function getCooldownText(result = {}) {
@@ -3090,6 +3252,275 @@ function KioskStat({ label, value }) {
   ) : null;
 }
 
+function CameraScannerModal({ isOpen, isProcessing, onClose, onDetected }) {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const frameRef = useRef(null);
+  const closingRef = useRef(false);
+  const onDetectedRef = useRef(onDetected);
+  const [cameraStatus, setCameraStatus] = useState("starting");
+  const [cameraError, setCameraError] = useState("");
+
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  }, [onDetected]);
+
+  function stopCamera() {
+    closingRef.current = true;
+    if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    let detector;
+    closingRef.current = false;
+    setCameraStatus("starting");
+    setCameraError("");
+
+    async function startCamera() {
+      if (!window.isSecureContext) {
+        setCameraStatus("unsupported");
+        setCameraError("Camera scanning must be opened over HTTPS.");
+        return;
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia || !("BarcodeDetector" in window)) {
+        setCameraStatus("unsupported");
+        setCameraError("Camera scanning is not available on this tablet. Use the counter scanner or manual code instead.");
+        return;
+      }
+
+      try {
+        const supportedFormats = await window.BarcodeDetector.getSupportedFormats?.();
+        if (Array.isArray(supportedFormats) && !supportedFormats.includes("qr_code")) {
+          setCameraStatus("unsupported");
+          setCameraError("Camera scanning is not available on this tablet. Use the counter scanner or manual code instead.");
+          return;
+        }
+
+        detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false,
+        });
+
+        if (closingRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        setCameraStatus("scanning");
+
+        const scanFrame = async () => {
+          if (closingRef.current || !videoRef.current) return;
+
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const qrValue = codes?.find((code) => code.rawValue)?.rawValue;
+            if (qrValue) {
+              setCameraStatus("detected");
+              stopCamera();
+              onDetectedRef.current(qrValue);
+              return;
+            }
+          } catch (scanError) {
+            console.warn("Camera QR scan failed", scanError);
+          }
+
+          frameRef.current = window.requestAnimationFrame(scanFrame);
+        };
+
+        frameRef.current = window.requestAnimationFrame(scanFrame);
+      } catch (error) {
+        console.warn("Camera unavailable", error);
+        setCameraStatus("error");
+        setCameraError(
+          /permission|denied|notallowed/i.test(String(error?.name || error?.message || ""))
+            ? "Camera unavailable / permission denied"
+            : "Camera unavailable / permission denied",
+        );
+        stopCamera();
+      }
+    }
+
+    startCamera();
+
+    return stopCamera;
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const statusText =
+    cameraStatus === "starting"
+      ? "Starting camera..."
+      : cameraStatus === "detected"
+        ? "QR detected, processing..."
+        : cameraStatus === "unsupported" || cameraStatus === "error"
+          ? cameraError || "Camera unavailable / permission denied"
+          : "Point camera at the customer’s Apple Wallet QR code";
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6">
+      <section className="w-full max-w-2xl rounded-3xl bg-[#fffdf8] p-5 text-[var(--ps-espresso)] shadow-[var(--ps-shadow)] ring-1 ring-[var(--ps-border)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Tablet camera</p>
+            <h2 className="mt-1 text-2xl font-semibold">Scan with tablet camera</h2>
+          </div>
+          <button type="button" onClick={onClose} className="ps-button-secondary bg-white">
+            Stop camera
+          </button>
+        </div>
+
+        <div className="mt-5 overflow-hidden rounded-2xl bg-black ring-1 ring-[var(--ps-border)]">
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            className={`aspect-[4/3] w-full object-cover ${cameraStatus === "scanning" ? "block" : "hidden"}`}
+          />
+          {cameraStatus !== "scanning" ? (
+            <div className="grid aspect-[4/3] place-items-center bg-[#f6efe3] p-6 text-center">
+              <p className="text-xl font-bold">{statusText}</p>
+            </div>
+          ) : null}
+        </div>
+
+        {cameraStatus === "scanning" ? (
+          <p className="mt-4 text-center text-lg font-semibold text-[var(--ps-muted)]">{statusText}</p>
+        ) : null}
+        {isProcessing || cameraStatus === "detected" ? (
+          <p className="mt-3 rounded-xl bg-[#e7f7f3] p-3 text-center text-sm font-bold text-[#0f6f5f]">
+            QR detected, processing...
+          </p>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function CustomerAdjustmentModal({
+  isOpen,
+  customerResult,
+  isLoading,
+  isSaving,
+  error,
+  success,
+  fallbackThreshold,
+  onChangeStamps,
+  onChangeNote,
+  onSave,
+  onClose,
+}) {
+  const currentStamps = Number(getScanCurrentStamps(customerResult) ?? 0);
+  const threshold = Number(getScanRewardThreshold(customerResult) ?? fallbackThreshold ?? 10);
+  const maxStamps = Number.isFinite(threshold) && threshold >= 0 ? threshold : 10;
+  const passId = maskScannerId(getScanPassId(customerResult));
+  const lastActivity = formatScannerDateTime(getScanLastActivity(customerResult));
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 px-4 py-6">
+      <section className="w-full max-w-xl rounded-3xl bg-[#fffdf8] p-5 text-[var(--ps-espresso)] shadow-[var(--ps-shadow)] ring-1 ring-[var(--ps-border)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Customer correction</p>
+            <h2 className="mt-1 text-2xl font-semibold">View / adjust customer</h2>
+          </div>
+          <button type="button" onClick={onClose} className="ps-button-secondary bg-white">
+            Cancel
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-[var(--ps-border)]">
+          <div>
+            <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Customer</p>
+            <p className="mt-1 text-xl font-semibold">{getScanCustomerName(customerResult) || "Customer"}</p>
+            {getScanCustomerEmail(customerResult) ? (
+              <p className="text-sm font-semibold text-[var(--ps-muted)]">{getScanCustomerEmail(customerResult)}</p>
+            ) : null}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <KioskStat label="Current stamps" value={`${currentStamps}/${maxStamps}`} />
+            <KioskStat label="Pass ID" value={passId || "Unavailable"} />
+            <KioskStat label="Last activity" value={lastActivity || "Unavailable"} />
+          </div>
+        </div>
+
+        <form className="mt-5 grid gap-4" onSubmit={onSave}>
+          <label className="block">
+            <span className="text-sm font-bold uppercase text-[var(--ps-muted)]">Stamp count</span>
+            <div className="mt-2 grid grid-cols-[3.5rem_1fr_3.5rem] gap-2">
+              <button
+                type="button"
+                onClick={() => onChangeStamps(Math.max(0, currentStamps - 1))}
+                disabled={isSaving || currentStamps <= 0}
+                className="ps-button-secondary bg-white px-0 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                -
+              </button>
+              <input
+                type="number"
+                min="0"
+                max={maxStamps}
+                value={currentStamps}
+                onChange={(event) => onChangeStamps(event.target.value)}
+                className="ps-input bg-white text-center text-xl font-bold"
+                disabled={isSaving}
+              />
+              <button
+                type="button"
+                onClick={() => onChangeStamps(Math.min(maxStamps, currentStamps + 1))}
+                disabled={isSaving || currentStamps >= maxStamps}
+                className="ps-button-secondary bg-white px-0 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                +
+              </button>
+            </div>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-bold uppercase text-[var(--ps-muted)]">Reason / note</span>
+            <input
+              onChange={(event) => onChangeNote(event.target.value)}
+              className="ps-input mt-2 bg-white"
+              placeholder="Optional"
+              disabled={isSaving}
+            />
+          </label>
+
+          <p className="text-sm font-semibold text-[var(--ps-muted)]">Manual changes are logged.</p>
+
+          {isLoading ? <p className="rounded-xl bg-white p-3 text-sm font-bold text-[var(--ps-muted)] ring-1 ring-[var(--ps-border)]">Loading customer details...</p> : null}
+          {error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-800 ring-1 ring-red-200">{error}</p> : null}
+          {success ? <p className="rounded-xl bg-[#e7f7f3] p-3 text-sm font-bold text-[#0f6f5f] ring-1 ring-emerald-200">{success}</p> : null}
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button type="submit" disabled={isSaving || isLoading} className="ps-button-primary disabled:cursor-not-allowed disabled:opacity-60">
+              Save adjustment
+            </button>
+            <button type="button" onClick={onClose} className="ps-button-secondary bg-white">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 function ScannerKioskPage() {
   const deviceToken = new URLSearchParams(window.location.search).get("deviceToken") || "";
   const inputRef = useRef(null);
@@ -3103,6 +3534,17 @@ function ScannerKioskPage() {
   const [readyMessage, setReadyMessage] = useState("");
   const [recentActivity, setRecentActivity] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isManualOpen, setIsManualOpen] = useState(false);
+  const [adjustment, setAdjustment] = useState({
+    isOpen: false,
+    result: null,
+    isLoading: false,
+    isSaving: false,
+    error: "",
+    success: "",
+    note: "",
+  });
 
   const merchantName = getScannerMerchantName(device || {});
   const deviceName = getScannerDeviceName(device || {});
@@ -3125,6 +3567,11 @@ function ScannerKioskPage() {
       setReadyMessage("");
       focusScannerInput();
     }, delay);
+  }
+
+  function closeCamera() {
+    setIsCameraOpen(false);
+    focusScannerInput();
   }
 
   async function loadDevice() {
@@ -3183,7 +3630,9 @@ function ScannerKioskPage() {
               ? "Reward redeemed"
               : nextStatus === "undo_success"
                 ? "Stamp undone"
-                : "Could not process scan";
+                : nextStatus === "stamp_adjusted"
+                  ? "Stamp count updated"
+                  : "Could not process scan";
 
     setRecentActivity((current) => [
       {
@@ -3196,6 +3645,7 @@ function ScannerKioskPage() {
         label,
         customerName: getScanCustomerName(result),
         stamps: getScanStamps(result),
+        result,
       },
       ...current,
     ].slice(0, 5));
@@ -3242,6 +3692,142 @@ function ScannerKioskPage() {
       scheduleReady(6200);
     } finally {
       setIsProcessing(false);
+      focusScannerInput();
+    }
+  }
+
+  function handleCameraDetected(decodedValue) {
+    if (isProcessing) return;
+    setIsCameraOpen(false);
+    handleScanSubmit(decodedValue);
+  }
+
+  async function openAdjustment(sourceResult = scanResult, lookupValue = "") {
+    const baseResult = sourceResult || (lookupValue ? { scanValue: lookupValue } : null);
+    if (!baseResult && !lookupValue) {
+      setReadyMessage("Scan or enter a pass code before adjusting stamps.");
+      focusScannerInput();
+      return;
+    }
+
+    window.clearTimeout(readyTimerRef.current);
+    setAdjustment({
+      isOpen: true,
+      result: baseResult,
+      isLoading: true,
+      isSaving: false,
+      error: "",
+      success: "",
+      note: "",
+    });
+
+    try {
+      const payload = await lookupScannerPass({ deviceToken, scanValue: lookupValue, scanResult: baseResult });
+      setAdjustment((current) => ({
+        ...current,
+        result: payload || baseResult,
+        isLoading: false,
+        error: "",
+      }));
+    } catch (error) {
+      setAdjustment((current) => ({
+        ...current,
+        isLoading: false,
+        error: getScanMessage(error) || "Customer lookup is not available. Using the latest scan details where possible.",
+      }));
+    } finally {
+      focusScannerInput();
+    }
+  }
+
+  async function handleManualLookup() {
+    const trimmedValue = scanValue.trim();
+    if (!trimmedValue || isProcessing || deviceLoadStatus !== "ready") {
+      setReadyMessage("Enter a pass code before looking up a customer.");
+      setScanValue("");
+      focusScannerInput();
+      return;
+    }
+
+    setScanValue("");
+    await openAdjustment({ scanValue: trimmedValue }, trimmedValue);
+  }
+
+  function closeAdjustment() {
+    setAdjustment((current) => ({ ...current, isOpen: false, error: "", success: "", note: "" }));
+    focusScannerInput();
+  }
+
+  function updateAdjustmentStamps(nextValue) {
+    setAdjustment((current) => {
+      const threshold = Number(getScanRewardThreshold(current.result) ?? rewardThreshold ?? 10);
+      const maxStamps = Number.isFinite(threshold) && threshold >= 0 ? threshold : 10;
+      const numericValue = Number(nextValue);
+      const safeValue = Number.isFinite(numericValue) ? Math.min(maxStamps, Math.max(0, numericValue)) : 0;
+      return {
+        ...current,
+        result: {
+          ...(current.result || {}),
+          currentStamps: safeValue,
+          stamps: safeValue,
+          stampCount: safeValue,
+        },
+        error: "",
+        success: "",
+      };
+    });
+  }
+
+  async function saveAdjustment(event) {
+    event.preventDefault();
+    const currentStamps = Number(getScanCurrentStamps(adjustment.result));
+    const threshold = Number(getScanRewardThreshold(adjustment.result) ?? rewardThreshold ?? 10);
+    const maxStamps = Number.isFinite(threshold) && threshold >= 0 ? threshold : 10;
+
+    if (!Number.isInteger(currentStamps) || currentStamps < 0 || currentStamps > maxStamps) {
+      setAdjustment((current) => ({
+        ...current,
+        error: `Enter a stamp count from 0 to ${maxStamps}.`,
+        success: "",
+      }));
+      return;
+    }
+
+    setAdjustment((current) => ({ ...current, isSaving: true, error: "", success: "" }));
+
+    try {
+      const payload = await adjustScannerStamps({
+        deviceToken,
+        scanResult: adjustment.result,
+        stamps: currentStamps,
+        note: adjustment.note,
+      });
+      const mergedResult = {
+        ...(adjustment.result || {}),
+        ...(payload || {}),
+        currentStamps,
+        stamps: currentStamps,
+        stampCount: currentStamps,
+        rewardThreshold: maxStamps,
+      };
+
+      setScanResult(mergedResult);
+      setAdjustment((current) => ({
+        ...current,
+        result: mergedResult,
+        isSaving: false,
+        success: "Stamp count updated",
+      }));
+      addActivity("stamp_adjusted", mergedResult);
+      scheduleReady(3600);
+    } catch (error) {
+      setAdjustment((current) => ({
+        ...current,
+        isSaving: false,
+        error: getScanMessage(error),
+        success: "",
+      }));
+    } finally {
       focusScannerInput();
     }
   }
@@ -3401,6 +3987,27 @@ function ScannerKioskPage() {
         className="fixed left-0 top-0 h-px w-px opacity-0"
       />
 
+      <CameraScannerModal
+        isOpen={isCameraOpen}
+        isProcessing={isProcessing}
+        onClose={closeCamera}
+        onDetected={handleCameraDetected}
+      />
+
+      <CustomerAdjustmentModal
+        isOpen={adjustment.isOpen}
+        customerResult={adjustment.result}
+        isLoading={adjustment.isLoading}
+        isSaving={adjustment.isSaving}
+        error={adjustment.error}
+        success={adjustment.success}
+        fallbackThreshold={rewardThreshold}
+        onChangeStamps={updateAdjustmentStamps}
+        onChangeNote={(note) => setAdjustment((current) => ({ ...current, note }))}
+        onSave={saveAdjustment}
+        onClose={closeAdjustment}
+      />
+
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col gap-5">
         <header className="flex flex-col gap-3 rounded-3xl bg-[#fffdf8]/90 p-5 text-[var(--ps-espresso)] ring-1 ring-[var(--ps-border)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -3451,6 +4058,29 @@ function ScannerKioskPage() {
             </div>
 
             <div className="mt-9 flex flex-wrap justify-center gap-3">
+              {deviceLoadStatus === "ready" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.clearTimeout(readyTimerRef.current);
+                    setIsCameraOpen(true);
+                  }}
+                  disabled={isProcessing}
+                  className="ps-button-primary bg-[var(--ps-espresso)] text-lg disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Scan with tablet camera
+                </button>
+              ) : null}
+              {["stamp_added", "already_stamped_recently", "reward_ready", "reward_redeemed"].includes(displayStatus) && scanResult ? (
+                <button
+                  type="button"
+                  onClick={() => openAdjustment(scanResult)}
+                  disabled={isProcessing}
+                  className="ps-button-secondary bg-white text-lg disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  View / adjust customer
+                </button>
+              ) : null}
               {displayStatus === "stamp_added" ? (
                 <button
                   type="button"
@@ -3515,12 +4145,21 @@ function ScannerKioskPage() {
             <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Recent activity</p>
             <div className="mt-3 grid gap-2">
               {recentActivity.length ? recentActivity.filter(Boolean).map((item, index) => (
-                <div key={item.id || `scan-activity-${index}`} className="grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_1fr_auto] sm:items-center">
+                <div key={item.id || `scan-activity-${index}`} className="grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_1fr_auto_auto] sm:items-center">
                   <span className="font-semibold text-[var(--ps-muted)]">{item.time || "Recent"}</span>
                   <span className="font-bold">{item.label || "Scan"}</span>
                   <span className="font-semibold text-[var(--ps-muted)]">
                     {[item.customerName, item.stamps].filter(Boolean).join(" · ") || "No details"}
                   </span>
+                  {item.result && getScanPassId(item.result) ? (
+                    <button
+                      type="button"
+                      onClick={() => openAdjustment(item.result)}
+                      className="ps-button-secondary bg-white px-3 py-2 text-xs"
+                    >
+                      Adjust
+                    </button>
+                  ) : null}
                 </div>
               )) : (
                 <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[var(--ps-muted)] ring-1 ring-[var(--ps-border)]">
@@ -3529,27 +4168,52 @@ function ScannerKioskPage() {
               )}
             </div>
           </div>
-          <form
-            className="rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]"
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleScanSubmit(scanValue);
-            }}
-          >
-            <label className="block">
-              <span className="text-sm font-bold uppercase text-[var(--ps-muted)]">Manual scan</span>
-              <input
-                value={scanValue}
-                onChange={(event) => setScanValue(event.target.value)}
-                className="ps-input mt-3 bg-white"
-                placeholder="Paste or type a pass code"
-                disabled={isProcessing}
-              />
-            </label>
-            <button type="submit" disabled={isProcessing} className="ps-button-secondary mt-3 w-full bg-white disabled:cursor-not-allowed disabled:opacity-60">
-              Submit scan
+          <section className="rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">
+            <button
+              type="button"
+              onClick={() => setIsManualOpen((current) => !current)}
+              className="flex w-full items-center justify-between gap-3 text-left text-sm font-bold uppercase text-[var(--ps-muted)]"
+            >
+              <span>Manual code entry</span>
+              <span className="text-lg">{isManualOpen ? "-" : "+"}</span>
             </button>
-          </form>
+            {isManualOpen ? (
+              <form
+                className="mt-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleScanSubmit(scanValue);
+                }}
+              >
+                <label className="block">
+                  <span className="sr-only">Manual pass code</span>
+                  <input
+                    value={scanValue}
+                    onChange={(event) => setScanValue(event.target.value)}
+                    className="ps-input bg-white"
+                    placeholder="Paste or type a pass code"
+                    disabled={isProcessing}
+                  />
+                </label>
+                <p className="mt-2 text-sm font-semibold text-[var(--ps-muted)]">
+                  Use this only if the scanner/camera cannot read the Wallet QR.
+                </p>
+                <div className="mt-3 grid gap-2">
+                  <button type="submit" disabled={isProcessing} className="ps-button-secondary w-full bg-white disabled:cursor-not-allowed disabled:opacity-60">
+                    Submit scan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleManualLookup}
+                    disabled={isProcessing || adjustment.isLoading}
+                    className="ps-button-secondary w-full bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Look up customer
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </section>
         </footer>
       </div>
     </main>
