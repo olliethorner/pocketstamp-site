@@ -165,9 +165,38 @@ function fetchMerchantDashboardSummary(accessToken) {
   });
 }
 
-function fetchScannerDevice(deviceToken) {
-  const params = new URLSearchParams({ deviceToken });
-  return requestJson(`/api/merchant/scanner/device?${params.toString()}`);
+async function fetchScannerDevice(deviceToken) {
+  const requestUrl = `${API_BASE_URL}/api/merchant/scanner/device?deviceToken=${encodeURIComponent(deviceToken)}`;
+  const response = await fetch(requestUrl, {
+    method: "GET",
+  });
+
+  const text = await response.text();
+  let payload = null;
+
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch (parseError) {
+    parseError.status = response.status;
+    parseError.responseText = text;
+    parseError.requestUrl = requestUrl;
+    throw parseError;
+  }
+
+  if (!response.ok) {
+    const message =
+      payload?.error ||
+      payload?.message ||
+      "Could not connect to this scanner device.";
+    const error = new Error(message);
+    error.status = response.status;
+    error.payload = payload;
+    error.responseText = text;
+    error.requestUrl = requestUrl;
+    throw error;
+  }
+
+  return payload;
 }
 
 function submitScannerScan({ deviceToken, scannedValue }) {
@@ -2600,8 +2629,15 @@ function ScannerKioskPage() {
       setDeviceLoadStatus("ready");
       setScanStatus("idle");
     } catch (error) {
-      console.error("Scanner device fetch failed", error);
-      setDeviceError(isProbablyNetworkError(error) ? "Could not connect to this scanner device." : getScanMessage(error));
+      const message = isProbablyNetworkError(error)
+        ? "Could not connect to this scanner device."
+        : getScanMessage(error);
+      console.error("Scanner device fetch failed", {
+        status: error?.status || "network",
+        message,
+        endpoint: `${API_BASE_URL}/api/merchant/scanner/device?deviceToken=[redacted]`,
+      });
+      setDeviceError(message);
       setDeviceLoadStatus("error");
       setScanStatus("idle");
     } finally {
