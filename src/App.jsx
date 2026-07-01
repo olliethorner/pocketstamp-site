@@ -598,6 +598,29 @@ function formatActivityMeta(item) {
   );
 }
 
+function formatActivitySource(item) {
+  const sourceText = [
+    item.source,
+    item.channel,
+    item.origin,
+    item.entryMethod,
+    item.createdBy,
+    item.deviceType,
+    item.device?.type,
+    item.scannerDeviceName,
+    item.scannerDeviceId,
+    item.readerName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (sourceText.includes("scanner") || sourceText.includes("scan")) return "Via scanner";
+  if (sourceText.includes("dashboard")) return "Via dashboard";
+  if (sourceText.includes("manual") || sourceText.includes("staff")) return "Via manual";
+  return "";
+}
+
 function formatActivityBadge(item) {
   if (looksLikeBirthdayReward(item)) return "Birthday";
   if (looksLikeStamp(item)) return "Stamp";
@@ -606,6 +629,111 @@ function formatActivityBadge(item) {
   if (looksLikeJoin(item)) return "Joined";
   if (looksLikeWalletPass(item)) return "Wallet";
   return toTitle(getActivityType(item));
+}
+
+function formatScannerMode(value) {
+  const mode = String(value || "").toLowerCase();
+  if (mode.includes("confirm")) return "Confirm stamp";
+  if (mode.includes("auto")) return "Auto-stamp";
+  return value ? toTitle(value) : "Auto-stamp";
+}
+
+function formatScannerBoolean(value) {
+  if (value === undefined || value === null || value === "") return null;
+  return value ? "On" : "Off";
+}
+
+function formatScannerCooldown(value) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return `${seconds}s`;
+}
+
+function getScannerDashboardData(summary = {}) {
+  const candidates = [
+    summary?.scanner,
+    summary?.scannerMode,
+    summary?.scannerStatus,
+    summary?.scannerDevice,
+    summary?.device,
+    summary?.devices?.[0],
+    summary?.scannerDevices?.[0],
+    summary?.counterScanner,
+  ].filter(Boolean);
+  const scanner = candidates[0] || null;
+  const deviceList = [summary?.scannerDevices, summary?.devices, scanner?.devices].find(Array.isArray);
+  const device = deviceList?.[0] || scanner;
+  const scannerUrl = pickFirst(
+    scanner?.scannerUrl,
+    scanner?.scannerURL,
+    scanner?.kioskUrl,
+    scanner?.kioskURL,
+    scanner?.url,
+    device?.scannerUrl,
+    device?.kioskUrl,
+  );
+  const hasExplicitReady = [
+    summary?.hasScannerDevices,
+    summary?.scannerDevicesCount > 0,
+    scanner?.ready,
+    scanner?.isReady,
+    scanner?.enabled,
+    scanner?.isEnabled,
+    scanner?.configured,
+    scanner?.isConfigured,
+    device?.ready,
+    device?.enabled,
+  ].some(Boolean);
+  const hasExplicitNotReady = [
+    summary?.hasScannerDevices === false,
+    scanner?.ready === false,
+    scanner?.isReady === false,
+    scanner?.enabled === false,
+    scanner?.isEnabled === false,
+    scanner?.configured === false,
+    scanner?.isConfigured === false,
+  ].some(Boolean);
+  const hasScannerData = Boolean(scanner || deviceList || scannerUrl);
+  const isReady = hasExplicitReady || Boolean(scannerUrl) || (hasScannerData && !hasExplicitNotReady);
+  const rawMode = pickFirst(device?.mode, device?.scannerMode, scanner?.mode, scanner?.scannerMode);
+
+  return {
+    hasScannerData,
+    isReady,
+    isFallback: !hasScannerData,
+    scannerUrl,
+    deviceName: pickFirst(device?.deviceName, device?.name, device?.label, scanner?.deviceName),
+    mode: rawMode ? formatScannerMode(rawMode) : null,
+    cooldown: formatScannerCooldown(
+      pickFirst(
+        device?.cooldownSeconds,
+        device?.stampCooldownSeconds,
+        scanner?.cooldownSeconds,
+        scanner?.stampCooldownSeconds,
+      ),
+    ),
+    rewardConfirmation: formatScannerBoolean(
+      pickFirst(
+        device?.rewardConfirmationRequired,
+        device?.requiresRewardConfirmation,
+        scanner?.rewardConfirmationRequired,
+        scanner?.requiresRewardConfirmation,
+      ),
+    ),
+    lastScan: formatActivityTime(
+      pickFirst(device?.lastScanAt, scanner?.lastScanAt, scanner?.lastScan?.createdAt),
+    ),
+  };
+}
+
+function customerWasScannedToday(customer) {
+  if (customer.scannedToday || customer.hasScannedToday) return true;
+  const timestamp = pickFirst(customer.lastScannedAt, customer.lastScanAt, customer.lastScannerScanAt);
+  if (!timestamp) return false;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
 }
 
 function formatReminderDate(timestamp) {
@@ -1347,6 +1475,81 @@ function OverviewCard({ label, value, helper, iconLabel }) {
   );
 }
 
+function CounterScannerSection({ scanner }) {
+  const detailRows = [
+    ["Device", scanner.deviceName],
+    ["Mode", scanner.mode],
+    ["Cooldown", scanner.cooldown],
+    ["Reward confirmation", scanner.rewardConfirmation],
+    ["Last scan", scanner.lastScan],
+  ].filter(([, value]) => Boolean(value));
+
+  const statusLabel = scanner.isFallback ? "Available" : scanner.isReady ? "Ready" : "Not set up";
+
+  return (
+    <section className="ps-dashboard-card rounded-2xl p-6">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-semibold text-[var(--ps-espresso)]">
+              Counter Scanner Mode
+            </h2>
+            <span
+              className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                scanner.isReady || scanner.isFallback
+                  ? "bg-[#e7f7f3] text-[#16856f]"
+                  : "bg-amber-50 text-amber-800"
+              }`}
+            >
+              {statusLabel}
+            </span>
+          </div>
+          <p className="mt-3 max-w-3xl leading-7 text-[var(--ps-muted)]">
+            {scanner.isFallback
+              ? "Counter scanner setup is managed by PocketStamp."
+              : scanner.isReady
+                ? "Customers can scan their Apple Wallet pass at the till and stamps are added automatically."
+                : "PocketStamp can connect a counter scanner so customers scan at the till and stamps are added automatically."}
+          </p>
+        </div>
+
+        {scanner.scannerUrl ? (
+          <a
+            href={scanner.scannerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center justify-center rounded-full bg-[var(--ps-blue)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#255ddd]"
+          >
+            Open scanner screen
+          </a>
+        ) : (
+          <a
+            href="mailto:hello@getpocketstamp.com?subject=PocketStamp Scanner Mode setup"
+            className="inline-flex items-center justify-center rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300"
+          >
+            {scanner.isReady || scanner.isFallback
+              ? "Scanner setup is handled by PocketStamp"
+              : "Ask PocketStamp to set up Scanner Mode"}
+          </a>
+        )}
+      </div>
+
+      {detailRows.length ? (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {detailRows.map(([label, value]) => (
+            <div key={label} className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+              <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
+              <p className="mt-2 truncate font-semibold text-slate-950" title={String(value)}>
+                {value}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function ActivityList({ activityRows, isLoading, error }) {
   if (isLoading) {
     return (
@@ -1387,6 +1590,7 @@ function ActivityList({ activityRows, isLoading, error }) {
             <p className="mt-1 text-sm text-slate-500">
               {formatActivityTime(getActivityTimestamp(item))}
               {formatActivityMeta(item) ? ` · ${formatActivityMeta(item)}` : ""}
+              {formatActivitySource(item) ? ` · ${formatActivitySource(item)}` : ""}
             </p>
           </div>
           <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
@@ -1398,7 +1602,7 @@ function ActivityList({ activityRows, isLoading, error }) {
   );
 }
 
-const customerFilters = [
+const baseCustomerFilters = [
   ["all", "All"],
   ["almost_there", "Almost there"],
   ["reward_ready", "Reward ready"],
@@ -1416,10 +1620,20 @@ function LoyaltyCustomersSection({
   expandedCustomerId,
   onExpandedCustomerChange,
 }) {
+  const supportsScannedToday = customers.some((customer) =>
+    ["scannedToday", "hasScannedToday", "lastScannedAt", "lastScanAt", "lastScannerScanAt"].some(
+      (field) => customer[field] !== undefined && customer[field] !== null,
+    ),
+  );
+  const customerFilters = supportsScannedToday
+    ? [...baseCustomerFilters, ["scanned_today", "Scanned today"]]
+    : baseCustomerFilters;
+  const visibleCustomers =
+    status === "scanned_today" ? customers.filter(customerWasScannedToday) : customers;
   const customerSummary = isLoading
     ? "Loading customers"
-    : `Showing ${customers.length} ${
-        customers.length === 1 ? "customer" : "customers"
+    : `Showing ${visibleCustomers.length} ${
+        visibleCustomers.length === 1 ? "customer" : "customers"
       }`;
 
   return (
@@ -1430,7 +1644,7 @@ function LoyaltyCustomersSection({
             Loyalty Customers
           </h2>
           <p className="mt-1 max-w-2xl text-slate-500">
-            See the customers who have joined your Apple Wallet loyalty program.
+            Customers who have joined your Apple Wallet loyalty program.
           </p>
           <p className="mt-2 text-sm font-semibold text-slate-500">
             {customerSummary}
@@ -1482,13 +1696,15 @@ function LoyaltyCustomersSection({
             </span>
             <p>{error}</p>
           </div>
-        ) : !customers.length ? (
+        ) : !visibleCustomers.length ? (
           <div className="p-5 text-slate-600">
-            No loyalty customers yet. Customers will appear here when they create an Apple Wallet card.
+            {status === "scanned_today"
+              ? "No scanned customers found for today."
+              : "No loyalty customers yet. Customers will appear here when they create an Apple Wallet card."}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {customers.map((customer, index) => {
+            {visibleCustomers.map((customer, index) => {
               const customerId = getCustomerId(customer, index);
               const customerStatus = getCustomerStatus(customer);
               const isExpanded = expandedCustomerId === customerId;
@@ -1608,34 +1824,22 @@ function ReminderStatCard({ label, value }) {
 
 function ReminderStatusSection({ summary, isLoading, error }) {
   const reminderRows = [
-    ["Halfway reminder", "Active", "Sent when a customer reaches the middle of their stamp card."],
-    ["Almost-there reminder", "Active", "Sent when a customer is close to earning a reward."],
-    ["Reward-ready reminder", "Active", "Sent when a customer has earned a reward."],
-    [
-      "Birthday rewards",
-      "Active",
-      "Customers can add their birthday when joining. PocketStamp can make their Apple Wallet loyalty card reward-ready on their birthday.",
-    ],
-    [
-      "Win-back reminders",
-      "Active",
-      "Automatically reminds customers who have not visited in 30 days.",
-    ],
+    ["Halfway", "Active"],
+    ["Almost there", "Active"],
+    ["Reward ready", "Active"],
+    ["Birthday rewards", "Active"],
+    ["Win-back", "Active"],
   ];
 
   return (
     <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase text-[#16856f]">
+          <h2 className="text-2xl font-semibold text-slate-950">
             Wallet reminders
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-            Automated reminders
           </h2>
-          <p className="mt-2 max-w-2xl leading-7 text-slate-600">
-            PocketStamp automatically reminds customers through Apple Wallet
-            when they’re close to a reward or have earned one.
+          <p className="mt-1 max-w-2xl text-slate-600">
+            Apple Wallet nudges for stamp progress, rewards and birthdays.
           </p>
         </div>
         <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
@@ -1674,8 +1878,8 @@ function ReminderStatusSection({ summary, isLoading, error }) {
         )}
       </div>
 
-      <div className="mt-6 grid gap-3 lg:grid-cols-2">
-        {reminderRows.map(([title, status, body]) => (
+      <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        {reminderRows.map(([title, status]) => (
           <div key={title} className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
             <div className="flex items-start justify-between gap-3">
               <p className="font-semibold text-slate-950">{title}</p>
@@ -1689,7 +1893,6 @@ function ReminderStatusSection({ summary, isLoading, error }) {
                 {status}
               </span>
             </div>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{body}</p>
           </div>
         ))}
       </div>
@@ -1797,7 +2000,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
       try {
         const payload = await fetchMerchantCustomers(accessToken, {
           search: customerSearch,
-          status: customerStatus,
+          status: customerStatus === "scanned_today" ? "all" : customerStatus,
           limit: 50,
         });
 
@@ -1827,6 +2030,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const metricHelperFallback = dashboardSummaryError
     ? "Dashboard totals could not be loaded."
     : "Loading totals...";
+  const scannerDashboard = getScannerDashboardData(dashboardSummary || {});
 
   async function handleCopyJoinUrl() {
     try {
@@ -1927,19 +2131,31 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             iconLabel="✓"
           />
           <OverviewCard
-            label="Reader status"
-            value="Ready"
-            helper="QR scanning works now. Reader setup can be connected when available."
-            iconLabel="Tap"
+            label="Scanner Mode"
+            value={
+              isDashboardSummaryLoading
+                ? "..."
+                : scannerDashboard.isFallback
+                  ? "Available"
+                  : scannerDashboard.isReady
+                    ? "Ready"
+                    : "Not set up"
+            }
+            helper={
+              isDashboardSummaryLoading
+                ? metricHelperFallback
+                : scannerDashboard.isFallback
+                  ? "Counter scanner setup is managed by PocketStamp."
+                  : scannerDashboard.isReady
+                    ? "Customers can scan at the till."
+                    : "Ask PocketStamp to connect your counter scanner."
+            }
+            iconLabel="Scan"
           />
         </div>
 
         <div className="mt-8">
-          <ReminderStatusSection
-            summary={reminderSummary}
-            isLoading={isReminderSummaryLoading}
-            error={reminderError}
-          />
+          <CounterScannerSection scanner={scannerDashboard} />
         </div>
 
         <div className="mt-8">
@@ -1983,7 +2199,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                     Join QR
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-[var(--ps-muted)]">
-                    Share this branded link or display the counter Join QR.
+                    Display this QR so new customers can add your Apple Wallet loyalty card.
                   </p>
                 </div>
                 <span className="text-sm font-bold text-[var(--ps-blue)]">QR</span>
@@ -2025,19 +2241,27 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-[var(--ps-espresso)]">
-                    Reader setup
+                    Scanner setup
                   </h2>
                   <p className="mt-3 font-semibold text-[var(--ps-espresso)]">
-                    QR scanning works now.
+                    Counter Scanner Mode is live.
                   </p>
                   <p className="mt-2 leading-7 text-[var(--ps-muted)]">
-                    PocketStamp is prepared for Apple Wallet reader support
-                    once Apple approval and compatible hardware are confirmed.
+                    NFC tap-to-stamp support can be added later when Apple approval
+                    and compatible hardware are available.
                   </p>
                 </div>
               </div>
             </div>
           </aside>
+        </div>
+
+        <div className="mt-8">
+          <ReminderStatusSection
+            summary={reminderSummary}
+            isLoading={isReminderSummaryLoading}
+            error={reminderError}
+          />
         </div>
       </div>
     </main>
