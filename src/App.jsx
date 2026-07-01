@@ -199,10 +199,10 @@ async function fetchScannerDevice(deviceToken) {
   return payload;
 }
 
-function submitScannerScan({ deviceToken, scannedValue }) {
+function submitScannerScan({ deviceToken, scanValue }) {
   return requestJson("/api/merchant/scanner/scan", {
     method: "POST",
-    body: JSON.stringify({ deviceToken, scannedValue }),
+    body: JSON.stringify({ deviceToken, scanValue }),
   });
 }
 
@@ -2590,6 +2590,7 @@ function ScannerKioskPage() {
   const [deviceLoadStatus, setDeviceLoadStatus] = useState("loading");
   const [scanStatus, setScanStatus] = useState("idle");
   const [scanResult, setScanResult] = useState(null);
+  const [readyMessage, setReadyMessage] = useState("");
   const [recentActivity, setRecentActivity] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -2611,6 +2612,7 @@ function ScannerKioskPage() {
       setScanStatus("idle");
       setScanResult(null);
       setScanValue("");
+      setReadyMessage("");
       focusScannerInput();
     }, delay);
   }
@@ -2632,6 +2634,7 @@ function ScannerKioskPage() {
       setDevice(extractScannerDevice(payload));
       setDeviceLoadStatus("ready");
       setScanStatus("idle");
+      setReadyMessage("");
     } catch (error) {
       const message = isProbablyNetworkError(error)
         ? "Could not connect to this scanner device."
@@ -2692,6 +2695,7 @@ function ScannerKioskPage() {
     const trimmedValue = String(value || "").trim();
     if (!trimmedValue) {
       setScanValue("");
+      setReadyMessage("Enter or scan a pass code first.");
       if (deviceLoadStatus === "ready") setScanStatus("idle");
       focusScannerInput();
       return;
@@ -2705,10 +2709,16 @@ function ScannerKioskPage() {
     window.clearTimeout(readyTimerRef.current);
     setIsProcessing(true);
     setScanValue("");
+    setReadyMessage("");
     setScanStatus("processing");
 
     try {
-      const payload = await submitScannerScan({ deviceToken, scannedValue: trimmedValue });
+      console.info("Scanner scan submit", {
+        scanValueLength: trimmedValue.length,
+        scanValuePrefix: trimmedValue.slice(0, 8),
+        tokenPresent: Boolean(deviceToken),
+      });
+      const payload = await submitScannerScan({ deviceToken, scanValue: trimmedValue });
       const nextStatus = getScanStatus(payload);
       setScanResult(payload);
       setScanStatus(nextStatus);
@@ -2781,7 +2791,7 @@ function ScannerKioskPage() {
       tone: "ready",
       icon: "⌁",
       title: "Ready to scan",
-      body: "Hold Apple Wallet pass under the scanner",
+      body: readyMessage || "Hold Apple Wallet pass under the scanner",
     },
     processing: {
       tone: "neutral",
@@ -3026,7 +3036,7 @@ function ScannerKioskPage() {
                 disabled={isProcessing}
               />
             </label>
-            <button type="submit" disabled={isProcessing || !scanValue.trim()} className="ps-button-secondary mt-3 w-full bg-white disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={isProcessing} className="ps-button-secondary mt-3 w-full bg-white disabled:cursor-not-allowed disabled:opacity-60">
               Submit scan
             </button>
           </form>
