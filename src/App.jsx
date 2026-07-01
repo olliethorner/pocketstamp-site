@@ -442,6 +442,17 @@ function looksLikeReminder(item) {
   return haystack.includes("reminder") || haystack.includes("notification");
 }
 
+function looksLikeIssue(item) {
+  const haystack = getActivityText(item);
+  return (
+    haystack.includes("error") ||
+    haystack.includes("failed") ||
+    haystack.includes("invalid") ||
+    haystack.includes("cooldown") ||
+    haystack.includes("already")
+  );
+}
+
 function formatActivityTime(timestamp, { sentence = false } = {}) {
   if (!timestamp) return "Recent";
   const date = new Date(timestamp);
@@ -1658,19 +1669,65 @@ function CounterScannerSection({ scanner }) {
   );
 }
 
+const activityPreviewSize = 5;
 const activityPageSize = 10;
 const customerPageSize = 10;
 
+const activityFilters = [
+  ["all", "All"],
+  ["stamps", "Stamps"],
+  ["rewards", "Rewards"],
+  ["joins", "Joins"],
+  ["issues", "Issues"],
+];
+
+function filterActivityRows(activityRows, filter) {
+  if (filter === "stamps") return activityRows.filter(looksLikeStamp);
+  if (filter === "rewards") return activityRows.filter(looksLikeReward);
+  if (filter === "joins") return activityRows.filter(looksLikeJoin);
+  if (filter === "issues") return activityRows.filter(looksLikeIssue);
+  return activityRows;
+}
+
+function ActivityRow({ item, indexKey }) {
+  return (
+    <div
+      key={pickFirst(item.id, item._id, item.eventId, indexKey)}
+      className="flex flex-col gap-3 border-b border-slate-100 p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="min-w-0">
+        <p className="font-semibold text-slate-950">{formatActivityTitle(item)}</p>
+        <p className="mt-1 truncate text-sm text-slate-600" title={formatActivityDetail(item)}>
+          {formatActivityDetail(item)}
+        </p>
+        <p className="mt-1 text-sm text-slate-500">
+          {formatActivityTime(getActivityTimestamp(item), { sentence: true })}
+        </p>
+      </div>
+      <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
+        {formatActivityBadge(item)}
+      </span>
+    </div>
+  );
+}
+
 function ActivityList({ activityRows, isLoading, error }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const pageCount = Math.max(1, Math.ceil(activityRows.length / activityPageSize));
+  const filteredActivityRows = filterActivityRows(activityRows, filter);
+  const previewRows = activityRows.slice(0, activityPreviewSize);
+  const pageCount = Math.max(1, Math.ceil(filteredActivityRows.length / activityPageSize));
   const safePage = Math.min(page, pageCount);
   const pageStart = (safePage - 1) * activityPageSize;
-  const pagedActivityRows = activityRows.slice(pageStart, pageStart + activityPageSize);
-  const activitySummary =
-    activityRows.length > activityPageSize
-      ? `Showing ${pageStart + 1}-${Math.min(pageStart + activityPageSize, activityRows.length)} of ${activityRows.length} activities`
+  const pagedActivityRows = filteredActivityRows.slice(pageStart, pageStart + activityPageSize);
+  const previewSummary =
+    activityRows.length > activityPreviewSize
+      ? `Showing ${previewRows.length} of ${activityRows.length} activities`
       : `Showing latest ${activityRows.length} ${activityRows.length === 1 ? "activity" : "activities"}`;
+  const logSummary = filteredActivityRows.length
+    ? `Showing ${pageStart + 1}-${Math.min(pageStart + activityPageSize, filteredActivityRows.length)} of ${filteredActivityRows.length} activities`
+    : "Showing 0 activities";
 
   useEffect(() => {
     setPage(1);
@@ -1679,6 +1736,10 @@ function ActivityList({ activityRows, isLoading, error }) {
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
 
   if (isLoading) {
     return (
@@ -1702,36 +1763,81 @@ function ActivityList({ activityRows, isLoading, error }) {
   if (!activityRows.length) {
     return (
       <div className="rounded-2xl bg-white p-6 text-slate-600 ring-1 ring-slate-200">
-        No recent activity yet. New joins, stamps and rewards will appear here.
+        No activity yet. Scans, stamps and rewards will appear here.
       </div>
     );
   }
 
   return (
     <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
-      <p className="mb-3 text-sm font-semibold text-slate-500">{activitySummary}</p>
-      <div className="overflow-hidden rounded-xl ring-1 ring-slate-100">
-        {pagedActivityRows.map((item, index) => (
-          <div
-            key={pickFirst(item.id, item._id, item.eventId, `${pageStart + index}-${getActivityTimestamp(item)}`)}
-            className="flex flex-col gap-3 border-b border-slate-100 p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-semibold text-slate-500">{previewSummary}</p>
+        {activityRows.length > activityPreviewSize ? (
+          <button
+            type="button"
+            onClick={() => setIsExpanded((current) => !current)}
+            className="w-fit rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
           >
-            <div className="min-w-0">
-              <p className="font-semibold text-slate-950">{formatActivityTitle(item)}</p>
-              <p className="mt-1 truncate text-sm text-slate-600" title={formatActivityDetail(item)}>
-                {formatActivityDetail(item)}
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                {formatActivityTime(getActivityTimestamp(item), { sentence: true })}
-              </p>
-            </div>
-            <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
-              {formatActivityBadge(item)}
-            </span>
-          </div>
+            {isExpanded ? "Hide activity log" : "View all activity"}
+          </button>
+        ) : null}
+      </div>
+      <div className="overflow-hidden rounded-xl ring-1 ring-slate-100">
+        {previewRows.map((item, index) => (
+          <ActivityRow
+            key={pickFirst(item.id, item._id, item.eventId, `preview-${index}-${getActivityTimestamp(item)}`)}
+            item={item}
+            indexKey={`preview-${index}-${getActivityTimestamp(item)}`}
+          />
         ))}
       </div>
-      <PaginationControls page={safePage} pageCount={pageCount} onPageChange={setPage} />
+
+      {isExpanded ? (
+        <div className="mt-5 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-950">Activity log</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-500">{logSummary}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {activityFilters.map(([filterValue, label]) => {
+                const isSelected = filter === filterValue;
+
+                return (
+                  <button
+                    key={filterValue}
+                    type="button"
+                    onClick={() => setFilter(filterValue)}
+                    className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                      isSelected
+                        ? "bg-[#143d3b] text-white"
+                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-950"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-xl bg-white ring-1 ring-slate-100">
+            {pagedActivityRows.length ? (
+              pagedActivityRows.map((item, index) => (
+                <ActivityRow
+                  key={pickFirst(item.id, item._id, item.eventId, `log-${pageStart + index}-${getActivityTimestamp(item)}`)}
+                  item={item}
+                  indexKey={`log-${pageStart + index}-${getActivityTimestamp(item)}`}
+                />
+              ))
+            ) : (
+              <div className="p-4 text-slate-600">No activity matches this filter.</div>
+            )}
+          </div>
+
+          <PaginationControls page={safePage} pageCount={pageCount} onPageChange={setPage} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2328,7 +2434,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                   Recent activity
                 </h2>
                 <p className="mt-1 text-[var(--ps-muted)]">
-                  Latest joins, stamps and rewards from your loyalty activity.
+                  Latest stamps, rewards and joins from your loyalty program.
                 </p>
               </div>
             </div>
