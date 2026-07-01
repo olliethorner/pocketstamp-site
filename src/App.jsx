@@ -243,19 +243,20 @@ function pickFirst(...values) {
 }
 
 function buildScannerActionBody(deviceToken, scanResult = {}) {
+  const scan = scanResult || {};
   const eventId = pickFirst(
-    scanResult.eventId,
-    scanResult.scanEventId,
-    scanResult.stampEventId,
-    scanResult.activityId,
-    scanResult.result?.eventId,
-    scanResult.event?.id,
+    scan.eventId,
+    scan.scanEventId,
+    scan.stampEventId,
+    scan.activityId,
+    scan.result?.eventId,
+    scan.event?.id,
   );
   const customerId = pickFirst(
-    scanResult.customerId,
-    scanResult.passCustomerId,
-    scanResult.customer?.id,
-    scanResult.result?.customerId,
+    scan.customerId,
+    scan.passCustomerId,
+    scan.customer?.id,
+    scan.result?.customerId,
   );
 
   return {
@@ -2450,31 +2451,33 @@ function getScanStatus(payload = {}) {
 }
 
 function getScanCustomerName(result = {}) {
+  const scan = result || {};
   return pickFirst(
-    result.customerName,
-    result.customer?.name,
-    result.customer?.fullName,
-    result.customer?.firstName && result.customer?.lastName
-      ? `${result.customer.firstName} ${result.customer.lastName}`
+    scan.customerName,
+    scan.customer?.name,
+    scan.customer?.fullName,
+    scan.customer?.firstName && scan.customer?.lastName
+      ? `${scan.customer.firstName} ${scan.customer.lastName}`
       : null,
-    result.customer?.firstName,
-    result.pass?.customerName,
+    scan.customer?.firstName,
+    scan.pass?.customerName,
   );
 }
 
 function getScanStamps(result = {}) {
+  const scan = result || {};
   const current = pickFirst(
-    result.currentStamps,
-    result.stamps,
-    result.stampCount,
-    result.customer?.currentStamps,
-    result.pass?.currentStamps,
+    scan.currentStamps,
+    scan.stamps,
+    scan.stampCount,
+    scan.customer?.currentStamps,
+    scan.pass?.currentStamps,
   );
   const threshold = pickFirst(
-    result.rewardThreshold,
-    result.threshold,
-    result.customer?.rewardThreshold,
-    result.pass?.rewardThreshold,
+    scan.rewardThreshold,
+    scan.threshold,
+    scan.customer?.rewardThreshold,
+    scan.pass?.rewardThreshold,
   );
 
   if (current === undefined && threshold === undefined) return "";
@@ -2482,12 +2485,13 @@ function getScanStamps(result = {}) {
 }
 
 function getCooldownText(result = {}) {
+  const scan = result || {};
   const seconds = Number(
     pickFirst(
-      result.cooldownSecondsRemaining,
-      result.secondsUntilNextStamp,
-      result.retryAfterSeconds,
-      result.cooldownRemainingSeconds,
+      scan.cooldownSecondsRemaining,
+      scan.secondsUntilNextStamp,
+      scan.retryAfterSeconds,
+      scan.cooldownRemainingSeconds,
     ),
   );
 
@@ -2539,8 +2543,8 @@ class ScannerRenderBoundary extends Component {
     if (this.state.error) {
       return (
         <ScannerFallbackScreen
-          title="Could not connect to this scanner device."
-          message="Reload the scanner setup URL or reconnect from PocketStamp admin."
+          title="Scanner screen error"
+          message="Reload this scanner screen. The device token was not changed."
         />
       );
     }
@@ -2902,7 +2906,7 @@ function ScannerKioskPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 text-sm font-semibold text-[var(--ps-muted)]">
-            {deviceStatus ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(deviceStatus)}</span> : null}
+            {scannerDeviceStatus ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(scannerDeviceStatus)}</span> : null}
             {mode ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(mode)}</span> : null}
             {cooldown ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{cooldown}s cooldown</span> : null}
             {rewardThreshold ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{rewardThreshold} stamps</span> : null}
@@ -2990,12 +2994,12 @@ function ScannerKioskPage() {
           <div className="rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">
             <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Recent activity</p>
             <div className="mt-3 grid gap-2">
-              {recentActivity.length ? recentActivity.map((item) => (
-                <div key={item.id} className="grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_1fr_auto] sm:items-center">
-                  <span className="font-semibold text-[var(--ps-muted)]">{item.time}</span>
-                  <span className="font-bold">{item.label}</span>
+              {recentActivity.length ? recentActivity.filter(Boolean).map((item, index) => (
+                <div key={item.id || `scan-activity-${index}`} className="grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_1fr_auto] sm:items-center">
+                  <span className="font-semibold text-[var(--ps-muted)]">{item.time || "Recent"}</span>
+                  <span className="font-bold">{item.label || "Scan"}</span>
                   <span className="font-semibold text-[var(--ps-muted)]">
-                    {[item.customerName, item.stamps].filter(Boolean).join(" · ")}
+                    {[item.customerName, item.stamps].filter(Boolean).join(" · ") || "No details"}
                   </span>
                 </div>
               )) : (
