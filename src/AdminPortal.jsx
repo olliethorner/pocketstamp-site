@@ -2064,6 +2064,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   const [detailCopyState, setDetailCopyState] = useState("");
   const [ownerInviteUrl, setOwnerInviteUrl] = useState("");
   const [isRegeneratingInvite, setIsRegeneratingInvite] = useState(false);
+  const [activeDetailTab, setActiveDetailTab] = useState("overview");
 
   useEffect(() => {
     let isMounted = true;
@@ -2137,6 +2138,19 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     ["brandColor", "Brand color", "color"],
     ["backgroundColor", "Background color", "color"],
     ["textColor", "Text color", "color"],
+  ];
+  const settingsFields = editableFields.filter(([name]) => ![
+    "rewardThreshold",
+    "rewardText",
+    "backgroundColor",
+    "textColor",
+  ].includes(name));
+  const detailTabs = [
+    ["overview", "Overview"],
+    ["wallet", "Wallet Card"],
+    ["scanner", "Scanner Mode"],
+    ["email", "Welcome Email"],
+    ["settings", "Settings"],
   ];
 
   function updateForm(name, value) {
@@ -2295,6 +2309,18 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     window.setTimeout(() => setDetailCopyState(""), 1800);
   }
 
+  async function copyDetailText(label, value) {
+    if (!value) return;
+
+    try {
+      await navigator.clipboard.writeText(value);
+      setDetailCopyState(`${label} copied.`);
+    } catch {
+      setDetailCopyState(`${label} copy failed.`);
+    }
+    window.setTimeout(() => setDetailCopyState(""), 1800);
+  }
+
   function toggleDetailEditing() {
     if (isEditing) {
       setForm(buildMerchantEditForm(merchant));
@@ -2326,6 +2352,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
 
         {saveMessage ? <p className="mt-4 text-sm font-semibold text-[var(--ps-blue)]">{saveMessage}</p> : null}
         {error ? <div className="mt-4"><Alert tone="red">{error}</Alert></div> : null}
+        {detailCopyState ? <p className="mt-4 text-sm font-semibold text-[var(--ps-blue)]">{detailCopyState}</p> : null}
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Detail label="Merchant ID" value={pickFirst(merchant.id, merchant.merchantId, merchant._id)} />
@@ -2333,49 +2360,210 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
           <Detail label="Status" value={pickFirst(merchant.status, merchant.state)} />
         </div>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="space-y-6">
-            <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
-              <h2 className="text-xl font-semibold">Links</h2>
-              <div className="mt-4 grid gap-3">
-                <Detail label="Join URL" value={links.joinUrl} />
-                <Detail label="Merchant dashboard URL after setup" value={links.merchantDashboardUrl} />
-                <Detail label="Staff dashboard URL" value={links.staffDashboardUrl || "Staff accounts can be created later"} />
-                <Detail label="Demo pass URL" value={links.demoPassUrl} />
-              </div>
-            </div>
-            <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
-              <h2 className="text-xl font-semibold">Merchant owner account</h2>
-              <div className="mt-4 grid gap-3">
-                <Detail label="Owner email" value={getContactEmail(merchant)} />
-                <Detail label="Owner status" value={pickFirst(merchant.merchantOwnerStatus, "Not returned")} />
-                <Detail label="Invite expires" value={formatDate(merchant.merchantOwnerInviteExpiresAt)} />
-                <Detail label="Activated" value={formatDate(merchant.merchantOwnerActivatedAt)} />
-                {ownerInviteUrl ? <Detail label="New setup URL" value={ownerInviteUrl} /> : null}
-              </div>
-              {merchant.merchantOwnerStatus === "invited" || merchant.merchantOwnerHasSetupInvite ? (
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={handleRegenerateOwnerInvite}
-                    disabled={isRegeneratingInvite}
-                    className="ps-button-secondary disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {isRegeneratingInvite ? "Regenerating..." : "Regenerate setup link"}
-                  </button>
-                  {ownerInviteUrl ? (
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(ownerInviteUrl)}
-                      className="ps-button-secondary"
-                    >
-                      Copy setup URL
-                    </button>
-                  ) : null}
+        <div className="mt-6 overflow-x-auto">
+          <div className="flex min-w-max gap-2 rounded-2xl bg-[#fbfaf7] p-2 ring-1 ring-slate-100">
+            {detailTabs.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setActiveDetailTab(value)}
+                className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
+                  activeDetailTab === value
+                    ? "bg-[var(--ps-espresso)] text-white shadow-sm"
+                    : "bg-white text-slate-600 ring-1 ring-slate-100 hover:text-[var(--ps-espresso)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-8">
+          {activeDetailTab === "overview" ? (
+            <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+              <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+                <h2 className="text-xl font-semibold">Overview</h2>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <Detail label="Merchant ID" value={pickFirst(merchant.id, merchant.merchantId, merchant._id)} />
+                  <Detail label="Slug" value={getMerchantSlug(merchant)} />
+                  <Detail label="Status" value={pickFirst(merchant.status, merchant.state)} />
+                  <Detail label="Owner email" value={getContactEmail(merchant)} />
+                  <Detail label="Owner status" value={pickFirst(merchant.merchantOwnerStatus, "Not returned")} />
+                  <Detail label="Reward" value={pickFirst(merchant.rewardText, merchant.loyalty?.rewardText)} />
+                  <Detail label="Join URL" value={links.joinUrl} />
+                  <Detail label="Merchant dashboard URL" value={links.merchantDashboardUrl} />
+                  <Detail label="Demo pass URL" value={links.demoPassUrl} />
                 </div>
-              ) : null}
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {links.joinUrl ? (
+                    <a href={links.joinUrl} target="_blank" rel="noreferrer" className="ps-button-secondary">
+                      Open join page
+                    </a>
+                  ) : null}
+                  <button type="button" onClick={() => copyDetailText("Join URL", links.joinUrl)} className="ps-button-secondary">
+                    Copy join URL
+                  </button>
+                  <button type="button" onClick={() => copyDetailText("Merchant dashboard URL", links.merchantDashboardUrl)} className="ps-button-secondary">
+                    Copy merchant dashboard URL
+                  </button>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+                <h2 className="text-xl font-semibold">Logo preview</h2>
+                {form.logoPreviewUrl || form.logoUrl || getLogoUrl(merchant) ? (
+                  <img
+                    src={form.logoPreviewUrl || form.logoUrl || getLogoUrl(merchant)}
+                    alt=""
+                    className="mt-4 max-h-36 rounded-xl bg-[#fbfaf7] object-contain p-4 ring-1 ring-slate-100"
+                  />
+                ) : (
+                  <p className="mt-4 rounded-xl bg-[#fbfaf7] p-4 text-sm font-semibold text-slate-500 ring-1 ring-slate-100">
+                    No logo uploaded.
+                  </p>
+                )}
+              </div>
             </div>
-            <ScannerDevicesCard merchantId={merchantId} accessToken={accessToken} />
+          ) : null}
+
+          {activeDetailTab === "wallet" ? (
+            <div className="space-y-6">
+              <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_25rem]">
+                  <div>
+                    <h2 className="text-xl font-semibold">Wallet card design</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      Preview updates live. Save changes to apply this design to newly generated passes.
+                    </p>
+                    <div className="mt-5 grid gap-5 md:grid-cols-2">
+                      <Field label="Reward threshold">
+                        {isEditing ? (
+                          <TextInput
+                            type="number"
+                            min="1"
+                            value={form.rewardThreshold || ""}
+                            onChange={(event) => updateForm("rewardThreshold", event.target.value)}
+                          />
+                        ) : (
+                          <div className="rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
+                            {form.rewardThreshold || "Not returned"}
+                          </div>
+                        )}
+                      </Field>
+                      <Field label="Reward text">
+                        {isEditing ? (
+                          <TextInput multiline value={form.rewardText || ""} onChange={(event) => updateForm("rewardText", event.target.value)} />
+                        ) : (
+                          <div className="rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
+                            {form.rewardText || "Not returned"}
+                          </div>
+                        )}
+                      </Field>
+                    </div>
+                    <div className="mt-5">
+                      <WalletDesignFields form={form} isEditing={isEditing} onChange={updateForm} />
+                    </div>
+                    <div className="mt-6 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+                      <p className="text-sm font-semibold text-[var(--ps-espresso)]">Logo</p>
+                      {form.logoPreviewUrl || form.logoUrl ? (
+                        <img src={form.logoPreviewUrl || form.logoUrl} alt="" className="mt-3 max-h-24 rounded-lg bg-white object-contain p-3 ring-1 ring-slate-100" />
+                      ) : (
+                        <p className="mt-2 text-sm font-semibold text-slate-500">No logo uploaded.</p>
+                      )}
+                      {isEditing ? (
+                        <div className="mt-4">
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                            onChange={(event) => handleDetailLogoFile(event.target.files?.[0])}
+                            className="block w-full text-sm"
+                          />
+                          {form.colorSuggestions ? (
+                            <div className="mt-4">
+                              <p className="mb-2 text-xs font-semibold text-slate-500">Suggested only. Current colours stay unchanged unless applied.</p>
+                              <div className="flex flex-wrap gap-2">
+                                {(form.colorSuggestions.palette || []).map((color) => (
+                                  <span key={color} className="h-7 w-7 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: color }} />
+                                ))}
+                              </div>
+                              <button type="button" onClick={applyDetailColorSuggestions} className="ps-button-secondary mt-3">
+                                Apply suggested colours
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="mt-6 grid gap-3 md:grid-cols-2">
+                      <Detail label="Demo pass URL" value={links.demoPassUrl} />
+                      <Detail label="Wallet theme" value={themeModeOptions.find(([value]) => value === form.passThemeMode)?.[1]} />
+                    </div>
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      {links.demoPassUrl ? (
+                        <a href={links.demoPassUrl} target="_blank" rel="noreferrer" className="ps-button-secondary">
+                          Open demo pass
+                        </a>
+                      ) : null}
+                      {isEditing ? (
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={handleSave}
+                          className="ps-button-primary disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {isSaving ? "Saving..." : "Save changes"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="xl:sticky xl:top-6 xl:self-start">
+                    <WalletPassLivePreview
+                      cafeName={detailPreviewSource.cafeName}
+                      logoUrl={detailPreviewSource.logoUrl}
+                      logoPreview={detailPreviewSource.logoPreviewUrl}
+                      rewardThreshold={detailPreviewSource.rewardThreshold}
+                      rewardText={detailPreviewSource.rewardText}
+                      themeMode={detailPreviewSource.passThemeMode}
+                      backgroundColor={detailPreviewSource.backgroundColor}
+                      foregroundColor={detailPreviewSource.foregroundColor || detailPreviewSource.textColor}
+                      labelColor={detailPreviewSource.labelColor}
+                      accentColor={detailPreviewSource.passAccentColor || detailPreviewSource.brandColor}
+                      stampFilledColor={detailPreviewSource.passStampFilledColor}
+                      stampEmptyColor={detailPreviewSource.passStampEmptyColor}
+                      logoTileEnabled={pickFirst(detailPreviewSource.logoTileEnabled, detailPreviewSource.passLogoTileEnabled)}
+                      logoTileColor={detailPreviewSource.passLogoTileColor}
+                      logoFit={pickFirst(detailPreviewSource.logoFit, detailPreviewSource.passLogoFit)}
+                      finalBackgroundColor={detailPreviewSource.finalBackgroundColor}
+                      finalForegroundColor={detailPreviewSource.finalForegroundColor}
+                      finalLabelColor={detailPreviewSource.finalLabelColor}
+                      finalStampFilledColor={detailPreviewSource.stampFilledColor}
+                      finalStampEmptyColor={detailPreviewSource.stampEmptyColor}
+                      themeWarnings={themeWarnings}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <FinalThemeDebug form={form} warnings={themeWarnings} />
+            </div>
+          ) : null}
+
+          {activeDetailTab === "scanner" ? (
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+              <ScannerDevicesCard merchantId={merchantId} accessToken={accessToken} />
+              <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+                <h2 className="text-xl font-semibold">Hardware checklist</h2>
+                <ul className="mt-4 grid gap-3 text-sm font-semibold text-slate-700">
+                  <li className="rounded-xl bg-[#fbfaf7] p-3 ring-1 ring-slate-100">Android tablet/iPad</li>
+                  <li className="rounded-xl bg-[#fbfaf7] p-3 ring-1 ring-slate-100">2D QR/barcode scanner</li>
+                  <li className="rounded-xl bg-[#fbfaf7] p-3 ring-1 ring-slate-100">Kiosk browser/screen pinning</li>
+                  <li className="rounded-xl bg-[#fbfaf7] p-3 ring-1 ring-slate-100">Open scanner URL on the tablet</li>
+                </ul>
+              </div>
+            </div>
+          ) : null}
+
+          {activeDetailTab === "email" ? (
             <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <h2 className="text-xl font-semibold">Welcome email</h2>
@@ -2393,6 +2581,17 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
               <div className="mt-4 grid gap-3">
                 <Detail label="Subject" value={welcomeEmail.subject} />
                 <Detail label="Note" value={welcomeEmail.note} />
+                <Detail label="Owner email" value={getContactEmail(merchant)} />
+                <Detail label="Owner status" value={pickFirst(merchant.merchantOwnerStatus, "Not returned")} />
+                <Detail label="Invite expires" value={formatDate(merchant.merchantOwnerInviteExpiresAt)} />
+                <Detail label="Activated" value={formatDate(merchant.merchantOwnerActivatedAt)} />
+                {ownerInviteUrl ? <Detail label="New setup URL" value={ownerInviteUrl} /> : null}
+              </div>
+
+              <div className="mt-4">
+                <Alert>
+                  Scanner setup links are separate and should only be used on the café tablet.
+                </Alert>
               </div>
 
               {welcomeEmail.canSend ? (
@@ -2415,10 +2614,6 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                   <Alert>Regenerate setup link before sending this email.</Alert>
                 </div>
               )}
-
-              {detailCopyState ? (
-                <p className="mt-4 text-sm font-semibold text-[var(--ps-blue)]">{detailCopyState}</p>
-              ) : null}
 
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
@@ -2458,65 +2653,13 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                 ) : null}
               </div>
             </div>
-            <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
-              <h2 className="text-xl font-semibold">Overview</h2>
-              <div className="mt-4 grid gap-3">
-                <Detail label="Contact email" value={getContactEmail(merchant)} />
-                <Detail label="Contact phone" value={pickFirst(merchant.contactPhone, merchant.contact?.phone)} />
-                <Detail label="Address" value={pickFirst(merchant.address, merchant.location?.address)} />
-                <Detail label="Reward" value={pickFirst(merchant.rewardText, merchant.loyalty?.rewardText)} />
-                <Detail label="Notes" value={pickFirst(merchant.salesNotes, merchant.notes)} />
-                <Detail label="Logo" value={getLogoUrl(merchant)} />
-              </div>
-            </div>
-          </div>
+          ) : null}
 
-          <div className="space-y-6">
+          {activeDetailTab === "settings" ? (
             <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_25rem]">
-                <div>
-                  <h2 className="text-xl font-semibold">Wallet card design</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Preview updates live. Save changes to apply this design to newly generated passes.
-                  </p>
-                  <div className="mt-5">
-                    <WalletDesignFields form={form} isEditing={isEditing} onChange={updateForm} />
-                  </div>
-                </div>
-                <div className="xl:sticky xl:top-6 xl:self-start">
-                  <WalletPassLivePreview
-                    cafeName={detailPreviewSource.cafeName}
-                    logoUrl={detailPreviewSource.logoUrl}
-                    logoPreview={detailPreviewSource.logoPreviewUrl}
-                    rewardThreshold={detailPreviewSource.rewardThreshold}
-                    rewardText={detailPreviewSource.rewardText}
-                    themeMode={detailPreviewSource.passThemeMode}
-                    backgroundColor={detailPreviewSource.backgroundColor}
-                    foregroundColor={detailPreviewSource.foregroundColor || detailPreviewSource.textColor}
-                    labelColor={detailPreviewSource.labelColor}
-                    accentColor={detailPreviewSource.passAccentColor || detailPreviewSource.brandColor}
-                    stampFilledColor={detailPreviewSource.passStampFilledColor}
-                    stampEmptyColor={detailPreviewSource.passStampEmptyColor}
-                    logoTileEnabled={pickFirst(detailPreviewSource.logoTileEnabled, detailPreviewSource.passLogoTileEnabled)}
-                    logoTileColor={detailPreviewSource.passLogoTileColor}
-                    logoFit={pickFirst(detailPreviewSource.logoFit, detailPreviewSource.passLogoFit)}
-                    finalBackgroundColor={detailPreviewSource.finalBackgroundColor}
-                    finalForegroundColor={detailPreviewSource.finalForegroundColor}
-                    finalLabelColor={detailPreviewSource.finalLabelColor}
-                    finalStampFilledColor={detailPreviewSource.stampFilledColor}
-                    finalStampEmptyColor={detailPreviewSource.stampEmptyColor}
-                    themeWarnings={themeWarnings}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <FinalThemeDebug form={form} warnings={themeWarnings} />
-
-            <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
-              <h2 className="text-xl font-semibold">Safe fields</h2>
+              <h2 className="text-xl font-semibold">Settings</h2>
               <div className="mt-5 grid gap-5 md:grid-cols-2">
-                {editableFields.map(([name, label, type]) => (
+                {settingsFields.map(([name, label, type]) => (
                   <Field key={name} label={label}>
                     {isEditing ? (
                       type === "color" ? (
@@ -2538,36 +2681,27 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                 ))}
               </div>
 
+              <div className="mt-6 grid gap-3 md:grid-cols-2">
+                <Detail label="Owner email" value={getContactEmail(merchant)} />
+                <Detail label="Owner status" value={pickFirst(merchant.merchantOwnerStatus, "Not returned")} />
+                <Detail label="Invite expires" value={formatDate(merchant.merchantOwnerInviteExpiresAt)} />
+                <Detail label="Activated" value={formatDate(merchant.merchantOwnerActivatedAt)} />
+                <Detail label="Staff dashboard URL" value={links.staffDashboardUrl || "Staff accounts can be created later"} />
+                <Detail label="Logo path" value={getLogoUrl(merchant)} />
+              </div>
+
               <div className="mt-6 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
-                <p className="text-sm font-semibold text-[var(--ps-espresso)]">Logo</p>
-                {form.logoPreviewUrl || form.logoUrl ? (
-                  <img src={form.logoPreviewUrl || form.logoUrl} alt="" className="mt-3 max-h-24 rounded-lg bg-white object-contain p-3 ring-1 ring-slate-100" />
-                ) : (
-                  <p className="mt-2 text-sm font-semibold text-slate-500">No logo uploaded.</p>
-                )}
-                {isEditing ? (
-                  <div className="mt-4">
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      onChange={(event) => handleDetailLogoFile(event.target.files?.[0])}
-                      className="block w-full text-sm"
-                    />
-                    {form.colorSuggestions ? (
-                      <div className="mt-4">
-                        <p className="mb-2 text-xs font-semibold text-slate-500">Suggested only. Current colours stay unchanged unless applied.</p>
-                        <div className="flex flex-wrap gap-2">
-                          {(form.colorSuggestions.palette || []).map((color) => (
-                            <span key={color} className="h-7 w-7 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: color }} />
-                          ))}
-                        </div>
-                        <button type="button" onClick={applyDetailColorSuggestions} className="ps-button-secondary mt-3">
-                          Apply suggested colours
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
+                <p className="text-sm font-semibold text-[var(--ps-espresso)]">Safe fields / raw config</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <Detail label="Reward threshold" value={form.rewardThreshold} />
+                  <Detail label="Reward text" value={form.rewardText} />
+                  <Detail label="Brand color" value={form.brandColor} />
+                  <Detail label="Background color" value={form.backgroundColor} />
+                  <Detail label="Text color" value={form.textColor} />
+                  <Detail label="Pass theme" value={form.passThemeMode} />
+                  <Detail label="Logo URL" value={form.logoUrl} />
+                  <Detail label="Design notes" value={form.passDesignNotes} />
+                </div>
               </div>
 
               {isEditing ? (
@@ -2583,7 +2717,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                 </div>
               ) : null}
             </div>
-          </div>
+          ) : null}
         </div>
       </section>
     </AdminShell>
