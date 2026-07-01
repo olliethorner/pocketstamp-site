@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import AdminPortal from "./AdminPortal.jsx";
@@ -2478,6 +2478,66 @@ function getScanMessage(errorOrPayload) {
   );
 }
 
+function getScannerBranding(device = {}) {
+  const branding = device.branding || {};
+  return {
+    backgroundColor: pickFirst(branding.backgroundColor, device.backgroundColor, "#fbf7ef"),
+    foregroundColor: pickFirst(branding.foregroundColor, device.foregroundColor, "#26211d"),
+    labelColor: pickFirst(branding.labelColor, device.labelColor, "#6f6860"),
+    logoPath: pickFirst(device.logoPath, device.logoUrl, branding.logoPath, branding.logoUrl),
+  };
+}
+
+function isProbablyNetworkError(error) {
+  return !error?.status && /fetch|network|load failed|failed to fetch/i.test(String(error?.message || ""));
+}
+
+class ScannerRenderBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Scanner page render failed", error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <ScannerFallbackScreen
+          title="Could not process scan"
+          message="Could not connect scanner."
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function ScannerFallbackScreen({ title, message }) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[var(--ps-cream)] px-5 py-8 text-[var(--ps-espresso)]">
+      <section className="w-full max-w-3xl rounded-[2rem] bg-red-50 p-8 text-center shadow-[var(--ps-shadow)] ring-2 ring-red-200">
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-white text-4xl font-black text-red-800 ring-1 ring-red-200">
+          !
+        </div>
+        <h1 className="mt-6 text-[clamp(2.6rem,8vw,5.8rem)] font-black leading-none text-red-800">
+          {title}
+        </h1>
+        <p className="mx-auto mt-5 max-w-xl text-xl font-semibold leading-8 text-red-800">
+          {message}
+        </p>
+      </section>
+    </main>
+  );
+}
+
 function KioskStat({ label, value }) {
   return value ? (
     <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-[var(--ps-border)]">
@@ -2501,8 +2561,11 @@ function ScannerKioskPage() {
 
   const merchantName = getScannerMerchantName(device || {});
   const deviceName = getScannerDeviceName(device || {});
+  const deviceStatus = pickFirst(device?.status, device?.state);
   const mode = pickFirst(device?.mode, device?.scannerMode);
   const cooldown = pickFirst(device?.cooldownSeconds, device?.stampCooldownSeconds);
+  const rewardThreshold = pickFirst(device?.rewardThreshold, device?.threshold);
+  const scannerBranding = getScannerBranding(device || {});
 
   function focusScannerInput() {
     window.setTimeout(() => inputRef.current?.focus(), 40);
@@ -2521,7 +2584,7 @@ function ScannerKioskPage() {
   async function loadDevice() {
     if (!deviceToken) {
       setDeviceError("Missing scanner device token.");
-      setStatus("error");
+      setStatus("missing_token");
       return;
     }
 
@@ -2533,7 +2596,8 @@ function ScannerKioskPage() {
       setDevice(extractScannerDevice(payload));
       setStatus("ready");
     } catch (error) {
-      setDeviceError(getScanMessage(error));
+      console.error("Scanner device fetch failed", error);
+      setDeviceError(isProbablyNetworkError(error) ? "Could not connect scanner." : getScanMessage(error));
       setStatus("error");
     } finally {
       focusScannerInput();
@@ -2711,6 +2775,12 @@ function ScannerKioskPage() {
       title: "Could not process scan",
       body: deviceError || getScanMessage(scanResult),
     },
+    missing_token: {
+      tone: "error",
+      icon: "!",
+      title: "Missing scanner device token.",
+      body: "Open this page using the scanner setup URL from PocketStamp admin.",
+    },
   }[status] || {};
 
   const toneClass =
@@ -2726,9 +2796,14 @@ function ScannerKioskPage() {
 
   return (
     <main
-      className="min-h-screen bg-[var(--ps-cream)] px-5 py-6 text-[var(--ps-espresso)] sm:px-8"
+      className="min-h-screen px-5 py-6 sm:px-8"
+      style={{
+        backgroundColor: scannerBranding.backgroundColor,
+        color: scannerBranding.foregroundColor,
+      }}
       onClick={(event) => {
-        if (event.target.closest("button,input,select,textarea,a")) return;
+        const target = event.target;
+        if (target instanceof Element && target.closest("button,input,select,textarea,a")) return;
         focusScannerInput();
       }}
     >
@@ -2751,15 +2826,34 @@ function ScannerKioskPage() {
       />
 
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col gap-5">
-        <header className="flex flex-col gap-3 rounded-3xl bg-[#fffdf8]/80 p-5 ring-1 ring-[var(--ps-border)] sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-bold uppercase text-[var(--ps-blue)]">PocketStamp Scanner Mode</p>
-            <h1 className="mt-1 text-2xl font-semibold">{merchantName}</h1>
-            <p className="mt-1 text-sm font-semibold text-[var(--ps-muted)]">{deviceName}</p>
+        <header className="flex flex-col gap-3 rounded-3xl bg-[#fffdf8]/90 p-5 text-[var(--ps-espresso)] ring-1 ring-[var(--ps-border)] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            {scannerBranding.logoPath ? (
+              <img
+                src={scannerBranding.logoPath}
+                alt=""
+                className="h-14 w-14 rounded-2xl bg-white object-contain p-2 ring-1 ring-[var(--ps-border)]"
+              />
+            ) : (
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-[var(--ps-espresso)] text-lg font-black text-white">
+                PS
+              </span>
+            )}
+            <div>
+              <p className="text-sm font-bold uppercase" style={{ color: scannerBranding.labelColor }}>
+                PocketStamp Scanner Mode
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold">{merchantName}</h1>
+              <p className="mt-1 text-sm font-semibold" style={{ color: scannerBranding.labelColor }}>
+                {deviceName}
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2 text-sm font-semibold text-[var(--ps-muted)]">
+            {deviceStatus ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(deviceStatus)}</span> : null}
             {mode ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(mode)}</span> : null}
             {cooldown ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{cooldown}s cooldown</span> : null}
+            {rewardThreshold ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{rewardThreshold} stamps</span> : null}
           </div>
         </header>
 
@@ -2898,7 +2992,11 @@ export default function App() {
   }
 
   if (pathname === "/merchant/scanner") {
-    return <ScannerKioskPage />;
+    return (
+      <ScannerRenderBoundary>
+        <ScannerKioskPage />
+      </ScannerRenderBoundary>
+    );
   }
 
   if (pathname.startsWith("/merchant")) {
