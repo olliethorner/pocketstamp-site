@@ -2510,8 +2510,8 @@ class ScannerRenderBoundary extends Component {
     if (this.state.error) {
       return (
         <ScannerFallbackScreen
-          title="Could not process scan"
-          message="Could not connect scanner."
+          title="Could not connect to this scanner device."
+          message="Reload the scanner setup URL or reconnect from PocketStamp admin."
         />
       );
     }
@@ -2554,14 +2554,15 @@ function ScannerKioskPage() {
   const [device, setDevice] = useState(null);
   const [deviceError, setDeviceError] = useState("");
   const [scanValue, setScanValue] = useState("");
-  const [status, setStatus] = useState("loading");
+  const [deviceLoadStatus, setDeviceLoadStatus] = useState("loading");
+  const [scanStatus, setScanStatus] = useState("idle");
   const [scanResult, setScanResult] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const merchantName = getScannerMerchantName(device || {});
   const deviceName = getScannerDeviceName(device || {});
-  const deviceStatus = pickFirst(device?.status, device?.state);
+  const scannerDeviceStatus = pickFirst(device?.status, device?.state);
   const mode = pickFirst(device?.mode, device?.scannerMode);
   const cooldown = pickFirst(device?.cooldownSeconds, device?.stampCooldownSeconds);
   const rewardThreshold = pickFirst(device?.rewardThreshold, device?.threshold);
@@ -2574,7 +2575,7 @@ function ScannerKioskPage() {
   function scheduleReady(delay = 3600) {
     window.clearTimeout(readyTimerRef.current);
     readyTimerRef.current = window.setTimeout(() => {
-      setStatus("ready");
+      setScanStatus("idle");
       setScanResult(null);
       setScanValue("");
       focusScannerInput();
@@ -2584,21 +2585,25 @@ function ScannerKioskPage() {
   async function loadDevice() {
     if (!deviceToken) {
       setDeviceError("Missing scanner device token.");
-      setStatus("missing_token");
+      setDeviceLoadStatus("missing_token");
+      setScanStatus("idle");
       return;
     }
 
-    setStatus("loading");
+    setDeviceLoadStatus("loading");
+    setScanStatus("idle");
     setDeviceError("");
 
     try {
       const payload = await fetchScannerDevice(deviceToken);
       setDevice(extractScannerDevice(payload));
-      setStatus("ready");
+      setDeviceLoadStatus("ready");
+      setScanStatus("idle");
     } catch (error) {
       console.error("Scanner device fetch failed", error);
-      setDeviceError(isProbablyNetworkError(error) ? "Could not connect scanner." : getScanMessage(error));
-      setStatus("error");
+      setDeviceError(isProbablyNetworkError(error) ? "Could not connect to this scanner device." : getScanMessage(error));
+      setDeviceLoadStatus("error");
+      setScanStatus("idle");
     } finally {
       focusScannerInput();
     }
@@ -2611,7 +2616,7 @@ function ScannerKioskPage() {
 
   useEffect(() => {
     focusScannerInput();
-  }, [status, isProcessing]);
+  }, [deviceLoadStatus, scanStatus, isProcessing]);
 
   function addActivity(nextStatus, result) {
     const label =
@@ -2645,7 +2650,14 @@ function ScannerKioskPage() {
 
   async function handleScanSubmit(value = scanValue) {
     const trimmedValue = String(value || "").trim();
-    if (!trimmedValue || isProcessing || status === "loading") {
+    if (!trimmedValue) {
+      setScanValue("");
+      if (deviceLoadStatus === "ready") setScanStatus("idle");
+      focusScannerInput();
+      return;
+    }
+
+    if (isProcessing || deviceLoadStatus !== "ready") {
       focusScannerInput();
       return;
     }
@@ -2653,19 +2665,19 @@ function ScannerKioskPage() {
     window.clearTimeout(readyTimerRef.current);
     setIsProcessing(true);
     setScanValue("");
-    setStatus("processing");
+    setScanStatus("processing");
 
     try {
       const payload = await submitScannerScan({ deviceToken, scannedValue: trimmedValue });
       const nextStatus = getScanStatus(payload);
       setScanResult(payload);
-      setStatus(nextStatus);
+      setScanStatus(nextStatus);
       addActivity(nextStatus, payload);
       if (nextStatus !== "reward_ready") scheduleReady(nextStatus === "stamp_added" ? 3200 : 5200);
     } catch (error) {
       const errorResult = { message: getScanMessage(error) };
       setScanResult(errorResult);
-      setStatus("scan_error");
+      setScanStatus("scan_error");
       addActivity("scan_error", errorResult);
       scheduleReady(6200);
     } finally {
@@ -2681,12 +2693,12 @@ function ScannerKioskPage() {
     try {
       const payload = await redeemScannerReward({ deviceToken, scanResult });
       setScanResult(payload);
-      setStatus("reward_redeemed");
+      setScanStatus("reward_redeemed");
       addActivity("reward_redeemed", payload);
       scheduleReady(3600);
     } catch (error) {
       setScanResult({ message: getScanMessage(error) });
-      setStatus("scan_error");
+      setScanStatus("scan_error");
       scheduleReady(6200);
     } finally {
       setIsProcessing(false);
@@ -2701,18 +2713,22 @@ function ScannerKioskPage() {
     try {
       const payload = await undoScannerStamp({ deviceToken, scanResult });
       setScanResult(payload);
-      setStatus("undo_success");
+      setScanStatus("undo_success");
       addActivity("undo_success", payload);
       scheduleReady(3200);
     } catch (error) {
       setScanResult({ message: getScanMessage(error) });
-      setStatus("scan_error");
+      setScanStatus("scan_error");
       scheduleReady(6200);
     } finally {
       setIsProcessing(false);
       focusScannerInput();
     }
   }
+
+  const displayStatus = deviceLoadStatus === "ready"
+    ? scanStatus === "idle" ? "ready" : scanStatus
+    : deviceLoadStatus;
 
   const statusContent = {
     loading: {
@@ -2772,8 +2788,8 @@ function ScannerKioskPage() {
     error: {
       tone: "error",
       icon: "!",
-      title: "Could not process scan",
-      body: deviceError || getScanMessage(scanResult),
+      title: "Could not connect to this scanner device.",
+      body: deviceError || "Reload the scanner setup URL or reconnect from PocketStamp admin.",
     },
     missing_token: {
       tone: "error",
@@ -2781,7 +2797,7 @@ function ScannerKioskPage() {
       title: "Missing scanner device token.",
       body: "Open this page using the scanner setup URL from PocketStamp admin.",
     },
-  }[status] || {};
+  }[displayStatus] || {};
 
   const toneClass =
     statusContent.tone === "success"
@@ -2875,7 +2891,7 @@ function ScannerKioskPage() {
             </div>
 
             <div className="mt-9 flex flex-wrap justify-center gap-3">
-              {status === "stamp_added" ? (
+              {displayStatus === "stamp_added" ? (
                 <button
                   type="button"
                   onClick={handleUndoStamp}
@@ -2885,7 +2901,7 @@ function ScannerKioskPage() {
                   Undo last stamp
                 </button>
               ) : null}
-              {status === "reward_ready" ? (
+              {displayStatus === "reward_ready" ? (
                 <>
                   <button
                     type="button"
@@ -2898,7 +2914,7 @@ function ScannerKioskPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setStatus("ready");
+                      setScanStatus("idle");
                       setScanResult(null);
                       focusScannerInput();
                     }}
@@ -2908,7 +2924,7 @@ function ScannerKioskPage() {
                   </button>
                 </>
               ) : null}
-              {status === "scan_error" || status === "error" ? (
+              {displayStatus === "scan_error" || displayStatus === "error" ? (
                 <>
                   <button type="button" onClick={loadDevice} className="ps-button-secondary bg-white text-lg">
                     Reconnect scanner
@@ -2916,7 +2932,11 @@ function ScannerKioskPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setStatus("ready");
+                      if (deviceLoadStatus === "ready") {
+                        setScanStatus("idle");
+                      } else {
+                        loadDevice();
+                      }
                       setScanResult(null);
                       focusScannerInput();
                     }}
