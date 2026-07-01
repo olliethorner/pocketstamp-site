@@ -359,6 +359,7 @@ function getActivityTimestamp(item) {
     item.timestamp,
     item.createdAt,
     item.created_at,
+    item.occurredAt,
     item.scannedAt,
     item.updatedAt,
     item.date,
@@ -440,17 +441,6 @@ function looksLikeWalletPass(item) {
 function looksLikeReminder(item) {
   const haystack = getActivityText(item);
   return haystack.includes("reminder") || haystack.includes("notification");
-}
-
-function looksLikeIssue(item) {
-  const haystack = getActivityText(item);
-  return (
-    haystack.includes("error") ||
-    haystack.includes("failed") ||
-    haystack.includes("invalid") ||
-    haystack.includes("cooldown") ||
-    haystack.includes("already")
-  );
 }
 
 function formatActivityTime(timestamp, { sentence = false } = {}) {
@@ -1674,19 +1664,56 @@ const activityPageSize = 10;
 const customerPageSize = 10;
 
 const activityFilters = [
+  ["today", "Today"],
+  ["7_days", "7 days"],
+  ["30_days", "30 days"],
   ["all", "All"],
-  ["stamps", "Stamps"],
-  ["rewards", "Rewards"],
-  ["joins", "Joins"],
-  ["issues", "Issues"],
 ];
 
 function filterActivityRows(activityRows, filter) {
-  if (filter === "stamps") return activityRows.filter(looksLikeStamp);
-  if (filter === "rewards") return activityRows.filter(looksLikeReward);
-  if (filter === "joins") return activityRows.filter(looksLikeJoin);
-  if (filter === "issues") return activityRows.filter(looksLikeIssue);
-  return activityRows;
+  if (filter === "all") return activityRows;
+
+  const now = new Date();
+  const start = new Date(now);
+
+  if (filter === "today") {
+    start.setHours(0, 0, 0, 0);
+  } else if (filter === "7_days") {
+    start.setDate(start.getDate() - 7);
+  } else if (filter === "30_days") {
+    start.setDate(start.getDate() - 30);
+  }
+
+  return activityRows.filter((item) => {
+    const timestamp = getActivityTimestamp(item);
+    if (!timestamp) return false;
+    const activityDate = new Date(timestamp);
+    if (Number.isNaN(activityDate.getTime())) return false;
+    return activityDate >= start && activityDate <= now;
+  });
+}
+
+function getActivityFilterDescription(filter) {
+  if (filter === "today") return "today";
+  if (filter === "7_days") return "from the last 7 days";
+  if (filter === "30_days") return "from the last 30 days";
+  return "";
+}
+
+function getActivityEmptyText(filter) {
+  if (filter === "today") return "No activity today yet.";
+  if (filter === "7_days") return "No activity in the last 7 days.";
+  if (filter === "30_days") return "No activity in the last 30 days.";
+  return "No activity yet. Scans, stamps and rewards will appear here.";
+}
+
+function formatActivityLogSummary({ pageStart, pageSize, total, filter }) {
+  if (!total) return "Showing 0 activities";
+
+  const range = `Showing ${pageStart + 1}-${Math.min(pageStart + pageSize, total)} of ${total} activities`;
+  const description = getActivityFilterDescription(filter);
+
+  return description ? `${range} ${description}` : range;
 }
 
 function ActivityRow({ item, indexKey }) {
@@ -1725,9 +1752,12 @@ function ActivityList({ activityRows, isLoading, error }) {
     activityRows.length > activityPreviewSize
       ? `Showing ${previewRows.length} of ${activityRows.length} activities`
       : `Showing latest ${activityRows.length} ${activityRows.length === 1 ? "activity" : "activities"}`;
-  const logSummary = filteredActivityRows.length
-    ? `Showing ${pageStart + 1}-${Math.min(pageStart + activityPageSize, filteredActivityRows.length)} of ${filteredActivityRows.length} activities`
-    : "Showing 0 activities";
+  const logSummary = formatActivityLogSummary({
+    pageStart,
+    pageSize: activityPageSize,
+    total: filteredActivityRows.length,
+    filter,
+  });
 
   useEffect(() => {
     setPage(1);
@@ -1771,7 +1801,9 @@ function ActivityList({ activityRows, isLoading, error }) {
   return (
     <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
       <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm font-semibold text-slate-500">{previewSummary}</p>
+        <p className="text-sm font-semibold text-slate-500">
+          {isExpanded ? logSummary : previewSummary}
+        </p>
         {activityRows.length > activityPreviewSize ? (
           <button
             type="button"
@@ -1782,22 +1814,12 @@ function ActivityList({ activityRows, isLoading, error }) {
           </button>
         ) : null}
       </div>
-      <div className="overflow-hidden rounded-xl ring-1 ring-slate-100">
-        {previewRows.map((item, index) => (
-          <ActivityRow
-            key={pickFirst(item.id, item._id, item.eventId, `preview-${index}-${getActivityTimestamp(item)}`)}
-            item={item}
-            indexKey={`preview-${index}-${getActivityTimestamp(item)}`}
-          />
-        ))}
-      </div>
 
       {isExpanded ? (
-        <div className="mt-5 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+        <div className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="font-semibold text-slate-950">Activity log</h3>
-              <p className="mt-1 text-sm font-semibold text-slate-500">{logSummary}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {activityFilters.map(([filterValue, label]) => {
@@ -1831,13 +1853,23 @@ function ActivityList({ activityRows, isLoading, error }) {
                 />
               ))
             ) : (
-              <div className="p-4 text-slate-600">No activity matches this filter.</div>
+              <div className="p-4 text-slate-600">{getActivityEmptyText(filter)}</div>
             )}
           </div>
 
           <PaginationControls page={safePage} pageCount={pageCount} onPageChange={setPage} />
         </div>
-      ) : null}
+      ) : (
+        <div className="overflow-hidden rounded-xl ring-1 ring-slate-100">
+          {previewRows.map((item, index) => (
+            <ActivityRow
+              key={pickFirst(item.id, item._id, item.eventId, `preview-${index}-${getActivityTimestamp(item)}`)}
+              item={item}
+              indexKey={`preview-${index}-${getActivityTimestamp(item)}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
