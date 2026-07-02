@@ -1017,6 +1017,76 @@ function WalletPassMockup({ hero = false }) {
   );
 }
 
+function HeroWalletStack() {
+  const backgroundCards = [
+    ["Morning Batch", "Breakfast rewards", "#42616f"],
+    ["Harbour Books", "Neighbour perks", "#6f5f46"],
+    ["Studio Roasters", "Bean club", "#31456f"],
+    ["Market Deli", "Lunch stamps", "#4f5d43"],
+  ];
+
+  return (
+    <div className="ps-wallet-stack" aria-label="Apple Wallet loyalty card stack">
+      <div className="ps-wallet-panel">
+        <div className="ps-wallet-panel-top">
+          <span>PocketStamp</span>
+          <span>Apple Wallet</span>
+        </div>
+
+        <div className="ps-wallet-card-stage">
+          {backgroundCards.map(([name, detail, color], index) => (
+            <div
+              key={name}
+              className={`ps-wallet-bg-card ps-wallet-bg-card-${index + 1}`}
+              style={{ "--card-color": color }}
+            >
+              <span>{name}</span>
+              <small>{detail}</small>
+            </div>
+          ))}
+
+          <div className="ps-wallet-front-card">
+            <div className="ps-wallet-front-top">
+              <IconMark label="PS" className="h-11 w-11 bg-white text-[#26354f]" />
+              <div className="ps-wallet-pill">
+                <span />
+                Apple Wallet
+              </div>
+            </div>
+
+            <p className="ps-wallet-cafe-name">Harbour House Café</p>
+            <div className="ps-wallet-stamp-row">
+              <div>
+                <p>Stamps</p>
+                <strong>4/10</strong>
+              </div>
+              <div className="ps-wallet-mini-qr">
+                <QRCodeSVG value={demoJoinAbsoluteUrl} size={62} />
+              </div>
+            </div>
+
+            <div className="ps-wallet-dots" aria-hidden="true">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <span key={index} className={index < 4 ? "is-filled" : ""} />
+              ))}
+            </div>
+
+            <div className="ps-wallet-reward">
+              <span>Reward</span>
+              <strong>10th coffee free</strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="ps-wallet-panel-bottom">
+          <span>No app</span>
+          <span>Scan at the till</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReminderMockup() {
   return (
     <div className="mx-auto w-full max-w-xl">
@@ -2818,20 +2888,7 @@ function MarketingHomepage() {
             className="ps-hero-visual"
           >
             <div className="ps-blue-glow" aria-hidden="true" />
-            <WalletPassMockup hero />
-            <div className="ps-join-card">
-              <p className="text-xs font-bold uppercase text-slate-500">
-                Demo Wallet card
-              </p>
-              <QRCodeSVG
-                value={demoJoinAbsoluteUrl}
-                size={82}
-                aria-label="QR code for the PocketStamp demo Wallet card"
-              />
-              <p className="text-sm font-semibold text-slate-950">
-                Scan to try the demo card
-              </p>
-            </div>
+            <HeroWalletStack />
           </motion.div>
         </div>
       </section>
