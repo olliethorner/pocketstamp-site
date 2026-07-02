@@ -1100,6 +1100,20 @@ function DashboardMockup() {
   );
 }
 
+function ScannerProductVisual() {
+  return (
+    <div className="ps-scanner-visual">
+      <img
+        src="/webzebra.png"
+        alt="Counter scanner for PocketStamp Scanner Mode"
+        className="ps-scanner-image"
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+  );
+}
+
 function SimpleBullets({ items }) {
   return (
     <ul className="mt-7 grid gap-3 sm:grid-cols-2">
@@ -2924,7 +2938,7 @@ function MarketingHomepage() {
             </p>
             <SimpleBullets items={scannerModeBullets} />
           </div>
-          <DashboardMockup />
+          <ScannerProductVisual />
         </div>
       </section>
 
