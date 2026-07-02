@@ -1,7 +1,6 @@
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
-import { BrowserQRCodeReader } from "@zxing/browser";
 import AdminPortal from "./AdminPortal.jsx";
 import "./App.css";
 
@@ -19,12 +18,16 @@ const demoCreateCardUrl = "/demo/pocket-stamp-demo/create";
 const demoPassStorageKey = "pocketstampDemoPassUrl";
 
 const steps = [
-  ["Scan QR", "Customer scans your café’s join QR.", "QR"],
+  ["Scan QR", "Customer scans your café’s Join QR.", "QR"],
   ["Add to Wallet", "They create a branded loyalty card in Apple Wallet.", "Wallet"],
-  ["Tap at the counter", "They tap their phone or watch on a compatible reader.", "Tap"],
+  [
+    "Scan at the till",
+    "They show their Wallet pass QR. Your counter scanner or tablet reads it and PocketStamp adds the stamp.",
+    "Scan",
+  ],
   [
     "Track and remind",
-    "You see activity, and PocketStamp can trigger simple Wallet reminders at key milestones.",
+    "You see activity in the dashboard, and PocketStamp can trigger Wallet reminders at key milestones.",
     "Data",
   ],
 ];
@@ -33,7 +36,8 @@ const walletBullets = [
   "Branded with your logo and colours",
   "No customer app required",
   "Always on their phone",
-  "Updates automatically",
+  "Scannable at the till",
+  "Updates as stamps are collected",
   "Replaces the paper stamp card",
 ];
 
@@ -42,7 +46,7 @@ const dashboardBullets = [
   "Customer list",
   "Reward redemptions",
   "Join QR and URL",
-  "Reader status",
+  "Scanner Mode status",
   "Wallet reminder activity",
 ];
 
@@ -56,22 +60,42 @@ const reminderBullets = [
 const setupSteps = [
   "Send your logo, colours and reward",
   "We build your Wallet card and join page",
-  "You get your dashboard, QR code and reader setup",
-  "Customers start joining",
+  "You get your dashboard, Join QR and scanner setup",
+  "Customers scan at the till to collect stamps",
+  "Wallet reminders help bring them back",
 ];
 
 const cafeFeatures = [
   ["Wallet card", "The stamp card your customers actually keep."],
-  ["Join QR", "Customers scan. Wallet opens. Loyalty starts."],
-  ["Merchant dashboard", "See joins, stamps, rewards and reader status in one calm view."],
-  ["Customer list", "A customer list paper cards never gave you."],
-  ["Reminders", "Automatic nudges, straight from Apple Wallet."],
+  ["Join QR", "Customers scan your café QR and add the loyalty card to Apple Wallet."],
+  [
+    "Counter Scanner Mode",
+    "Customers scan their Wallet pass at the till. Stamps are added automatically.",
+  ],
+  [
+    "Merchant dashboard",
+    "See joins, stamps, rewards, scanner activity and customers in one calm view.",
+  ],
+  [
+    "Customer list",
+    "Names, emails, stamp progress and reward status — something paper cards never gave you.",
+  ],
+  ["Wallet reminders", "Automatic Apple Wallet nudges when customers are close to a reward."],
 ];
 
 const proofPanels = [
+  ["Counter scanner", "Scan Wallet passes at the till and add stamps automatically."],
   ["Customer list", "Names, emails, stamp progress and reward status."],
-  ["Join flow", "QR code to a branded Apple Wallet loyalty card without a downloaded app."],
   ["Wallet reminders", "Halfway, almost there, reward-ready and birthday messages."],
+];
+
+const scannerModeBullets = [
+  "Works with a 2D counter scanner",
+  "Tablet camera scan fallback",
+  "Manual code entry fallback",
+  "Reward confirmation",
+  "Manual stamp adjustment when needed",
+  "Activity is logged",
 ];
 
 async function requestJson(path, options = {}) {
@@ -1303,7 +1327,7 @@ function DemoSuccessPage() {
             </h1>
             <p className="mt-5 text-lg leading-8 text-[var(--ps-muted)]">
               {hasPassUrl
-                ? `${customerName ? `${customerName}, tap below` : "Tap below"} to open Apple Wallet and add your card.`
+                ? `${customerName ? `${customerName}, use the button below` : "Use the button below"} to open Apple Wallet and add your card.`
                 : "This success page needs a fresh demo Wallet card link. Head back to create a sample card first."}
             </p>
           </div>
@@ -1562,7 +1586,7 @@ function MerchantLogin({ onLogin }) {
               Sign in to view your loyalty dashboard
             </h1>
             <p className="mt-3 leading-7 text-slate-600">
-              Manage Wallet loyalty activity, join links and reader setup from
+              Manage Wallet loyalty activity, join links and scanner setup from
               one clean merchant view.
             </p>
           </div>
@@ -2602,7 +2626,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             <div className="ps-dashboard-card rounded-2xl p-6">
               <div className="flex items-start gap-4">
                 <div className="rounded-xl bg-[var(--ps-blue-soft)] p-3 text-[var(--ps-blue)]">
-                  <span className="text-xs font-bold">Tap</span>
+                  <span className="text-xs font-bold">Scan</span>
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-[var(--ps-espresso)]">
@@ -2747,16 +2771,16 @@ function MarketingHomepage() {
               Paper stamp cards, rebuilt for Apple Wallet.
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-700 sm:text-xl">
-              PocketStamp gives cafés a branded Apple Wallet rewards card,
-              customer list, and automatic reminders — without asking customers
-              to download an app.
+              PocketStamp gives cafés a branded Apple Wallet loyalty card,
+              counter scanner workflow, customer list and automatic reminders
+              — without asking customers to download an app.
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <a
                 href={demoHref}
                 className="ps-pill ps-pill-dark"
               >
-                See demo
+                Book a demo
               </a>
               <a
                 href={demoJoinUrl}
@@ -2768,6 +2792,7 @@ function MarketingHomepage() {
             <div className="ps-badges mt-10 flex flex-wrap gap-2.5">
               <span>No customer app</span>
               <span>Apple Wallet</span>
+              <span>Counter Scanner Mode</span>
               <span>Built for independent cafés</span>
             </div>
           </motion.div>
@@ -2843,8 +2868,9 @@ function MarketingHomepage() {
             ))}
           </div>
           <p className="mt-8 max-w-3xl text-sm leading-6 text-slate-500">
-            Designed around compatible Apple Wallet reader workflows, with QR
-            scanning available now and reader setup ready for the next layer.
+            Counter Scanner Mode is available now. NFC tap-to-stamp support can
+            be added later when Apple approval and compatible hardware are
+            available.
           </p>
         </div>
       </section>
@@ -2857,8 +2883,8 @@ function MarketingHomepage() {
               Your café, inside your customer’s Wallet.
             </h2>
             <p className="mt-7 max-w-xl text-lg leading-8 text-slate-700">
-              No loose paper. No app fatigue. Just a polished branded pass that
-              updates automatically as stamps are collected.
+              No loose paper. No app fatigue. Just a polished branded Wallet
+              pass customers can scan at the till and keep on their phone.
             </p>
             <SimpleBullets items={walletBullets} />
           </div>
@@ -2876,7 +2902,8 @@ function MarketingHomepage() {
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
               Your dashboard shows what happened today, who joined, which
-              rewards were redeemed, and who is close to coming back.
+              rewards were redeemed, which customers are close, and whether
+              Scanner Mode is ready at the till.
             </p>
             <SimpleBullets items={dashboardBullets} />
           </div>
@@ -2886,13 +2913,32 @@ function MarketingHomepage() {
       <section className="bg-white py-20 lg:py-28">
         <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
           <div>
+            <p className="ps-eyebrow">Counter Scanner Mode</p>
+            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
+              Built for the café counter.
+            </h2>
+            <p className="mt-7 text-lg leading-8 text-slate-700">
+              Customers scan their Apple Wallet pass at the till. PocketStamp
+              adds the stamp automatically, with manual backup tools for busy
+              service.
+            </p>
+            <SimpleBullets items={scannerModeBullets} />
+          </div>
+          <DashboardMockup />
+        </div>
+      </section>
+
+      <section className="bg-[#fbfaf7] py-20 lg:py-28">
+        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
+          <div>
             <p className="ps-eyebrow">Wallet reminders</p>
             <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
               Automatic reminders, straight from Apple Wallet.
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
               PocketStamp can remind customers when they are halfway there,
-              one coffee away, reward-ready, or due a birthday treat.
+              one coffee away, reward-ready, due a birthday treat, or haven’t
+              visited in a while.
             </p>
             <FeatureBullets items={reminderBullets} />
           </div>
@@ -2928,7 +2974,8 @@ function MarketingHomepage() {
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
               Pilot spaces are open for independent cafés. We build the Wallet
-              card, join QR, dashboard and reader setup around your café brand.
+              card, Join QR, merchant dashboard and counter scanner setup
+              around your café brand.
             </p>
           </div>
           <div className="ps-pricing">
@@ -2956,6 +3003,10 @@ function MarketingHomepage() {
         <div className="mx-auto max-w-7xl border-t border-slate-950/15 pt-14">
           <p className="ps-display max-w-5xl text-[clamp(2.6rem,6vw,5.6rem)] leading-[0.96]">
             Your café’s Wallet card can be ready this week.
+          </p>
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-700">
+            Start with a Join QR and Counter Scanner Mode. Add NFC tap-to-stamp
+            later when available.
           </p>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             <a href={demoHref} className="ps-pill ps-pill-dark">
@@ -3419,6 +3470,7 @@ function CameraScannerModal({ isOpen, isProcessing, onClose, onDetected }) {
     }
 
     async function startZxingScanner() {
+      const { BrowserQRCodeReader } = await import("@zxing/browser");
       const codeReader = new BrowserQRCodeReader();
       const controls = await codeReader.decodeFromVideoDevice(
         undefined,
