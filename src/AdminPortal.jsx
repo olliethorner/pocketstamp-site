@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
-const ADMIN_API_SECRET = import.meta.env.VITE_ADMIN_API_SECRET;
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const ADMIN_SESSION_STORAGE_KEY = "pocketstampAdminSession";
+const ADMIN_SESSION_EXPIRED_MESSAGE = "Admin session expired. Please sign in again.";
+const ADMIN_ACCESS_REQUIRED_MESSAGE = "You are signed in, but this account does not have active PocketStamp admin access.";
 
 const initialOnboardingForm = {
   cafeName: "",
@@ -74,20 +75,19 @@ function adminFetch(path, options = {}, accessToken = "") {
     throw new Error("Missing VITE_POCKETSTAMP_BACKEND_URL.");
   }
 
-  if (!accessToken && !ADMIN_API_SECRET) {
-    throw new Error("Admin login is required.");
+  if (!accessToken) {
+    const error = new Error(ADMIN_SESSION_EXPIRED_MESSAGE);
+    error.status = 401;
+    error.code = "admin_session_expired";
+    throw error;
   }
-
-  const authHeaders = accessToken
-    ? { Authorization: `Bearer ${accessToken}` }
-    : { "x-pocketstamp-admin-secret": ADMIN_API_SECRET };
 
   return fetch(`${ADMIN_API_BASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders,
       ...options.headers,
+      Authorization: `Bearer ${accessToken}`,
     },
   }).then(async (response) => {
     const text = await response.text();
@@ -96,18 +96,23 @@ function adminFetch(path, options = {}, accessToken = "") {
     try {
       payload = text ? JSON.parse(text) : null;
     } catch {
-      payload = { message: text };
+      payload = null;
     }
 
     if (!response.ok) {
-      const error = new Error(
-        payload?.error ||
-          payload?.message ||
-          payload?.details?.[0]?.message ||
-          "The admin API returned an error.",
-      );
+      const message = response.status === 401
+        ? ADMIN_SESSION_EXPIRED_MESSAGE
+        : response.status === 403
+          ? ADMIN_ACCESS_REQUIRED_MESSAGE
+          : payload?.error ||
+            payload?.message ||
+            payload?.details?.[0]?.message ||
+            "The admin API returned an error.";
+
+      const error = new Error(message);
       error.status = response.status;
       error.payload = payload;
+      error.code = payload?.result;
       throw error;
     }
 
