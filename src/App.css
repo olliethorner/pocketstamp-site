@@ -123,251 +123,136 @@
   z-index: -1;
 }
 
-.ps-wallet-stack {
+.hero-pass-showcase {
   margin: 0 auto;
-  max-width: 34rem;
-  padding: clamp(1rem, 4vw, 2rem);
-  perspective: 1200px;
+  max-width: 39rem;
+  perspective: 1300px;
   width: 100%;
 }
 
-.ps-wallet-panel {
+.hero-pass-stage {
   background:
-    linear-gradient(180deg, rgba(255, 253, 248, 0.94), rgba(244, 238, 228, 0.9)),
-    radial-gradient(circle at 50% 14%, rgba(47, 109, 246, 0.12), transparent 18rem);
-  border: 1px solid rgba(80, 71, 61, 0.13);
-  border-radius: 2.25rem;
-  box-shadow: 0 34px 90px rgba(71, 61, 48, 0.16);
-  overflow: hidden;
-  padding: clamp(1rem, 3vw, 1.35rem);
-}
-
-.ps-wallet-panel-top,
-.ps-wallet-panel-bottom {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-}
-
-.ps-wallet-panel-top span:first-child {
-  color: var(--ps-ink);
-  font-size: 0.86rem;
-  font-weight: 850;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.ps-wallet-panel-top span:last-child,
-.ps-wallet-panel-bottom span {
-  background: rgba(255, 255, 255, 0.72);
+    radial-gradient(circle at 54% 42%, rgba(47, 109, 246, 0.17), transparent 19rem),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.62), rgba(244, 238, 228, 0.48));
   border: 1px solid rgba(80, 71, 61, 0.11);
-  border-radius: 999px;
-  color: var(--ps-muted);
-  font-size: 0.78rem;
-  font-weight: 760;
-  padding: 0.38rem 0.62rem;
-}
-
-.ps-wallet-card-stage {
-  height: clamp(26rem, 54vw, 34rem);
-  margin-top: 1.1rem;
+  border-radius: 2rem;
+  box-shadow: 0 34px 90px rgba(71, 61, 48, 0.12);
+  min-height: clamp(28rem, 58vw, 39rem);
+  overflow: hidden;
   position: relative;
 }
 
-.ps-wallet-bg-card,
-.ps-wallet-front-card {
-  border-radius: 1.55rem;
-  box-shadow: 0 18px 45px rgba(38, 33, 29, 0.16);
-  left: 50%;
+.hero-pass-stage::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 253, 248, 0.72), transparent);
+  bottom: 9%;
+  content: "";
+  height: 1px;
+  left: 12%;
   position: absolute;
-  top: 50%;
-  width: min(82%, 25rem);
+  right: 12%;
 }
 
-.ps-wallet-bg-card {
-  background: var(--card-color);
-  color: rgba(255, 255, 255, 0.86);
-  min-height: 12rem;
-  opacity: 0;
-  padding: 1.25rem;
-  transform-origin: 50% 120%;
-}
-
-.ps-wallet-bg-card span {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 830;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.ps-wallet-bg-card small {
-  display: block;
-  font-weight: 680;
-  margin-top: 4.8rem;
-  opacity: 0.72;
-}
-
-.ps-wallet-bg-card-1 {
-  animation: ps-wallet-card-1 820ms cubic-bezier(0.2, 0.8, 0.2, 1) 260ms forwards;
-}
-
-.ps-wallet-bg-card-2 {
-  animation: ps-wallet-card-2 820ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms forwards;
-}
-
-.ps-wallet-bg-card-3 {
-  animation: ps-wallet-card-3 820ms cubic-bezier(0.2, 0.8, 0.2, 1) 380ms forwards;
-}
-
-.ps-wallet-bg-card-4 {
-  animation: ps-wallet-card-4 820ms cubic-bezier(0.2, 0.8, 0.2, 1) 440ms forwards;
-}
-
-.ps-wallet-front-card {
+.hero-pass-stack {
   animation:
-    ps-wallet-front-enter 760ms cubic-bezier(0.18, 0.9, 0.22, 1) forwards,
-    ps-wallet-front-float 5.5s ease-in-out 900ms infinite;
-  background: #26354f;
-  color: #ffffff;
-  min-height: 26rem;
-  overflow: hidden;
-  padding: clamp(1.2rem, 3vw, 1.55rem);
-  transform: translate(-50%, -43%) scale(0.96);
+    hero-pass-stack-enter 980ms cubic-bezier(0.18, 0.84, 0.24, 1) both,
+    hero-pass-stack-float 6.2s ease-in-out 1.2s infinite;
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  transform-style: preserve-3d;
+  width: 100%;
+}
+
+.hero-pass-card {
+  border-radius: 1.5rem;
+  filter: drop-shadow(0 18px 22px rgba(38, 33, 29, 0.14));
+  height: auto;
+  left: 50%;
+  max-width: 23rem;
+  opacity: 0;
+  position: absolute;
+  top: 52%;
+  transform: translate(-50%, -50%) scale(0.94);
+  transform-origin: 50% 70%;
+  width: min(58%, 23rem);
+  will-change: transform, opacity;
+}
+
+.hero-pass-card--front {
+  --hero-pass-final-transform: translate(-50%, -50%) scale(1) rotate(0deg);
+  animation: hero-pass-front-drop 920ms cubic-bezier(0.17, 0.86, 0.25, 1) 80ms forwards;
+  filter: drop-shadow(0 32px 30px rgba(38, 33, 29, 0.22));
   z-index: 5;
 }
 
-.ps-wallet-front-card::after {
-  background:
-    radial-gradient(circle at 83% 17%, rgba(158, 197, 255, 0.34), transparent 9rem),
-    linear-gradient(180deg, transparent 0 42%, #fffdf8 42% 100%);
-  content: "";
-  inset: 0;
-  pointer-events: none;
-  position: absolute;
+.hero-pass-card--left-one {
+  --hero-pass-final-transform: translate(calc(-50% - 90px), -52%) scale(0.91) rotate(-7deg);
+  animation: hero-pass-left-one 980ms cubic-bezier(0.18, 0.84, 0.24, 1) 260ms forwards;
+  z-index: 4;
 }
 
-.ps-wallet-front-top,
-.ps-wallet-stamp-row,
-.ps-wallet-dots,
-.ps-wallet-reward {
-  position: relative;
+.hero-pass-card--right-one {
+  --hero-pass-final-transform: translate(calc(-50% + 90px), -52%) scale(0.91) rotate(7deg);
+  animation: hero-pass-right-one 980ms cubic-bezier(0.18, 0.84, 0.24, 1) 320ms forwards;
+  z-index: 3;
+}
+
+.hero-pass-card--left-two {
+  --hero-pass-final-transform: translate(calc(-50% - 145px), -50%) scale(0.86) rotate(-12deg);
+  animation: hero-pass-left-two 1040ms cubic-bezier(0.18, 0.84, 0.24, 1) 380ms forwards;
+  filter: drop-shadow(0 16px 18px rgba(38, 33, 29, 0.12));
+  z-index: 2;
+}
+
+.hero-pass-card--right-two {
+  --hero-pass-final-transform: translate(calc(-50% + 145px), -50%) scale(0.86) rotate(12deg);
+  animation: hero-pass-right-two 1040ms cubic-bezier(0.18, 0.84, 0.24, 1) 440ms forwards;
+  filter: drop-shadow(0 16px 18px rgba(38, 33, 29, 0.12));
   z-index: 1;
 }
 
-.ps-wallet-front-top,
-.ps-wallet-stamp-row,
-.ps-wallet-reward {
-  align-items: flex-start;
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.ps-wallet-pill {
+.hero-pass-label {
   align-items: center;
-  background: rgba(255, 255, 255, 0.11);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 253, 248, 0.86);
+  border: 1px solid rgba(80, 71, 61, 0.13);
   border-radius: 999px;
-  display: inline-flex;
-  font-size: 0.76rem;
-  font-weight: 760;
-  gap: 0.45rem;
-  padding: 0.42rem 0.68rem;
-}
-
-.ps-wallet-pill span {
-  background: #9ec5ff;
-  border-radius: 999px;
-  height: 0.45rem;
-  width: 0.45rem;
-}
-
-.ps-wallet-cafe-name {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 0.85rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  margin-top: 2.8rem;
-  position: relative;
-  text-transform: uppercase;
-  z-index: 1;
-}
-
-.ps-wallet-stamp-row {
-  margin-top: 0.95rem;
-}
-
-.ps-wallet-stamp-row p,
-.ps-wallet-reward span {
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.ps-wallet-stamp-row p {
-  color: rgba(255, 255, 255, 0.58);
-}
-
-.ps-wallet-stamp-row strong {
-  display: block;
-  font-size: clamp(3.1rem, 8vw, 4.7rem);
-  font-weight: 760;
-  letter-spacing: 0;
-  line-height: 0.9;
-  margin-top: 0.28rem;
-}
-
-.ps-wallet-mini-qr {
-  background: rgba(255, 255, 255, 0.94);
-  border-radius: 0.85rem;
-  color: #111827;
-  padding: 0.45rem;
-}
-
-.ps-wallet-dots {
-  display: grid;
-  gap: 0.62rem;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  margin-top: 3.3rem;
-}
-
-.ps-wallet-dots span {
-  aspect-ratio: 1;
-  background: #f4eee4;
-  border: 1px solid rgba(80, 71, 61, 0.18);
-  border-radius: 999px;
-}
-
-.ps-wallet-dots .is-filled {
-  background: #2f6df6;
-  border-color: rgba(47, 109, 246, 0.3);
-  box-shadow: inset 0 0 0 0.32rem rgba(255, 255, 255, 0.3);
-}
-
-.ps-wallet-reward {
-  align-items: end;
-  border-top: 1px solid rgba(80, 71, 61, 0.12);
+  box-shadow: 0 14px 34px rgba(71, 61, 48, 0.1);
   color: var(--ps-ink);
-  margin-top: 1.55rem;
-  padding-top: 1rem;
-}
-
-.ps-wallet-reward span {
-  color: var(--ps-muted);
-  display: block;
-}
-
-.ps-wallet-reward strong {
-  display: block;
-  font-size: 1rem;
+  display: inline-flex;
+  font-size: 0.82rem;
   font-weight: 780;
-  margin-top: 0.24rem;
+  left: 50%;
+  padding: 0.55rem 0.82rem;
+  position: absolute;
+  top: 1.1rem;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 8;
 }
 
-.ps-wallet-panel-bottom {
-  margin-top: 1.1rem;
+.hero-pass-label::before {
+  background: var(--ps-blue);
+  border-radius: 999px;
+  content: "";
+  height: 0.48rem;
+  margin-right: 0.46rem;
+  width: 0.48rem;
+}
+
+.hero-pass-dots {
+  display: flex;
+  gap: 0.45rem;
+  position: absolute;
+  right: 1.1rem;
+  top: 1.35rem;
+  z-index: 2;
+}
+
+.hero-pass-dots span {
+  background: rgba(80, 71, 61, 0.17);
+  border-radius: 999px;
+  height: 0.42rem;
+  width: 0.42rem;
 }
 
 .ps-join-card {
@@ -788,107 +673,104 @@
   box-shadow: 0 14px 40px rgba(71, 61, 48, 0.05);
 }
 
-@keyframes ps-wallet-front-enter {
+@keyframes hero-pass-stack-enter {
+  0% {
+    transform: translateY(-1rem);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-pass-stack-float {
+  0%,
+  100% {
+    transform: translateY(0) rotateX(0deg);
+  }
+
+  50% {
+    transform: translateY(-0.55rem) rotateX(1deg);
+  }
+}
+
+@keyframes hero-pass-front-drop {
   0% {
     opacity: 0;
-    transform: translate(-50%, -70%) scale(0.94) rotate(-2deg);
+    transform: translate(-50%, -71%) scale(0.94) rotate(-1deg);
   }
 
   72% {
     opacity: 1;
-    transform: translate(-50%, -42%) scale(1.01) rotate(0.4deg);
+    transform: translate(-50%, -50%) scale(1.015) rotate(0.3deg);
   }
 
   100% {
     opacity: 1;
-    transform: translate(-50%, -43%) scale(1) rotate(0deg);
+    transform: var(--hero-pass-final-transform);
   }
 }
 
-@keyframes ps-wallet-front-float {
-  0%,
-  100% {
-    transform: translate(-50%, -43%) scale(1) rotate(0deg);
-  }
-
-  50% {
-    transform: translate(-50%, -45%) scale(1) rotate(0.35deg);
-  }
-}
-
-@keyframes ps-wallet-card-1 {
+@keyframes hero-pass-left-one {
   0% {
     opacity: 0;
-    transform: translate(-50%, -44%) scale(0.94) rotate(0deg);
+    transform: translate(-50%, -62%) scale(0.94) rotate(0deg);
   }
 
   100% {
     opacity: 1;
-    transform: translate(-62%, -52%) scale(0.9) rotate(-9deg);
+    transform: var(--hero-pass-final-transform);
   }
 }
 
-@keyframes ps-wallet-card-2 {
+@keyframes hero-pass-right-one {
   0% {
     opacity: 0;
-    transform: translate(-50%, -44%) scale(0.94) rotate(0deg);
+    transform: translate(-50%, -62%) scale(0.94) rotate(0deg);
   }
 
   100% {
     opacity: 1;
-    transform: translate(-55%, -57%) scale(0.91) rotate(-4deg);
+    transform: var(--hero-pass-final-transform);
   }
 }
 
-@keyframes ps-wallet-card-3 {
+@keyframes hero-pass-left-two {
   0% {
     opacity: 0;
-    transform: translate(-50%, -44%) scale(0.94) rotate(0deg);
+    transform: translate(-50%, -62%) scale(0.94) rotate(0deg);
   }
 
   100% {
     opacity: 1;
-    transform: translate(-43%, -57%) scale(0.91) rotate(4deg);
+    transform: var(--hero-pass-final-transform);
   }
 }
 
-@keyframes ps-wallet-card-4 {
+@keyframes hero-pass-right-two {
   0% {
     opacity: 0;
-    transform: translate(-50%, -44%) scale(0.94) rotate(0deg);
+    transform: translate(-50%, -62%) scale(0.94) rotate(0deg);
   }
 
   100% {
     opacity: 1;
-    transform: translate(-36%, -52%) scale(0.9) rotate(9deg);
+    transform: var(--hero-pass-final-transform);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ps-wallet-bg-card,
-  .ps-wallet-front-card {
+  .hero-pass-stack,
+  .hero-pass-card {
     animation: none;
+  }
+
+  .hero-pass-card {
     opacity: 1;
   }
 
-  .ps-wallet-bg-card-1 {
-    transform: translate(-62%, -52%) scale(0.9) rotate(-9deg);
-  }
-
-  .ps-wallet-bg-card-2 {
-    transform: translate(-55%, -57%) scale(0.91) rotate(-4deg);
-  }
-
-  .ps-wallet-bg-card-3 {
-    transform: translate(-43%, -57%) scale(0.91) rotate(4deg);
-  }
-
-  .ps-wallet-bg-card-4 {
-    transform: translate(-36%, -52%) scale(0.9) rotate(9deg);
-  }
-
-  .ps-wallet-front-card {
-    transform: translate(-50%, -43%) scale(1);
+  .hero-pass-card {
+    transform: var(--hero-pass-final-transform);
   }
 }
 
@@ -919,25 +801,35 @@
     margin-top: 2.5rem;
   }
 
-  .ps-wallet-stack {
-    max-width: 30rem;
-    padding-inline: 0;
+  .hero-pass-showcase {
+    max-width: 32rem;
   }
 
-  .ps-wallet-panel {
-    border-radius: 1.8rem;
+  .hero-pass-stage {
+    border-radius: 1.5rem;
+    min-height: clamp(25rem, 118vw, 34rem);
   }
 
-  .ps-wallet-card-stage {
-    height: 31rem;
+  .hero-pass-card {
+    top: 53%;
+    width: min(63%, 18rem);
   }
 
-  .ps-wallet-bg-card,
-  .ps-wallet-front-card {
-    width: min(88%, 23rem);
+  .hero-pass-card--left-one {
+    --hero-pass-final-transform: translate(calc(-50% - 54px), -52%) scale(0.92) rotate(-6deg);
   }
 
-  .ps-wallet-front-card {
-    min-height: 25.5rem;
+  .hero-pass-card--right-one {
+    --hero-pass-final-transform: translate(calc(-50% + 54px), -52%) scale(0.92) rotate(6deg);
+  }
+
+  .hero-pass-card--left-two,
+  .hero-pass-card--right-two {
+    display: none;
+  }
+
+  .hero-pass-label {
+    font-size: 0.78rem;
+    top: 0.9rem;
   }
 }

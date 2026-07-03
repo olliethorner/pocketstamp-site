@@ -1017,71 +1017,56 @@ function WalletPassMockup({ hero = false }) {
   );
 }
 
-function HeroWalletStack() {
-  const backgroundCards = [
-    ["Morning Batch", "Breakfast rewards", "#42616f"],
-    ["Harbour Books", "Neighbour perks", "#6f5f46"],
-    ["Studio Roasters", "Bean club", "#31456f"],
-    ["Market Deli", "Lunch stamps", "#4f5d43"],
+function HeroWalletPassShowcase() {
+  const walletPasses = [
+    {
+      className: "hero-pass-card--left-two",
+      src: "/hero-wallet-cards/caffe-luxxe-wallet-card.png",
+      alt: "Caffe Luxxe Apple Wallet loyalty card",
+    },
+    {
+      className: "hero-pass-card--left-one",
+      src: "/hero-wallet-cards/nice-wallet-card-final.png",
+      alt: "Nice Coffee Apple Wallet loyalty card",
+    },
+    {
+      className: "hero-pass-card--right-two",
+      src: "/hero-wallet-cards/yeems-wallet-card.png",
+      alt: "Yeems Coffee Apple Wallet loyalty card",
+    },
+    {
+      className: "hero-pass-card--right-one",
+      src: "/hero-wallet-cards/bramble-wallet-card.png",
+      alt: "Muddy Paw Coffee Apple Wallet loyalty card",
+    },
+    {
+      className: "hero-pass-card--front",
+      src: "/hero-wallet-cards/mr-miles-wallet-card.png",
+      alt: "Mr Miles Apple Wallet loyalty card",
+    },
   ];
 
   return (
-    <div className="ps-wallet-stack" aria-label="Apple Wallet loyalty card stack">
-      <div className="ps-wallet-panel">
-        <div className="ps-wallet-panel-top">
-          <span>PocketStamp</span>
-          <span>Apple Wallet</span>
+    <div className="hero-pass-showcase" aria-label="Real Apple Wallet loyalty card examples">
+      <div className="hero-pass-stage">
+        <div className="hero-pass-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
         </div>
-
-        <div className="ps-wallet-card-stage">
-          {backgroundCards.map(([name, detail, color], index) => (
-            <div
-              key={name}
-              className={`ps-wallet-bg-card ps-wallet-bg-card-${index + 1}`}
-              style={{ "--card-color": color }}
-            >
-              <span>{name}</span>
-              <small>{detail}</small>
-            </div>
+        <div className="hero-pass-stack">
+          {walletPasses.map((pass) => (
+            <img
+              key={pass.src}
+              src={pass.src}
+              alt={pass.alt}
+              className={`hero-pass-card ${pass.className}`}
+              loading={pass.className === "hero-pass-card--front" ? "eager" : "lazy"}
+              decoding="async"
+            />
           ))}
-
-          <div className="ps-wallet-front-card">
-            <div className="ps-wallet-front-top">
-              <IconMark label="PS" className="h-11 w-11 bg-white text-[#26354f]" />
-              <div className="ps-wallet-pill">
-                <span />
-                Apple Wallet
-              </div>
-            </div>
-
-            <p className="ps-wallet-cafe-name">Harbour House Café</p>
-            <div className="ps-wallet-stamp-row">
-              <div>
-                <p>Stamps</p>
-                <strong>4/10</strong>
-              </div>
-              <div className="ps-wallet-mini-qr">
-                <QRCodeSVG value={demoJoinAbsoluteUrl} size={62} />
-              </div>
-            </div>
-
-            <div className="ps-wallet-dots" aria-hidden="true">
-              {Array.from({ length: 10 }).map((_, index) => (
-                <span key={index} className={index < 4 ? "is-filled" : ""} />
-              ))}
-            </div>
-
-            <div className="ps-wallet-reward">
-              <span>Reward</span>
-              <strong>10th coffee free</strong>
-            </div>
-          </div>
         </div>
-
-        <div className="ps-wallet-panel-bottom">
-          <span>No app</span>
-          <span>Scan at the till</span>
-        </div>
+        <div className="hero-pass-label">Lives in Apple Wallet</div>
       </div>
     </div>
   );
@@ -2888,7 +2873,7 @@ function MarketingHomepage() {
             className="ps-hero-visual"
           >
             <div className="ps-blue-glow" aria-hidden="true" />
-            <HeroWalletStack />
+            <HeroWalletPassShowcase />
           </motion.div>
         </div>
       </section>
