@@ -45,8 +45,8 @@ const dashboardBullets = [
   "Live activity",
   "Customer list",
   "Reward redemptions",
-  "Join QR and URL",
   "Scanner Mode status",
+  "Join QR and URL",
   "Wallet reminder activity",
 ];
 
@@ -55,6 +55,7 @@ const reminderBullets = [
   ["Almost-there reminders", "Only one coffee away from your free one."],
   ["Reward-ready messages", "Your free coffee is ready."],
   ["Birthday rewards", "Happy Birthday! Enjoy a free coffee on us today."],
+  ["Win-back reminders", "A gentle nudge when a regular has not visited in a while."],
 ];
 
 const setupSteps = [
@@ -81,12 +82,6 @@ const cafeFeatures = [
     "Names, emails, stamp progress and reward status — something paper cards never gave you.",
   ],
   ["Wallet reminders", "Automatic Apple Wallet nudges when customers are close to a reward."],
-];
-
-const proofPanels = [
-  ["Counter scanner", "Scan Wallet passes at the till and add stamps automatically."],
-  ["Customer list", "Names, emails, stamp progress and reward status."],
-  ["Wallet reminders", "Halfway, almost there, reward-ready and birthday messages."],
 ];
 
 const scannerModeBullets = [
@@ -3065,6 +3060,23 @@ function MarketingHomepage() {
         </div>
       </section>
 
+      <section className="bg-[#fbfaf7] py-20 lg:py-28">
+        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
+          <div>
+            <p className="ps-eyebrow">Counter Scanner Mode</p>
+            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
+              Built for the café counter.
+            </h2>
+            <p className="mt-7 text-lg leading-8 text-slate-700">
+              Customers scan their Apple Wallet pass at the till. PocketStamp
+              adds the stamp automatically, with backup tools for busy service.
+            </p>
+            <SimpleBullets items={scannerModeBullets} />
+          </div>
+          <ScannerProductVisual />
+        </div>
+      </section>
+
       <section className="ps-glow-band py-20 lg:py-28">
         <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-8">
           <div>
@@ -3091,9 +3103,8 @@ function MarketingHomepage() {
               See what paper cards never showed you.
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
-              Your dashboard shows what happened today, who joined, which
-              rewards were redeemed, which customers are close, and whether
-              Scanner Mode is ready at the till.
+              Your dashboard shows today’s joins, stamps, rewards, customer
+              progress, scanner activity and Wallet reminder performance.
             </p>
             <SimpleBullets items={dashboardBullets} />
           </div>
@@ -3103,32 +3114,14 @@ function MarketingHomepage() {
       <section className="bg-white py-20 lg:py-28">
         <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
           <div>
-            <p className="ps-eyebrow">Counter Scanner Mode</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
-              Built for the café counter.
-            </h2>
-            <p className="mt-7 text-lg leading-8 text-slate-700">
-              Customers scan their Apple Wallet pass at the till. PocketStamp
-              adds the stamp automatically, with manual backup tools for busy
-              service.
-            </p>
-            <SimpleBullets items={scannerModeBullets} />
-          </div>
-          <ScannerProductVisual />
-        </div>
-      </section>
-
-      <section className="bg-[#fbfaf7] py-20 lg:py-28">
-        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
-          <div>
             <p className="ps-eyebrow">Wallet reminders</p>
             <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
               Automatic reminders, straight from Apple Wallet.
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
-              PocketStamp can remind customers when they are halfway there,
-              one coffee away, reward-ready, due a birthday treat, or haven’t
-              visited in a while.
+              Once customers have joined, PocketStamp can nudge them back
+              through Apple Wallet when they are halfway there, one coffee away,
+              reward-ready, due a birthday treat, or haven’t visited in a while.
             </p>
             <FeatureBullets items={reminderBullets} />
           </div>
@@ -3136,26 +3129,7 @@ function MarketingHomepage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
-        <div className="grid gap-14 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-          <div>
-            <p className="ps-eyebrow">Product proof</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.3rem,5vw,4.7rem)] leading-[0.98]">
-              Built for real café workflows.
-            </h2>
-          </div>
-          <div className="ps-proof-grid">
-            {proofPanels.map(([title, body]) => (
-              <div key={title}>
-                <p>{title}</p>
-                <span>{body}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-white py-20 lg:py-28">
+      <section className="bg-[#fbfaf7] py-20 lg:py-28">
         <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[1fr_1fr] lg:items-center lg:px-8">
           <div>
             <p className="ps-eyebrow">Early café offer</p>
@@ -3166,6 +3140,10 @@ function MarketingHomepage() {
               Pilot spaces are open for independent cafés. We build the Wallet
               card, Join QR, merchant dashboard and counter scanner setup
               around your café brand.
+            </p>
+            <p className="mt-5 text-base leading-7 text-slate-600">
+              Built for cafés that want to replace paper stamp cards without
+              asking customers to download another app.
             </p>
           </div>
           <div className="ps-pricing">
