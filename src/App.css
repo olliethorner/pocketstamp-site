@@ -127,7 +127,18 @@
   margin: 0 auto;
   max-width: 39rem;
   perspective: 1300px;
+  touch-action: pan-y;
   width: 100%;
+}
+
+.hero-pass-showcase:focus {
+  outline: none;
+}
+
+.hero-pass-showcase:focus-visible .hero-pass-stage {
+  box-shadow:
+    0 0 0 4px rgba(47, 109, 246, 0.16),
+    0 34px 90px rgba(71, 61, 48, 0.12);
 }
 
 .hero-pass-stage {
@@ -176,6 +187,16 @@
   transform-origin: 50% 70%;
   width: min(58%, 23rem);
   will-change: transform, opacity;
+}
+
+.is-carousel-ready .hero-pass-card {
+  animation: none;
+  opacity: 1;
+  transform: var(--hero-pass-final-transform);
+  transition:
+    filter 560ms cubic-bezier(0.18, 0.84, 0.24, 1),
+    opacity 560ms cubic-bezier(0.18, 0.84, 0.24, 1),
+    transform 560ms cubic-bezier(0.18, 0.84, 0.24, 1);
 }
 
 .hero-pass-card--front {
@@ -253,6 +274,48 @@
   border-radius: 999px;
   height: 0.42rem;
   width: 0.42rem;
+}
+
+.hero-pass-controls {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.hero-pass-dot {
+  background: rgba(80, 71, 61, 0.2);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  height: 0.52rem;
+  padding: 0;
+  transition:
+    background-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease,
+    width 220ms ease;
+  width: 0.52rem;
+}
+
+.hero-pass-dot:hover,
+.hero-pass-dot:focus-visible {
+  background: rgba(47, 109, 246, 0.55);
+  outline: none;
+}
+
+.hero-pass-dot:focus-visible {
+  box-shadow: 0 0 0 4px rgba(47, 109, 246, 0.16);
+}
+
+.hero-pass-dot.is-active {
+  background: var(--ps-blue);
+  width: 1.55rem;
+}
+
+.hero-pass-dot:disabled {
+  cursor: default;
 }
 
 .ps-join-card {
@@ -772,6 +835,11 @@
   .hero-pass-card {
     transform: var(--hero-pass-final-transform);
   }
+
+  .is-carousel-ready .hero-pass-card,
+  .hero-pass-dot {
+    transition: none;
+  }
 }
 
 @media (max-width: 768px) {
@@ -831,5 +899,9 @@
   .hero-pass-label {
     font-size: 0.78rem;
     top: 0.9rem;
+  }
+
+  .hero-pass-controls {
+    margin-top: 0.85rem;
   }
 }

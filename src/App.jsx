@@ -1018,36 +1018,152 @@ function WalletPassMockup({ hero = false }) {
 }
 
 function HeroWalletPassShowcase() {
+  const introDurationMs = 1450;
+  const wheelCooldownMs = 620;
+  const wheelThreshold = 44;
+  const swipeThreshold = 40;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isIntroComplete, setIsIntroComplete] = useState(false);
+  const lastWheelAtRef = useRef(0);
+  const touchStartRef = useRef(null);
   const walletPasses = [
     {
-      className: "hero-pass-card--left-two",
-      src: "/hero-wallet-cards/caffe-luxxe-wallet-card.png",
-      alt: "Caffe Luxxe Apple Wallet loyalty card",
+      label: "Mr Miles",
+      src: "/hero-wallet-cards/mr-miles-wallet-card.png",
+      alt: "Mr Miles Apple Wallet loyalty card",
     },
     {
-      className: "hero-pass-card--left-one",
-      src: "/hero-wallet-cards/nice-wallet-card-final.png",
-      alt: "Nice Coffee Apple Wallet loyalty card",
-    },
-    {
-      className: "hero-pass-card--right-two",
-      src: "/hero-wallet-cards/yeems-wallet-card.png",
-      alt: "Yeems Coffee Apple Wallet loyalty card",
-    },
-    {
-      className: "hero-pass-card--right-one",
+      label: "Muddy Paw Coffee",
       src: "/hero-wallet-cards/bramble-wallet-card.png",
       alt: "Muddy Paw Coffee Apple Wallet loyalty card",
     },
     {
-      className: "hero-pass-card--front",
-      src: "/hero-wallet-cards/mr-miles-wallet-card.png",
-      alt: "Mr Miles Apple Wallet loyalty card",
+      label: "Yeems Coffee",
+      src: "/hero-wallet-cards/yeems-wallet-card.png",
+      alt: "Yeems Coffee Apple Wallet loyalty card",
+    },
+    {
+      label: "Caffe Luxxe",
+      src: "/hero-wallet-cards/caffe-luxxe-wallet-card.png",
+      alt: "Caffe Luxxe Apple Wallet loyalty card",
+    },
+    {
+      label: "Nice Coffee",
+      src: "/hero-wallet-cards/nice-wallet-card-final.png",
+      alt: "Nice Coffee Apple Wallet loyalty card",
     },
   ];
+  const positionClassByDistance = {
+    "-2": "hero-pass-card--left-two",
+    "-1": "hero-pass-card--left-one",
+    0: "hero-pass-card--front",
+    1: "hero-pass-card--right-one",
+    2: "hero-pass-card--right-two",
+  };
+
+  useEffect(() => {
+    const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    if (reduceMotionQuery.matches) {
+      setIsIntroComplete(true);
+      return undefined;
+    }
+
+    const introTimer = window.setTimeout(() => {
+      setIsIntroComplete(true);
+    }, introDurationMs);
+
+    return () => window.clearTimeout(introTimer);
+  }, []);
+
+  function getRelativeDistance(index) {
+    const totalCards = walletPasses.length;
+    let distance = index - activeIndex;
+
+    if (distance > totalCards / 2) distance -= totalCards;
+    if (distance < -totalCards / 2) distance += totalCards;
+
+    return distance;
+  }
+
+  function rotateCards(direction) {
+    if (!isIntroComplete) return;
+    setActiveIndex((currentIndex) => (
+      currentIndex + direction + walletPasses.length
+    ) % walletPasses.length);
+  }
+
+  function showCard(index) {
+    if (!isIntroComplete) return;
+    setActiveIndex(index);
+  }
+
+  function handleWheel(event) {
+    if (!isIntroComplete) return;
+
+    const dominantDelta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+
+    if (Math.abs(dominantDelta) < wheelThreshold) return;
+
+    const now = window.performance.now();
+    if (now - lastWheelAtRef.current < wheelCooldownMs) {
+      return;
+    }
+
+    lastWheelAtRef.current = now;
+    event.preventDefault();
+    rotateCards(dominantDelta > 0 ? 1 : -1);
+  }
+
+  function handleTouchStart(event) {
+    const touch = event.touches[0];
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+  }
+
+  function handleTouchEnd(event) {
+    if (!isIntroComplete || !touchStartRef.current) return;
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+
+    touchStartRef.current = null;
+
+    if (Math.abs(deltaX) < swipeThreshold || Math.abs(deltaY) > Math.abs(deltaX)) {
+      return;
+    }
+
+    rotateCards(deltaX < 0 ? 1 : -1);
+  }
+
+  function handleKeyDown(event) {
+    if (!isIntroComplete) return;
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      rotateCards(1);
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      rotateCards(-1);
+    }
+  }
 
   return (
-    <div className="hero-pass-showcase" aria-label="Real Apple Wallet loyalty card examples">
+    <div
+      className={`hero-pass-showcase ${isIntroComplete ? "is-carousel-ready" : "is-intro-running"}`}
+      aria-label="Real Apple Wallet loyalty card examples"
+      onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
       <div className="hero-pass-stage">
         <div className="hero-pass-dots" aria-hidden="true">
           <span />
@@ -1055,18 +1171,36 @@ function HeroWalletPassShowcase() {
           <span />
         </div>
         <div className="hero-pass-stack">
-          {walletPasses.map((pass) => (
-            <img
-              key={pass.src}
-              src={pass.src}
-              alt={pass.alt}
-              className={`hero-pass-card ${pass.className}`}
-              loading={pass.className === "hero-pass-card--front" ? "eager" : "lazy"}
-              decoding="async"
-            />
-          ))}
+          {walletPasses.map((pass, index) => {
+            const relativeDistance = getRelativeDistance(index);
+            const positionClass = positionClassByDistance[relativeDistance];
+
+            return (
+              <img
+                key={pass.src}
+                src={pass.src}
+                alt={pass.alt}
+                className={`hero-pass-card ${positionClass}`}
+                loading={index === 0 ? "eager" : "lazy"}
+                decoding="async"
+              />
+            );
+          })}
         </div>
         <div className="hero-pass-label">Lives in Apple Wallet</div>
+      </div>
+      <div className="hero-pass-controls" aria-label="Choose featured Wallet card">
+        {walletPasses.map((pass, index) => (
+          <button
+            key={pass.src}
+            type="button"
+            className={`hero-pass-dot ${index === activeIndex ? "is-active" : ""}`}
+            aria-label={`Show ${pass.label} Wallet card`}
+            aria-pressed={index === activeIndex}
+            onClick={() => showCard(index)}
+            disabled={!isIntroComplete}
+          />
+        ))}
       </div>
     </div>
   );
