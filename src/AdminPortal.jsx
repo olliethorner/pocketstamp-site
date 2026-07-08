@@ -18,6 +18,7 @@ const initialOnboardingForm = {
   salesNotes: "",
   rewardThreshold: 9,
   rewardText: "Collect 9 stamps and get your 10th coffee free.",
+  birthdayRewardsEnabled: false,
   programName: "",
   termsText: "",
   brandColor: "#26354f",
@@ -195,6 +196,15 @@ function safeSlug(value) {
 
 function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
+}
+
+function getBirthdayRewardsEnabled(source = {}) {
+  return pickFirst(
+    source.birthdayRewardsEnabled,
+    source.birthday_rewards_enabled,
+    source.loyalty?.birthdayRewardsEnabled,
+    source.loyalty?.birthday_rewards_enabled,
+  ) === true;
 }
 
 function readFileAsDataUrl(file) {
@@ -479,6 +489,7 @@ function buildMerchantEditForm(merchant = {}) {
     salesNotes: pickFirst(merchant.salesNotes, merchant.notes),
     rewardThreshold: pickFirst(merchant.rewardThreshold, merchant.loyalty?.rewardThreshold),
     rewardText: pickFirst(merchant.rewardText, merchant.loyalty?.rewardText),
+    birthdayRewardsEnabled: getBirthdayRewardsEnabled(merchant),
     brandColor: pickFirst(merchant.brandColor, merchant.branding?.brandColor),
     ...normalizeWalletThemeState(merchant),
     status: pickFirst(merchant.status, merchant.state, "active"),
@@ -486,6 +497,25 @@ function buildMerchantEditForm(merchant = {}) {
     logoPreviewUrl: "",
     logoUrl: getLogoUrl(merchant),
     colorSuggestions: null,
+  };
+}
+
+function mergeMerchantDetailPayload(payload, merchant = {}) {
+  const response = payload || {};
+  const data = response.data || {};
+  const result = response.result || data.result || {};
+
+  return {
+    ...response,
+    ...data,
+    ...result,
+    ...(merchant || {}),
+    loyalty: {
+      ...(response.loyalty || {}),
+      ...(data.loyalty || {}),
+      ...(result.loyalty || {}),
+      ...(merchant?.loyalty || {}),
+    },
   };
 }
 
@@ -1749,6 +1779,20 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
                 <Field label="Reward text">
                   <TextInput multiline value={form.rewardText} onChange={(event) => updateField("rewardText", event.target.value)} />
                 </Field>
+                <label className="flex items-start gap-3 rounded-xl bg-white p-4 ring-1 ring-slate-200 md:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={form.birthdayRewardsEnabled}
+                    onChange={(event) => updateField("birthdayRewardsEnabled", event.target.checked)}
+                    className="mt-1 h-4 w-4"
+                  />
+                  <span>
+                    <span className="block font-semibold text-[var(--ps-espresso)]">Birthday rewards</span>
+                    <span className="mt-1 block text-sm font-medium leading-6 text-slate-500">
+                      Allow customers to add their birthday for a birthday reward. When enabled, the join page asks for birthday month/day and PocketStamp can trigger birthday reward messaging.
+                    </span>
+                  </span>
+                </label>
                 <Field label="Terms text optional">
                   <TextInput multiline value={form.termsText} onChange={(event) => updateField("termsText", event.target.value)} />
                 </Field>
@@ -1879,6 +1923,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
                   <Detail label="Phone" value={form.contactPhone} />
                   <Detail label="Reward threshold" value={`${form.rewardThreshold} stamps`} />
                   <Detail label="Reward text" value={form.rewardText} />
+                  <Detail label="Birthday rewards" value={form.birthdayRewardsEnabled ? "On" : "Off"} />
                   <Detail label="Program name" value={form.programName} />
                   <Detail label="Terms" value={form.termsText} />
                   <Detail label="Setup mode" value={form.setupMode} />
@@ -2084,7 +2129,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         if (!isMounted) return;
         setDetailPayload(payload || {});
         setMerchant(nextMerchant);
-        setForm(buildMerchantEditForm(nextMerchant));
+        setForm(buildMerchantEditForm(mergeMerchantDetailPayload(payload, nextMerchant)));
       } catch (loadError) {
         if (isMounted) setError(loadError.message || "Unable to load café.");
       } finally {
@@ -2226,7 +2271,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
       setDetailPayload(payload || detailPayload);
       if (nextMerchant) {
         setMerchant(nextMerchant);
-        setForm(buildMerchantEditForm(nextMerchant));
+        setForm(buildMerchantEditForm(mergeMerchantDetailPayload(payload, nextMerchant)));
       } else {
         const fallbackMerchant = { ...merchant, ...form };
         setMerchant(fallbackMerchant);
@@ -2396,6 +2441,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                   <Detail label="Owner email" value={getContactEmail(merchant)} />
                   <Detail label="Owner status" value={pickFirst(merchant.merchantOwnerStatus, "Not returned")} />
                   <Detail label="Reward" value={pickFirst(merchant.rewardText, merchant.loyalty?.rewardText)} />
+                  <Detail label="Birthday rewards" value={form.birthdayRewardsEnabled ? "On" : "Off"} />
                   <Detail label="Join URL" value={links.joinUrl} />
                   <Detail label="Merchant dashboard URL" value={links.merchantDashboardUrl} />
                   <Detail label="Demo pass URL" value={links.demoPassUrl} />
@@ -2663,6 +2709,21 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
           {activeDetailTab === "settings" ? (
             <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
               <h2 className="text-xl font-semibold">Settings</h2>
+              <label className="mt-5 flex items-start gap-3 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.birthdayRewardsEnabled)}
+                  disabled={!isEditing}
+                  onChange={(event) => updateForm("birthdayRewardsEnabled", event.target.checked)}
+                  className="mt-1 h-4 w-4 disabled:cursor-not-allowed"
+                />
+                <span>
+                  <span className="block font-semibold text-[var(--ps-espresso)]">Birthday rewards</span>
+                  <span className="mt-1 block text-sm font-medium leading-6 text-slate-500">
+                    Allow customers to add their birthday for a birthday reward. When enabled, the join page asks for birthday month/day and PocketStamp can trigger birthday reward messaging.
+                  </span>
+                </span>
+              </label>
               <div className="mt-5 grid gap-5 md:grid-cols-2">
                 {settingsFields.map(([name, label, type]) => (
                   <Field key={name} label={label}>
@@ -2700,6 +2761,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <Detail label="Reward threshold" value={form.rewardThreshold} />
                   <Detail label="Reward text" value={form.rewardText} />
+                  <Detail label="Birthday rewards" value={form.birthdayRewardsEnabled ? "On" : "Off"} />
                   <Detail label="Brand color" value={form.brandColor} />
                   <Detail label="Background color" value={form.backgroundColor} />
                   <Detail label="Text color" value={form.textColor} />

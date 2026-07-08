@@ -381,6 +381,15 @@ function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
 }
 
+function getBirthdayRewardsEnabled(source = {}) {
+  return pickFirst(
+    source.birthdayRewardsEnabled,
+    source.birthday_rewards_enabled,
+    source.loyalty?.birthdayRewardsEnabled,
+    source.loyalty?.birthday_rewards_enabled,
+  ) === true;
+}
+
 function buildScannerPassBody(scanResult = {}) {
   const scan = scanResult || {};
   const customerId = pickFirst(
@@ -501,6 +510,7 @@ function normalizeMerchantContext(payload) {
     role: pickFirst(source.role, user.role, payload?.role, "Merchant"),
     email: pickFirst(user.email, source.email, payload?.email),
     totalCustomers: pickFirst(source.totalCustomers, source.customerCount),
+    birthdayRewardsEnabled: getBirthdayRewardsEnabled({ ...payload, ...source }),
   };
 }
 
@@ -742,12 +752,12 @@ function getCustomerStampProgress(customer) {
   }`;
 }
 
-function getCustomerStatus(customer) {
+function getCustomerStatus(customer, birthdayRewardsEnabled = false) {
   const statusText = [
     customer.rewardStatus,
     customer.status,
     customer.walletPassStatus,
-    customer.birthdayActive ? "birthday_active" : null,
+    birthdayRewardsEnabled && customer.birthdayActive ? "birthday_active" : null,
   ]
     .filter(Boolean)
     .join(" ")
@@ -756,14 +766,14 @@ function getCustomerStatus(customer) {
   const rewardThreshold = Number(customer.rewardThreshold ?? 10);
   const hasBirthday = Boolean(customer.birthdayMonth && customer.birthdayDay);
 
-  if (statusText.includes("birthday_active")) return "Birthday reward active";
+  if (birthdayRewardsEnabled && statusText.includes("birthday_active")) return "Birthday reward active";
   if (statusText.includes("reward_ready") || statusText.includes("ready")) {
     return "Reward ready";
   }
   if (statusText.includes("almost_there") || statusText.includes("almost")) {
     return "Almost there";
   }
-  if (hasBirthday && statusText.includes("birthday")) return "Birthday saved";
+  if (birthdayRewardsEnabled && hasBirthday && statusText.includes("birthday")) return "Birthday saved";
   if (
     Number.isFinite(currentStamps) &&
     Number.isFinite(rewardThreshold) &&
@@ -772,7 +782,7 @@ function getCustomerStatus(customer) {
     if (currentStamps >= rewardThreshold) return "Reward ready";
     if (rewardThreshold - currentStamps <= 2) return "Almost there";
   }
-  if (hasBirthday) return "Birthday saved";
+  if (birthdayRewardsEnabled && hasBirthday) return "Birthday saved";
   return "Active";
 }
 
@@ -2442,6 +2452,7 @@ function LoyaltyCustomersSection({
   onStatusChange,
   expandedCustomerId,
   onExpandedCustomerChange,
+  birthdayRewardsEnabled = false,
 }) {
   const [page, setPage] = useState(1);
   const supportsScannedToday = customers.some((customer) =>
@@ -2450,8 +2461,11 @@ function LoyaltyCustomersSection({
     ),
   );
   const customerFilters = supportsScannedToday
-    ? [...baseCustomerFilters, ["scanned_today", "Scanned today"]]
-    : baseCustomerFilters;
+    ? [
+        ...baseCustomerFilters.filter(([filterValue]) => birthdayRewardsEnabled || filterValue !== "birthday_saved"),
+        ["scanned_today", "Scanned today"],
+      ]
+    : baseCustomerFilters.filter(([filterValue]) => birthdayRewardsEnabled || filterValue !== "birthday_saved");
   const visibleCustomers =
     status === "scanned_today" ? customers.filter(customerWasScannedToday) : customers;
   const pageCount = Math.max(1, Math.ceil(visibleCustomers.length / customerPageSize));
@@ -2542,16 +2556,16 @@ function LoyaltyCustomersSection({
           <div className="divide-y divide-slate-100">
             {pagedCustomers.map((customer, index) => {
               const customerId = getCustomerId(customer, pageStart + index);
-              const customerStatus = getCustomerStatus(customer);
+              const customerStatus = getCustomerStatus(customer, birthdayRewardsEnabled);
               const isExpanded = expandedCustomerId === customerId;
               const detailRows = [
                 ["Joined", formatCustomerDate(customer.joinedDate)],
-                ["Birthday", formatCustomerBirthday(customer)],
+                birthdayRewardsEnabled ? ["Birthday", formatCustomerBirthday(customer)] : null,
                 ["Apple Wallet card", formatCustomerWalletStatus(customer)],
                 ["Card ID", formatCustomerCardId(customer)],
                 ["Reward threshold", `${Number(customer.rewardThreshold ?? 10) || 10} stamps`],
                 ["Last activity", formatCustomerDate(customer.lastUpdated)],
-              ];
+              ].filter(Boolean);
 
               return (
                 <div
@@ -2659,12 +2673,12 @@ function ReminderStatCard({ label, value }) {
   );
 }
 
-function ReminderStatusSection({ summary, isLoading, error }) {
+function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabled = false }) {
   const reminderRows = [
     ["Halfway", "Active"],
     ["Almost there", "Active"],
     ["Reward ready", "Active"],
-    ["Birthday rewards", "Active"],
+    ["Birthday rewards", birthdayRewardsEnabled ? "Active" : "Disabled"],
     ["Win-back", "Active"],
   ];
 
@@ -2676,7 +2690,9 @@ function ReminderStatusSection({ summary, isLoading, error }) {
             Wallet reminders
           </h2>
           <p className="mt-1 max-w-2xl text-slate-600">
-            Apple Wallet nudges for stamp progress, rewards and birthdays.
+            {birthdayRewardsEnabled
+              ? "Apple Wallet nudges for stamp progress, rewards and birthdays."
+              : "Apple Wallet nudges for stamp progress and rewards."}
           </p>
         </div>
         <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
@@ -2762,6 +2778,11 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     [merchantContext],
   );
   const joinUrl = `https://getpocketstamp.com/join/${merchantSlug}`;
+  const birthdayRewardsEnabled =
+    getBirthdayRewardsEnabled(merchantContext) || getBirthdayRewardsEnabled(dashboardSummary || {});
+  const effectiveCustomerStatus = birthdayRewardsEnabled || customerStatus !== "birthday_saved"
+    ? customerStatus
+    : "all";
 
   useEffect(() => {
     let isMounted = true;
@@ -2837,7 +2858,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
       try {
         const payload = await fetchMerchantCustomers(accessToken, {
           search: customerSearch,
-          status: customerStatus === "scanned_today" ? "all" : customerStatus,
+          status: effectiveCustomerStatus === "scanned_today" ? "all" : effectiveCustomerStatus,
           limit: 50,
         });
 
@@ -2861,7 +2882,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     return () => {
       isMounted = false;
     };
-  }, [accessToken, customerSearch, customerStatus]);
+  }, [accessToken, customerSearch, effectiveCustomerStatus]);
 
   const metricFallback = dashboardSummaryError ? "Totals unavailable" : "—";
   const metricHelperFallback = dashboardSummaryError
@@ -3002,10 +3023,11 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             error={customerError}
             search={customerSearch}
             onSearchChange={handleCustomerSearchChange}
-            status={customerStatus}
+            status={effectiveCustomerStatus}
             onStatusChange={handleCustomerStatusChange}
             expandedCustomerId={expandedCustomerId}
             onExpandedCustomerChange={setExpandedCustomerId}
+            birthdayRewardsEnabled={birthdayRewardsEnabled}
           />
         </div>
 
@@ -3098,6 +3120,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             summary={reminderSummary}
             isLoading={isReminderSummaryLoading}
             error={reminderError}
+            birthdayRewardsEnabled={birthdayRewardsEnabled}
           />
         </div>
       </div>
