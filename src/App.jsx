@@ -3508,6 +3508,18 @@ function getScanStatus(payload = {}) {
   return "stamp_added";
 }
 
+function normalizeScannerScanValue(value) {
+  const text = String(value || "")
+    .trim()
+    .replace(/[\r\n\t]/g, "");
+
+  if (/^[a-z0-9][a-z0-9_-]*(-[a-z0-9][a-z0-9_-]*)+$/i.test(text)) {
+    return text.toLowerCase();
+  }
+
+  return text;
+}
+
 function getScanCustomerName(result = {}) {
   const scan = result || {};
   return pickFirst(
@@ -4114,6 +4126,10 @@ function ScannerKioskPage() {
   const deviceToken = new URLSearchParams(window.location.search).get("deviceToken") || "";
   const inputRef = useRef(null);
   const readyTimerRef = useRef(null);
+  const scannerBufferRef = useRef("");
+  const lastKeyTimeRef = useRef(0);
+  const bufferTimerRef = useRef(null);
+  const scanSubmitLockRef = useRef(false);
   const [device, setDevice] = useState(null);
   const [deviceError, setDeviceError] = useState("");
   const [scanValue, setScanValue] = useState("");
@@ -4145,6 +4161,12 @@ function ScannerKioskPage() {
 
   function focusScannerInput() {
     window.setTimeout(() => inputRef.current?.focus(), 40);
+  }
+
+  function clearGlobalScannerBuffer() {
+    scannerBufferRef.current = "";
+    lastKeyTimeRef.current = 0;
+    window.clearTimeout(bufferTimerRef.current);
   }
 
   function scheduleReady(delay = 3600) {
@@ -4200,7 +4222,10 @@ function ScannerKioskPage() {
 
   useEffect(() => {
     loadDevice();
-    return () => window.clearTimeout(readyTimerRef.current);
+    return () => {
+      window.clearTimeout(readyTimerRef.current);
+      window.clearTimeout(bufferTimerRef.current);
+    };
   }, [deviceToken]);
 
   useEffect(() => {
@@ -4241,7 +4266,7 @@ function ScannerKioskPage() {
   }
 
   async function handleScanSubmit(value = scanValue) {
-    const trimmedValue = String(value || "").trim();
+    const trimmedValue = normalizeScannerScanValue(value);
     if (!trimmedValue) {
       setScanValue("");
       setReadyMessage("Enter or scan a pass code first.");
@@ -4250,12 +4275,14 @@ function ScannerKioskPage() {
       return;
     }
 
-    if (isProcessing || deviceLoadStatus !== "ready") {
+    if (scanSubmitLockRef.current || isProcessing || deviceLoadStatus !== "ready") {
       focusScannerInput();
       return;
     }
 
+    scanSubmitLockRef.current = true;
     window.clearTimeout(readyTimerRef.current);
+    clearGlobalScannerBuffer();
     setIsProcessing(true);
     setScanValue("");
     setReadyMessage("");
@@ -4280,10 +4307,77 @@ function ScannerKioskPage() {
       addActivity("scan_error", errorResult);
       scheduleReady(6200);
     } finally {
+      scanSubmitLockRef.current = false;
       setIsProcessing(false);
       focusScannerInput();
     }
   }
+
+  useEffect(() => {
+    const minScanLength = 8;
+    const scannerKeyGapMs = 120;
+    const scannerIdleSubmitMs = 220;
+
+    function isProtectedTarget(target) {
+      if (!(target instanceof Element)) return false;
+      if (target === inputRef.current) return false;
+      return Boolean(target.closest("input, textarea, select, button, [contenteditable]"));
+    }
+
+    function submitBufferedScan() {
+      const bufferedValue = normalizeScannerScanValue(scannerBufferRef.current);
+      clearGlobalScannerBuffer();
+
+      if (bufferedValue.length < minScanLength) {
+        setReadyMessage("");
+        return;
+      }
+      if (scanSubmitLockRef.current || isProcessing || deviceLoadStatus !== "ready") return;
+
+      handleScanSubmit(bufferedValue);
+    }
+
+    function handleGlobalScannerKeyDown(event) {
+      if (isCameraOpen || adjustment.isOpen) {
+        clearGlobalScannerBuffer();
+        return;
+      }
+
+      if (isProtectedTarget(event.target)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (event.key === "Enter") {
+        if (scannerBufferRef.current) {
+          event.preventDefault();
+          submitBufferedScan();
+        }
+        return;
+      }
+
+      if (event.key.length !== 1) return;
+
+      const now = Date.now();
+      if (lastKeyTimeRef.current && now - lastKeyTimeRef.current > scannerKeyGapMs) {
+        scannerBufferRef.current = "";
+      }
+
+      scannerBufferRef.current += event.key;
+      lastKeyTimeRef.current = now;
+
+      if (deviceLoadStatus === "ready" && !isProcessing) {
+        setReadyMessage("Scan detected...");
+      }
+
+      window.clearTimeout(bufferTimerRef.current);
+      bufferTimerRef.current = window.setTimeout(submitBufferedScan, scannerIdleSubmitMs);
+    }
+
+    document.addEventListener("keydown", handleGlobalScannerKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleGlobalScannerKeyDown);
+      window.clearTimeout(bufferTimerRef.current);
+    };
+  }, [adjustment.isOpen, deviceLoadStatus, isCameraOpen, isProcessing]);
 
   function handleCameraDetected(decodedValue) {
     if (isProcessing) return;
@@ -4330,7 +4424,7 @@ function ScannerKioskPage() {
   }
 
   async function handleManualLookup() {
-    const trimmedValue = scanValue.trim();
+    const trimmedValue = normalizeScannerScanValue(scanValue);
     if (!trimmedValue || isProcessing || deviceLoadStatus !== "ready") {
       setReadyMessage("Enter a pass code before looking up a customer.");
       setScanValue("");
@@ -4345,6 +4439,12 @@ function ScannerKioskPage() {
   function closeAdjustment() {
     setAdjustment((current) => ({ ...current, isOpen: false, error: "", success: "", note: "" }));
     focusScannerInput();
+  }
+
+  function toggleManualEntry() {
+    const wasOpen = isManualOpen;
+    setIsManualOpen((current) => !current);
+    if (wasOpen) focusScannerInput();
   }
 
   function updateAdjustmentStamps(nextValue) {
@@ -4770,7 +4870,7 @@ function ScannerKioskPage() {
           <section className="rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">
             <button
               type="button"
-              onClick={() => setIsManualOpen((current) => !current)}
+              onClick={toggleManualEntry}
               className="flex w-full items-center justify-between gap-3 text-left text-sm font-bold uppercase text-[var(--ps-muted)]"
             >
               <span>Manual code entry</span>
