@@ -4,9 +4,11 @@ This template provides a minimal setup to get React working in Vite with HMR and
 
 ## Customer Join Routes
 
-`https://getpocketstamp.com/join/:merchantSlug` is proxied to the backend join page, except `/join/pocket-stamp-demo`, which is the frontend demo flow. Wallet pass downloads and backend-hosted legal pages are also exposed through branded routes on `getpocketstamp.com`.
+`https://getpocketstamp.com/join/:merchantSlug` is proxied to the backend join page, except `/join/pocket-stamp-demo`, which is the frontend demo flow. Wallet pass downloads are also exposed through branded routes on `getpocketstamp.com`.
 
-The backend origin should not appear in customer-facing join, pass, or legal links.
+The backend origin should not appear in customer-facing join or pass links. Legal links should point to merchant-specific join page anchors, such as `/join/:merchantSlug#privacyNotice` and `/join/:merchantSlug#loyaltyTerms`.
+
+Legacy pass URLs shaped like `/:merchantSlug/:serial` are redirected to `/pass/:serial`.
 
 Currently, two official plugins are available:
 

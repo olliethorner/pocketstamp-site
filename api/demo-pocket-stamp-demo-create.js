@@ -5,10 +5,37 @@ function toAbsoluteBackendUrl(pathOrUrl) {
   return new URL(pathOrUrl, API_BASE_URL).toString();
 }
 
+function getLegacyPassSerial(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  const reservedPrefixes = new Set([
+    "admin",
+    "merchant",
+    "join",
+    "pass",
+    "demo",
+    "api",
+    "legal",
+    "assets",
+    "hero-wallet-cards",
+    "_next",
+  ]);
+
+  if (parts.length === 2 && !reservedPrefixes.has(parts[0])) {
+    return parts[1];
+  }
+
+  return "";
+}
+
 function toPublicCustomerUrl(pathOrUrl) {
   const url = new URL(pathOrUrl, API_BASE_URL);
+  const legacyPassSerial = getLegacyPassSerial(url.pathname);
 
-  if (["/join/", "/pass/", "/legal/"].some((prefix) => url.pathname.startsWith(prefix))) {
+  if (legacyPassSerial) {
+    return new URL(`/pass/${legacyPassSerial}${url.search}${url.hash}`, PUBLIC_SITE_BASE_URL).toString();
+  }
+
+  if (["/join/", "/pass/"].some((prefix) => url.pathname.startsWith(prefix))) {
     return new URL(`${url.pathname}${url.search}${url.hash}`, PUBLIC_SITE_BASE_URL).toString();
   }
 

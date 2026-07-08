@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/:merchantSlug((?!admin$)(?!merchant$)(?!join$)(?!pass$)(?!demo$)(?!api$)(?!legal$)(?!assets$)(?!hero-wallet-cards$)(?!_next$)[^/]+)/:serial",
+      "destination": "/pass/:serial",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/demo/pocket-stamp-demo/create",
@@ -23,14 +30,6 @@
     {
       "source": "/pass/:serial",
       "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/pass/:serial"
-    },
-    {
-      "source": "/legal/privacy",
-      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/legal/privacy"
-    },
-    {
-      "source": "/legal/terms",
-      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/legal/terms"
     },
     {
       "source": "/merchant",

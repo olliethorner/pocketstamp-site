@@ -208,15 +208,41 @@ function getBirthdayRewardsEnabled(source = {}) {
   ) === true;
 }
 
+function getLegacyPassSerial(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  const reservedPrefixes = new Set([
+    "admin",
+    "merchant",
+    "join",
+    "pass",
+    "demo",
+    "api",
+    "legal",
+    "assets",
+    "hero-wallet-cards",
+    "_next",
+  ]);
+
+  if (parts.length === 2 && !reservedPrefixes.has(parts[0])) {
+    return parts[1];
+  }
+
+  return "";
+}
+
 function toPublicUrl(pathOrUrl) {
   if (!pathOrUrl) return pathOrUrl;
 
   try {
     const url = new URL(pathOrUrl, PUBLIC_SITE_BASE_URL);
+    const legacyPassSerial = getLegacyPassSerial(url.pathname);
+
+    if (legacyPassSerial) {
+      return new URL(`/pass/${legacyPassSerial}${url.search}${url.hash}`, PUBLIC_SITE_BASE_URL).toString();
+    }
+
     const isPublicPath =
-      ["/join/", "/pass/", "/legal/", "/merchant"].some((prefix) => url.pathname.startsWith(prefix)) ||
-      url.pathname === "/legal/privacy" ||
-      url.pathname === "/legal/terms";
+      ["/join/", "/pass/", "/merchant"].some((prefix) => url.pathname.startsWith(prefix));
 
     if (!isPublicPath) return pathOrUrl;
 
@@ -224,6 +250,36 @@ function toPublicUrl(pathOrUrl) {
   } catch {
     return pathOrUrl;
   }
+}
+
+function buildJoinAnchorUrl(merchantSlug, anchor) {
+  return merchantSlug ? `${PUBLIC_SITE_BASE_URL}/join/${merchantSlug}#${anchor}` : "";
+}
+
+function replaceStandaloneLegalLinks(value, merchantSlug) {
+  if (!value || !merchantSlug) return value;
+
+  return String(value)
+    .replace(
+      /https?:\/\/pocketstamp-wallet-backend-production\.up\.railway\.app\/[^\s"'<>]+/g,
+      (match) => toPublicUrl(match),
+    )
+    .replace(
+      /https?:\/\/pocketstamp-wallet-backend-production\.up\.railway\.app\/legal\/privacy\b/g,
+      buildJoinAnchorUrl(merchantSlug, "privacyNotice"),
+    )
+    .replace(
+      /https?:\/\/pocketstamp-wallet-backend-production\.up\.railway\.app\/legal\/terms\b/g,
+      buildJoinAnchorUrl(merchantSlug, "loyaltyTerms"),
+    )
+    .replace(
+      /https?:\/\/(?:www\.)?getpocketstamp\.com\/legal\/privacy\b/g,
+      buildJoinAnchorUrl(merchantSlug, "privacyNotice"),
+    )
+    .replace(
+      /https?:\/\/(?:www\.)?getpocketstamp\.com\/legal\/terms\b/g,
+      buildJoinAnchorUrl(merchantSlug, "loyaltyTerms"),
+    );
 }
 
 function readFileAsDataUrl(file) {
@@ -819,28 +875,28 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
       welcomePack.subject,
       buildWelcomeEmail(formState, { joinUrl, merchantDashboardUrl, merchantSetupUrl, staffDashboardUrl, demoPassUrl }).subject,
     ),
-    welcomeEmailBody: pickFirst(
+    welcomeEmailBody: replaceStandaloneLegalLinks(pickFirst(
       response.welcomeEmailBody,
       data.welcomeEmailBody,
       result.welcomeEmailBody,
       welcomePack.welcomeEmailBody,
       welcomePack.body,
       buildWelcomeEmail(formState, { joinUrl, merchantDashboardUrl, merchantSetupUrl, staffDashboardUrl, demoPassUrl }).body,
-    ),
-    welcomeEmailText: pickFirst(
+    ), merchantSlug),
+    welcomeEmailText: replaceStandaloneLegalLinks(pickFirst(
       response.welcomeEmailText,
       data.welcomeEmailText,
       result.welcomeEmailText,
       welcomePack.welcomeEmailText,
       welcomePack.text,
-    ),
-    welcomeEmailHtml: pickFirst(
+    ), merchantSlug),
+    welcomeEmailHtml: replaceStandaloneLegalLinks(pickFirst(
       response.welcomeEmailHtml,
       data.welcomeEmailHtml,
       result.welcomeEmailHtml,
       welcomePack.welcomeEmailHtml,
       welcomePack.html,
-    ),
+    ), merchantSlug),
   };
 }
 
@@ -888,6 +944,16 @@ function getWelcomeEmailFromPayload(payload, merchant = {}) {
   const response = payload || {};
   const data = response.data || {};
   const result = response.result || data.result || {};
+  const merchantSlug = pickFirst(
+    merchant.merchantSlug,
+    merchant.slug,
+    response.merchantSlug,
+    data.merchantSlug,
+    result.merchantSlug,
+    response.merchant?.merchantSlug,
+    data.merchant?.merchantSlug,
+    result.merchant?.merchantSlug,
+  );
   const welcomePack =
     response.welcomePack ||
     data.welcomePack ||
@@ -905,30 +971,30 @@ function getWelcomeEmailFromPayload(payload, merchant = {}) {
       welcomePack.subject,
       merchant.welcomeEmailSubject,
     ),
-    body: pickFirst(
+    body: replaceStandaloneLegalLinks(pickFirst(
       response.welcomeEmailBody,
       data.welcomeEmailBody,
       result.welcomeEmailBody,
       welcomePack.welcomeEmailBody,
       welcomePack.body,
       merchant.welcomeEmailBody,
-    ),
-    text: pickFirst(
+    ), merchantSlug),
+    text: replaceStandaloneLegalLinks(pickFirst(
       response.welcomeEmailText,
       data.welcomeEmailText,
       result.welcomeEmailText,
       welcomePack.welcomeEmailText,
       welcomePack.text,
       merchant.welcomeEmailText,
-    ),
-    html: pickFirst(
+    ), merchantSlug),
+    html: replaceStandaloneLegalLinks(pickFirst(
       response.welcomeEmailHtml,
       data.welcomeEmailHtml,
       result.welcomeEmailHtml,
       welcomePack.welcomeEmailHtml,
       welcomePack.html,
       merchant.welcomeEmailHtml,
-    ),
+    ), merchantSlug),
   };
 }
 
