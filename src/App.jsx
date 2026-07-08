@@ -16,11 +16,100 @@ const demoSuccessUrl = "/join/pocket-stamp-demo/success";
 const demoJoinAbsoluteUrl = "https://getpocketstamp.com/join/pocket-stamp-demo";
 const demoCreateCardUrl = "/demo/pocket-stamp-demo/create";
 const demoPassStorageKey = "pocketstampDemoPassUrl";
+const demoMerchantName = "PocketStamp Demo";
 const consentVersions = {
   privacyNoticeVersion: "privacy_notice_v1_2026_07",
   loyaltyTermsVersion: "loyalty_terms_v1_2026_07",
   marketingConsentTextVersion: "marketing_consent_v1_2026_07",
 };
+
+function getLoyaltyTermsSections(cafeName = "this café") {
+  return [
+    {
+      body: `These Loyalty Terms apply when you create and use a digital loyalty card for ${cafeName} through PocketStamp.`,
+    },
+    {
+      title: "1. How the loyalty card works",
+      body: `Your loyalty card lets you collect stamps or rewards when you make eligible purchases at ${cafeName}. The reward shown on the join page or Wallet card explains the current reward offer.`,
+    },
+    {
+      title: "2. Earning stamps",
+      body: `Stamps are added by ${cafeName} staff or approved scanning tools. Stamps may only be added for genuine eligible purchases. ${cafeName} may refuse, remove, or correct stamps if there has been a mistake, misuse, suspected fraud, or abuse of the loyalty programme.`,
+    },
+    {
+      title: "3. Redeeming rewards",
+      body: `When you have collected enough stamps for a reward, ${cafeName} may mark the reward as redeemed. Rewards have no cash value, cannot be exchanged for cash, and are not transferable unless ${cafeName} agrees.`,
+    },
+    {
+      title: "4. Changes to the programme",
+      body: `${cafeName} may change, pause, or end its loyalty programme, reward offer, or eligibility rules at any time. Where reasonable, existing customers will be given notice through the café, email, Apple Wallet updates, or other available channels.`,
+    },
+    {
+      title: "5. Your Wallet card",
+      body: "Your loyalty card is provided through Apple Wallet. You are responsible for keeping access to your device and Wallet secure. Apple is not responsible for this loyalty programme, stamps, rewards, or customer support.",
+    },
+    {
+      title: "6. Contact",
+      body: `Questions about stamps, rewards, or the loyalty programme should be directed to ${cafeName}. Questions about the PocketStamp technology can be directed to PocketStamp.`,
+    },
+  ];
+}
+
+function getPrivacyNoticeSections(cafeName = "this café") {
+  return [
+    {
+      body: `This Privacy Notice explains how your information is used when you create and use a digital loyalty card for ${cafeName} through PocketStamp.`,
+    },
+    {
+      title: "1. Who is responsible for your data",
+      body: `${cafeName} is responsible for how your loyalty customer information is used for its café loyalty programme. PocketStamp provides the technology used to create and manage the Apple Wallet loyalty card.`,
+    },
+    {
+      title: "2. Information we collect",
+      body: "When you create or use a loyalty card, the following information may be collected:",
+      items: [
+        "your name;",
+        "your email address;",
+        "your optional birthday month and day;",
+        "your Wallet loyalty card identifier;",
+        "stamp, reward, redemption, and activity history;",
+        "consent records, such as when you accepted these terms or opted into marketing.",
+      ],
+    },
+    {
+      title: "3. How your information is used",
+      body: "Your information is used to:",
+      items: [
+        "create and manage your Apple Wallet loyalty card;",
+        "add stamps and redeem rewards;",
+        "provide birthday rewards if you choose to add your birthday;",
+        "prevent misuse or fraud;",
+        "send service messages about your loyalty card;",
+        "send offers, rewards, and updates only where you have opted in or where otherwise permitted by law.",
+      ],
+    },
+    {
+      title: "4. Marketing consent",
+      body: `Marketing is optional. You can create a loyalty card without agreeing to receive marketing. If you opt in, ${cafeName} may send you offers, rewards, and updates by email and Apple Wallet notifications. You can unsubscribe or withdraw consent at any time.`,
+    },
+    {
+      title: "5. Sharing your information",
+      body: "Your information may be processed by PocketStamp and trusted service providers that help operate the loyalty card, database, hosting, email, and Wallet pass services. Your information is not sold.",
+    },
+    {
+      title: "6. How long information is kept",
+      body: "Your information is kept for as long as needed to operate the loyalty programme, meet legal obligations, resolve disputes, prevent misuse, and keep accurate consent records. If you ask for deletion, your information will be deleted or anonymised unless it needs to be kept for legal or legitimate business reasons.",
+    },
+    {
+      title: "7. Your rights",
+      body: "You may ask to access, correct, delete, or restrict the use of your personal information. You may also object to certain uses or withdraw consent where processing is based on consent.",
+    },
+    {
+      title: "8. Contact",
+      body: `To ask a privacy question, request deletion, or withdraw marketing consent, contact ${cafeName} or PocketStamp.`,
+    },
+  ];
+}
 
 const steps = [
   ["Scan QR", "Customer scans your café’s Join QR.", "QR"],
@@ -1377,11 +1466,28 @@ function DemoJoinPage() {
   const [legalModal, setLegalModal] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const isFormValid = Boolean(fullName.trim() && email.trim() && termsAccepted);
+  const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const isFormValid = Boolean(fullName.trim() && emailIsValid && termsAccepted);
+
+  function openLegalModal(event, type) {
+    event.preventDefault();
+    event.stopPropagation();
+    setLegalModal(type);
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+
+    if (!fullName.trim()) {
+      setError("Please enter your name to create your loyalty card.");
+      return;
+    }
+
+    if (!emailIsValid) {
+      setError("Please enter a valid email address to create your loyalty card.");
+      return;
+    }
 
     if (!termsAccepted) {
       setError("Please agree to the Loyalty Terms and acknowledge the Privacy Notice to create your loyalty card.");
@@ -1495,7 +1601,7 @@ function DemoJoinPage() {
             </label>
 
             <div className="ps-consent-section">
-              <p>
+              <p className="ps-consent-helper">
                 We use your details to create and manage your Apple Wallet loyalty card for this café.
               </p>
 
@@ -1511,7 +1617,7 @@ function DemoJoinPage() {
                   <button
                     type="button"
                     className="ps-inline-link"
-                    onClick={() => setLegalModal("terms")}
+                    onClick={(event) => openLegalModal(event, "terms")}
                   >
                     Loyalty Terms
                   </button>{" "}
@@ -1519,7 +1625,7 @@ function DemoJoinPage() {
                   <button
                     type="button"
                     className="ps-inline-link"
-                    onClick={() => setLegalModal("privacy")}
+                    onClick={(event) => openLegalModal(event, "privacy")}
                   >
                     Privacy Notice
                   </button>
@@ -1563,19 +1669,35 @@ function DemoJoinPage() {
         </section>
       </div>
 
-      <LegalNoticeModal type={legalModal} onClose={() => setLegalModal("")} />
+      <LegalNoticeModal
+        cafeName={demoMerchantName}
+        type={legalModal}
+        onClose={() => setLegalModal("")}
+      />
     </main>
   );
 }
 
-function LegalNoticeModal({ type, onClose }) {
+function LegalNoticeModal({ cafeName = "this café", type, onClose }) {
+  useEffect(() => {
+    if (!type) return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, type]);
+
   if (!type) return null;
 
   const isTerms = type === "terms";
   const title = isTerms ? "Loyalty Terms" : "Privacy Notice";
-  const copy = isTerms
-    ? "These placeholder Loyalty Terms explain that your PocketStamp loyalty card is used to collect stamps and rewards for this café. The café may update reward rules, and PocketStamp manages the Wallet card experience."
-    : "This placeholder Privacy Notice explains that PocketStamp and this café use your name, email address, consent choices, and optional birthday details to create and manage your Apple Wallet loyalty card.";
+  const titleId = isTerms ? "loyaltyTermsTitle" : "privacyNoticeTitle";
+  const sections = isTerms
+    ? getLoyaltyTermsSections(cafeName)
+    : getPrivacyNoticeSections(cafeName);
 
   return (
     <div className="ps-legal-modal-backdrop" role="presentation" onClick={onClose}>
@@ -1583,17 +1705,35 @@ function LegalNoticeModal({ type, onClose }) {
         className="ps-legal-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="legal-notice-title"
+        aria-labelledby={titleId}
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 id="legal-notice-title">{title}</h2>
-        <p>{copy}</p>
-        <p>
-          Full legal pages will be added here before production rollout.
-        </p>
-        <button type="button" className="ps-button-primary w-full" onClick={onClose}>
-          Close
+        <button
+          type="button"
+          className="ps-legal-close"
+          onClick={onClose}
+          aria-label="Close legal text"
+        >
+          ×
         </button>
+        <h2 id={titleId}>{title}</h2>
+        {sections.map((section) => (
+          <section key={section.title || section.body}>
+            {section.title ? <h3>{section.title}</h3> : null}
+            <p>{section.body}</p>
+            {section.items ? (
+              <ul>
+                {section.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        ))}
+        <p className="ps-legal-version">
+          Version: {consentVersions.privacyNoticeVersion} and{" "}
+          {consentVersions.loyaltyTermsVersion}
+        </p>
       </div>
     </div>
   );
