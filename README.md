@@ -2,11 +2,11 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Customer Join Redirect
+## Customer Join Routes
 
-`https://getpocketstamp.com/join/:merchantSlug` redirects to the Railway backend join page at `https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug`, except `/join/pocket-stamp-demo`, which is the frontend demo flow.
+`https://getpocketstamp.com/join/:merchantSlug` is proxied to the backend join page, except `/join/pocket-stamp-demo`, which is the frontend demo flow. Wallet pass downloads and backend-hosted legal pages are also exposed through branded routes on `getpocketstamp.com`.
 
-This is a temporary branded redirect until customer join pages are fully hosted on the website frontend.
+The backend origin should not appear in customer-facing join, pass, or legal links.
 
 Currently, two official plugins are available:
 

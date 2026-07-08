@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
+const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const ADMIN_SESSION_STORAGE_KEY = "pocketstampAdminSession";
@@ -205,6 +206,24 @@ function getBirthdayRewardsEnabled(source = {}) {
     source.loyalty?.birthdayRewardsEnabled,
     source.loyalty?.birthday_rewards_enabled,
   ) === true;
+}
+
+function toPublicUrl(pathOrUrl) {
+  if (!pathOrUrl) return pathOrUrl;
+
+  try {
+    const url = new URL(pathOrUrl, PUBLIC_SITE_BASE_URL);
+    const isPublicPath =
+      ["/join/", "/pass/", "/legal/", "/merchant"].some((prefix) => url.pathname.startsWith(prefix)) ||
+      url.pathname === "/legal/privacy" ||
+      url.pathname === "/legal/terms";
+
+    if (!isPublicPath) return pathOrUrl;
+
+    return new URL(`${url.pathname}${url.search}${url.hash}`, PUBLIC_SITE_BASE_URL).toString();
+  } catch {
+    return pathOrUrl;
+  }
 }
 
 function readFileAsDataUrl(file) {
@@ -613,7 +632,7 @@ function getScannerSetupUrl(payloadOrDevice = {}) {
     payloadOrDevice.data?.scannerUrl,
     payloadOrDevice.device?.setupUrl,
     payloadOrDevice.device?.scannerUrl,
-    token ? `https://www.getpocketstamp.com/merchant/scanner?deviceToken=${encodeURIComponent(token)}` : "",
+    token ? `${PUBLIC_SITE_BASE_URL}/merchant/scanner?deviceToken=${encodeURIComponent(token)}` : "",
   );
 }
 
@@ -638,28 +657,27 @@ function extractLinks(payload, merchant = {}) {
     merchant.links ||
     {};
   const slug = getMerchantSlug(merchant);
-  const origin = window.location.origin;
 
   return {
-    joinUrl: pickFirst(
+    joinUrl: toPublicUrl(pickFirst(
       links.joinUrl,
       payload?.joinUrl,
       payload?.result?.joinUrl,
       payload?.data?.joinUrl,
       payload?.data?.result?.joinUrl,
       merchant.joinUrl,
-      slug ? `${origin}/join/${slug}` : null,
-    ),
-    merchantDashboardUrl: pickFirst(
+      slug ? `${PUBLIC_SITE_BASE_URL}/join/${slug}` : null,
+    )),
+    merchantDashboardUrl: toPublicUrl(pickFirst(
       links.merchantDashboardUrl,
       payload?.merchantDashboardUrl,
       payload?.result?.merchantDashboardUrl,
       payload?.data?.merchantDashboardUrl,
       payload?.data?.result?.merchantDashboardUrl,
       merchant.merchantDashboardUrl,
-      slug || getMerchantId(merchant) ? `${origin}/merchant` : null,
-    ),
-    merchantSetupUrl: pickFirst(
+      slug || getMerchantId(merchant) ? `${PUBLIC_SITE_BASE_URL}/merchant` : null,
+    )),
+    merchantSetupUrl: toPublicUrl(pickFirst(
       links.merchantSetupUrl,
       payload?.merchantSetupUrl,
       payload?.result?.merchantSetupUrl,
@@ -669,23 +687,23 @@ function extractLinks(payload, merchant = {}) {
       merchant.merchantOwnerSetupUrl,
       merchant.ownerInviteUrl,
       merchant.setupUrl,
-    ),
-    staffDashboardUrl: pickFirst(
+    )),
+    staffDashboardUrl: toPublicUrl(pickFirst(
       links.staffDashboardUrl,
       payload?.staffDashboardUrl,
       payload?.result?.staffDashboardUrl,
       payload?.data?.staffDashboardUrl,
       payload?.data?.result?.staffDashboardUrl,
       merchant.staffDashboardUrl,
-    ),
-    demoPassUrl: pickFirst(
+    )),
+    demoPassUrl: toPublicUrl(pickFirst(
       links.demoPassUrl,
       payload?.demoPassUrl,
       payload?.result?.demoPassUrl,
       payload?.data?.demoPassUrl,
       payload?.data?.result?.demoPassUrl,
       merchant.demoPassUrl,
-    ),
+    )),
   };
 }
 
@@ -730,48 +748,48 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
     merchant.slug,
     merchant.handle,
   );
-  const joinUrl = pickFirst(
+  const joinUrl = toPublicUrl(pickFirst(
     response.joinUrl,
     data.joinUrl,
     result.joinUrl,
     welcomePack.joinUrl,
     links.joinUrl,
     merchant.joinUrl,
-    merchantSlug ? `${window.location.origin}/join/${merchantSlug}` : null,
-  );
-  const merchantDashboardUrl = pickFirst(
+    merchantSlug ? `${PUBLIC_SITE_BASE_URL}/join/${merchantSlug}` : null,
+  ));
+  const merchantDashboardUrl = toPublicUrl(pickFirst(
     response.merchantDashboardUrl,
     data.merchantDashboardUrl,
     result.merchantDashboardUrl,
     welcomePack.merchantDashboardUrl,
     links.merchantDashboardUrl,
     merchant.merchantDashboardUrl,
-    merchantId || merchantSlug ? `${window.location.origin}/merchant` : null,
-  );
-  const staffDashboardUrl = pickFirst(
+    merchantId || merchantSlug ? `${PUBLIC_SITE_BASE_URL}/merchant` : null,
+  ));
+  const staffDashboardUrl = toPublicUrl(pickFirst(
     response.staffDashboardUrl,
     data.staffDashboardUrl,
     result.staffDashboardUrl,
     welcomePack.staffDashboardUrl,
     links.staffDashboardUrl,
     merchant.staffDashboardUrl,
-  );
-  const demoPassUrl = pickFirst(
+  ));
+  const demoPassUrl = toPublicUrl(pickFirst(
     response.demoPassUrl,
     data.demoPassUrl,
     result.demoPassUrl,
     welcomePack.demoPassUrl,
     links.demoPassUrl,
     merchant.demoPassUrl,
-  );
-  const merchantSetupUrl = pickFirst(
+  ));
+  const merchantSetupUrl = toPublicUrl(pickFirst(
     response.merchantSetupUrl,
     data.merchantSetupUrl,
     result.merchantSetupUrl,
     welcomePack.merchantSetupUrl,
     links.merchantSetupUrl,
     merchant.merchantSetupUrl,
-  );
+  ));
 
   return {
     merchantId,
@@ -2309,7 +2327,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         body: JSON.stringify({}),
       }, accessToken);
       const result = payload?.result || {};
-      setOwnerInviteUrl(result.merchantSetupUrl || "");
+      setOwnerInviteUrl(toPublicUrl(result.merchantSetupUrl || ""));
       setDetailPayload(payload || detailPayload);
       if (result.merchant) setMerchant(result.merchant);
       setSaveMessage("Owner setup link regenerated.");

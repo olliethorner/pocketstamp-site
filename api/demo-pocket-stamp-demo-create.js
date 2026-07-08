@@ -1,7 +1,18 @@
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
+const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
 
 function toAbsoluteBackendUrl(pathOrUrl) {
   return new URL(pathOrUrl, API_BASE_URL).toString();
+}
+
+function toPublicCustomerUrl(pathOrUrl) {
+  const url = new URL(pathOrUrl, API_BASE_URL);
+
+  if (["/join/", "/pass/", "/legal/"].some((prefix) => url.pathname.startsWith(prefix))) {
+    return new URL(`${url.pathname}${url.search}${url.hash}`, PUBLIC_SITE_BASE_URL).toString();
+  }
+
+  return url.toString();
 }
 
 function extractAddToWalletHref(html) {
@@ -72,8 +83,8 @@ export default async function handler(request, response) {
     }
 
     response.status(200).json({
-      successUrl,
-      passUrl: toAbsoluteBackendUrl(passHref),
+      successUrl: toPublicCustomerUrl(successUrl),
+      passUrl: toPublicCustomerUrl(passHref),
     });
   } catch (error) {
     response.status(500).json({

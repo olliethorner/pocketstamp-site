@@ -1,11 +1,4 @@
 {
-  "redirects": [
-    {
-      "source": "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)",
-      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug",
-      "permanent": false
-    }
-  ],
   "rewrites": [
     {
       "source": "/demo/pocket-stamp-demo/create",
@@ -18,6 +11,26 @@
     {
       "source": "/join/pocket-stamp-demo/success",
       "destination": "/index.html"
+    },
+    {
+      "source": "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)/success",
+      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug/success"
+    },
+    {
+      "source": "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)",
+      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug"
+    },
+    {
+      "source": "/pass/:serial",
+      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/pass/:serial"
+    },
+    {
+      "source": "/legal/privacy",
+      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/legal/privacy"
+    },
+    {
+      "source": "/legal/terms",
+      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/legal/terms"
     },
     {
       "source": "/merchant",
