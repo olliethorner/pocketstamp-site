@@ -334,6 +334,15 @@ function getContactEmail(merchant) {
   return pickFirst(merchant.contactEmail, merchant.contact?.email, merchant.email);
 }
 
+function getMerchantOwnerEmail(merchant) {
+  return pickFirst(
+    merchant.merchantOwnerEmail,
+    merchant.ownerEmail,
+    merchant.owner?.email,
+    merchant.merchantOwner?.email,
+  );
+}
+
 function getLogoUrl(merchant) {
   return pickFirst(merchant.logoUrl, merchant.logoPath, merchant.branding?.logoUrl, merchant.branding?.logoPath);
 }
@@ -761,6 +770,56 @@ function extractLinks(payload, merchant = {}) {
       payload?.data?.result?.demoPassUrl,
       merchant.demoPassUrl,
     )),
+  };
+}
+
+function getMerchantSetupUrlFromPayload(payload = {}) {
+  const result = payload?.result || {};
+  const data = payload?.data || {};
+  const dataResult = data?.result || {};
+
+  return toPublicUrl(pickFirst(
+    payload.merchantSetupUrl,
+    result.merchantSetupUrl,
+    data.merchantSetupUrl,
+    dataResult.merchantSetupUrl,
+    payload.setupUrl,
+    result.setupUrl,
+    data.setupUrl,
+    dataResult.setupUrl,
+    payload.ownerInviteUrl,
+    result.ownerInviteUrl,
+    data.ownerInviteUrl,
+    dataResult.ownerInviteUrl,
+  ));
+}
+
+function getMerchantOwnerState(merchant = {}) {
+  return {
+    email: getMerchantOwnerEmail(merchant),
+    status: pickFirst(merchant.merchantOwnerStatus, merchant.ownerStatus, merchant.owner?.status, merchant.merchantOwner?.status),
+    hasSetupInvite: Boolean(pickFirst(
+      merchant.merchantOwnerHasSetupInvite,
+      merchant.ownerHasSetupInvite,
+      merchant.owner?.hasSetupInvite,
+      merchant.merchantOwner?.hasSetupInvite,
+      merchant.merchantSetupUrl,
+      merchant.merchantOwnerSetupUrl,
+      merchant.ownerInviteUrl,
+      merchant.setupUrl,
+    )),
+    inviteExpiresAt: pickFirst(
+      merchant.merchantOwnerInviteExpiresAt,
+      merchant.ownerInviteExpiresAt,
+      merchant.owner?.inviteExpiresAt,
+      merchant.merchantOwner?.inviteExpiresAt,
+    ),
+    activatedAt: pickFirst(
+      merchant.merchantOwnerActivatedAt,
+      merchant.ownerActivatedAt,
+      merchant.owner?.activatedAt,
+      merchant.merchantOwner?.activatedAt,
+    ),
   };
 }
 
@@ -2221,6 +2280,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   const [saveMessage, setSaveMessage] = useState("");
   const [detailCopyState, setDetailCopyState] = useState("");
   const [ownerInviteUrl, setOwnerInviteUrl] = useState("");
+  const [ownerSetupEmail, setOwnerSetupEmail] = useState("");
   const [isRegeneratingInvite, setIsRegeneratingInvite] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState("overview");
 
@@ -2237,7 +2297,9 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         if (!isMounted) return;
         setDetailPayload(payload || {});
         setMerchant(nextMerchant);
-        setForm(buildMerchantEditForm(mergeMerchantDetailPayload(payload, nextMerchant)));
+        const mergedMerchant = mergeMerchantDetailPayload(payload, nextMerchant);
+        setForm(buildMerchantEditForm(mergedMerchant));
+        setOwnerSetupEmail(getMerchantOwnerEmail(mergedMerchant) || getContactEmail(mergedMerchant) || "");
       } catch (loadError) {
         if (isMounted) setError(loadError.message || "Unable to load café.");
       } finally {
@@ -2270,6 +2332,16 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
 
   const links = extractLinks(detailPayload || {}, merchant);
   const welcomeEmail = buildDetailWelcomeEmail(detailPayload || {}, merchant, links, ownerInviteUrl);
+  const ownerState = getMerchantOwnerState(merchant);
+  const latestSetupUrl = pickFirst(ownerInviteUrl, links.merchantSetupUrl);
+  const needsOwnerEmailForSetupLink = !ownerState.email;
+  const canRegenerateOwnerSetupLink = Boolean(
+    ownerState.email ||
+      ownerState.status ||
+      ownerState.hasSetupInvite ||
+      ownerState.inviteExpiresAt ||
+      latestSetupUrl,
+  );
   const themeWarnings = getThemeWarnings(merchant, detailPayload || {});
   const detailPreviewSource = isEditing
     ? {
@@ -2407,22 +2479,55 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   }
 
   async function handleRegenerateOwnerInvite() {
+    const trimmedOwnerEmail = ownerSetupEmail.trim();
+
+    if (needsOwnerEmailForSetupLink && !trimmedOwnerEmail) {
+      setError("Enter the café owner's email before creating a setup link.");
+      setSaveMessage("");
+      return;
+    }
+
     setIsRegeneratingInvite(true);
     setError("");
     setSaveMessage("");
 
     try {
-      const payload = await adminFetch(`/api/admin/merchants/${merchantId}/owner-invite`, {
+      const ownerEmail = trimmedOwnerEmail || ownerState.email || getContactEmail(merchant);
+      const payload = await adminFetch(`/api/admin/merchants/${merchantId}/setup-link`, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify(ownerEmail ? { ownerEmail, contactEmail: ownerEmail } : {}),
       }, accessToken);
-      const result = payload?.result || {};
-      setOwnerInviteUrl(toPublicUrl(result.merchantSetupUrl || ""));
-      setDetailPayload(payload || detailPayload);
-      if (result.merchant) setMerchant(result.merchant);
-      setSaveMessage("Owner setup link regenerated.");
+      const result = payload?.result || payload?.data?.result || payload?.data || {};
+      const returnedMerchant = payload?.merchant || payload?.data?.merchant || result.merchant;
+      const setupUrl = getMerchantSetupUrlFromPayload(payload);
+      setOwnerInviteUrl(setupUrl);
+      setDetailPayload((current) => ({
+        ...(current || {}),
+        ...(payload || {}),
+        data: {
+          ...(current?.data || {}),
+          ...(payload?.data || {}),
+          result: {
+            ...(current?.data?.result || {}),
+            ...(payload?.data?.result || {}),
+          },
+        },
+        result: {
+          ...(current?.result || {}),
+          ...(payload?.result || {}),
+        },
+        merchantSetupUrl: setupUrl || payload?.merchantSetupUrl || current?.merchantSetupUrl,
+      }));
+      if (returnedMerchant) {
+        const nextMerchant = { ...merchant, ...returnedMerchant };
+        setMerchant(nextMerchant);
+        setOwnerSetupEmail(getMerchantOwnerEmail(nextMerchant) || ownerEmail || "");
+      } else if (ownerEmail && !ownerState.email) {
+        setMerchant((current) => ({ ...current, merchantOwnerEmail: ownerEmail }));
+      }
+      setSaveMessage(setupUrl ? "Merchant owner setup link ready." : "Merchant owner setup link generated.");
     } catch (inviteError) {
-      setError(inviteError.message || "Unable to regenerate owner setup link.");
+      setError(inviteError.message || "Unable to create owner setup link.");
     } finally {
       setIsRegeneratingInvite(false);
     }
@@ -2546,8 +2651,10 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                   <Detail label="Merchant ID" value={pickFirst(merchant.id, merchant.merchantId, merchant._id)} />
                   <Detail label="Slug" value={getMerchantSlug(merchant)} />
                   <Detail label="Status" value={pickFirst(merchant.status, merchant.state)} />
-                  <Detail label="Owner email" value={getContactEmail(merchant)} />
-                  <Detail label="Owner status" value={pickFirst(merchant.merchantOwnerStatus, "Not returned")} />
+                  <Detail label="Merchant owner email" value={ownerState.email} />
+                  <Detail label="Merchant owner status" value={pickFirst(ownerState.status, "Not returned")} />
+                  <Detail label="Owner setup invite" value={ownerState.hasSetupInvite ? "Available" : "Not returned"} />
+                  <Detail label="Owner invite expires" value={formatDate(ownerState.inviteExpiresAt)} />
                   <Detail label="Reward" value={pickFirst(merchant.rewardText, merchant.loyalty?.rewardText)} />
                   <Detail label="Birthday rewards" value={form.birthdayRewardsEnabled ? "On" : "Off"} />
                   <Detail label="Join URL" value={links.joinUrl} />
@@ -2740,10 +2847,11 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
               <div className="mt-4 grid gap-3">
                 <Detail label="Subject" value={welcomeEmail.subject} />
                 <Detail label="Note" value={welcomeEmail.note} />
-                <Detail label="Owner email" value={getContactEmail(merchant)} />
-                <Detail label="Owner status" value={pickFirst(merchant.merchantOwnerStatus, "Not returned")} />
-                <Detail label="Invite expires" value={formatDate(merchant.merchantOwnerInviteExpiresAt)} />
-                <Detail label="Activated" value={formatDate(merchant.merchantOwnerActivatedAt)} />
+                <Detail label="Merchant owner email" value={ownerState.email} />
+                <Detail label="Merchant owner status" value={pickFirst(ownerState.status, "Not returned")} />
+                <Detail label="Owner setup invite" value={ownerState.hasSetupInvite ? "Available" : "Not returned"} />
+                <Detail label="Invite expires" value={formatDate(ownerState.inviteExpiresAt)} />
+                <Detail label="Activated" value={formatDate(ownerState.activatedAt)} />
                 {ownerInviteUrl ? <Detail label="New setup URL" value={ownerInviteUrl} /> : null}
               </div>
 
@@ -2800,14 +2908,18 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                     Copy merchant setup URL
                   </button>
                 ) : null}
-                {!welcomeEmail.canSend || merchant.merchantOwnerStatus === "invited" || merchant.merchantOwnerHasSetupInvite ? (
+                {!welcomeEmail.canSend || canRegenerateOwnerSetupLink ? (
                   <button
                     type="button"
                     onClick={handleRegenerateOwnerInvite}
                     disabled={isRegeneratingInvite}
                     className="ps-button-secondary disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    {isRegeneratingInvite ? "Regenerating..." : "Regenerate setup link"}
+                    {isRegeneratingInvite
+                      ? "Generating..."
+                      : canRegenerateOwnerSetupLink
+                        ? "Regenerate setup link"
+                        : "Create setup link"}
                   </button>
                 ) : null}
               </div>
@@ -2817,6 +2929,76 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
           {activeDetailTab === "settings" ? (
             <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
               <h2 className="text-xl font-semibold">Settings</h2>
+
+              <div className="mt-5 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-[var(--ps-espresso)]">Merchant Login / Owner Access</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      Send this link to the café owner so they can set their password and access the merchant dashboard.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateOwnerInvite}
+                    disabled={isRegeneratingInvite}
+                    className="ps-button-primary disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isRegeneratingInvite
+                      ? "Generating..."
+                      : canRegenerateOwnerSetupLink
+                        ? "Regenerate setup link"
+                        : "Create setup link"}
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <Detail label="Merchant owner email" value={ownerState.email} />
+                  <Detail label="Merchant owner status" value={pickFirst(ownerState.status, "Not returned")} />
+                  <Detail label="Owner setup invite" value={ownerState.hasSetupInvite ? "Available" : "Not returned"} />
+                  <Detail label="Owner invite expires" value={formatDate(ownerState.inviteExpiresAt)} />
+                </div>
+
+                {needsOwnerEmailForSetupLink ? (
+                  <div className="mt-4">
+                    <Field label="Owner/contact email">
+                      <TextInput
+                        type="email"
+                        value={ownerSetupEmail}
+                        placeholder="owner@example.com"
+                        onChange={(event) => setOwnerSetupEmail(event.target.value)}
+                      />
+                    </Field>
+                    <p className="mt-2 text-sm font-semibold text-slate-500">
+                      Required for older cafés that do not have an owner account yet.
+                    </p>
+                  </div>
+                ) : null}
+
+                {latestSetupUrl ? (
+                  <div className="mt-4 rounded-xl bg-white p-4 ring-1 ring-slate-200">
+                    <p className="text-sm font-bold text-[var(--ps-espresso)]">Merchant dashboard setup link</p>
+                    <p className="mt-2 break-all text-sm font-semibold text-slate-700">{latestSetupUrl}</p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => copyDetailText("Merchant setup URL", latestSetupUrl)}
+                        className="ps-button-secondary"
+                      >
+                        Copy link
+                      </button>
+                      <a href={latestSetupUrl} target="_blank" rel="noreferrer" className="ps-button-secondary">
+                        Open setup link
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
+
+                <p className="mt-4 text-sm leading-6 text-slate-500">
+                  This is for café owner dashboard access only. It is separate from customer join QR links and scanner device tokens. {SUPPORT_LINE}
+                </p>
+              </div>
+
               <label className="mt-5 flex items-start gap-3 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
                 <input
                   type="checkbox"
@@ -2856,10 +3038,10 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
               </div>
 
               <div className="mt-6 grid gap-3 md:grid-cols-2">
-                <Detail label="Owner email" value={getContactEmail(merchant)} />
-                <Detail label="Owner status" value={pickFirst(merchant.merchantOwnerStatus, "Not returned")} />
-                <Detail label="Invite expires" value={formatDate(merchant.merchantOwnerInviteExpiresAt)} />
-                <Detail label="Activated" value={formatDate(merchant.merchantOwnerActivatedAt)} />
+                <Detail label="Merchant owner email" value={ownerState.email} />
+                <Detail label="Merchant owner status" value={pickFirst(ownerState.status, "Not returned")} />
+                <Detail label="Invite expires" value={formatDate(ownerState.inviteExpiresAt)} />
+                <Detail label="Activated" value={formatDate(ownerState.activatedAt)} />
                 <Detail label="Staff dashboard URL" value={links.staffDashboardUrl || "Staff accounts can be created later"} />
                 <Detail label="Logo path" value={getLogoUrl(merchant)} />
               </div>
