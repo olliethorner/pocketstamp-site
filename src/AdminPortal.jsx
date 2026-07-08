@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SUPPORT_LINE } from "./contactEmails.js";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
@@ -875,28 +876,28 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
       welcomePack.subject,
       buildWelcomeEmail(formState, { joinUrl, merchantDashboardUrl, merchantSetupUrl, staffDashboardUrl, demoPassUrl }).subject,
     ),
-    welcomeEmailBody: replaceStandaloneLegalLinks(pickFirst(
+    welcomeEmailBody: addSupportLineToText(replaceStandaloneLegalLinks(pickFirst(
       response.welcomeEmailBody,
       data.welcomeEmailBody,
       result.welcomeEmailBody,
       welcomePack.welcomeEmailBody,
       welcomePack.body,
       buildWelcomeEmail(formState, { joinUrl, merchantDashboardUrl, merchantSetupUrl, staffDashboardUrl, demoPassUrl }).body,
-    ), merchantSlug),
-    welcomeEmailText: replaceStandaloneLegalLinks(pickFirst(
+    ), merchantSlug)),
+    welcomeEmailText: addSupportLineToText(replaceStandaloneLegalLinks(pickFirst(
       response.welcomeEmailText,
       data.welcomeEmailText,
       result.welcomeEmailText,
       welcomePack.welcomeEmailText,
       welcomePack.text,
-    ), merchantSlug),
-    welcomeEmailHtml: replaceStandaloneLegalLinks(pickFirst(
+    ), merchantSlug)),
+    welcomeEmailHtml: addSupportLineToHtml(replaceStandaloneLegalLinks(pickFirst(
       response.welcomeEmailHtml,
       data.welcomeEmailHtml,
       result.welcomeEmailHtml,
       welcomePack.welcomeEmailHtml,
       welcomePack.html,
-    ), merchantSlug),
+    ), merchantSlug)),
   };
 }
 
@@ -914,6 +915,8 @@ function buildWelcomeEmail(form, links) {
     links.demoPassUrl ? `Demo pass: ${links.demoPassUrl}` : null,
     "",
     "Next step: create your merchant password, then test the customer Wallet flow.",
+    "",
+    SUPPORT_LINE,
     "",
     "Thanks,",
     "PocketStamp",
@@ -998,6 +1001,24 @@ function getWelcomeEmailFromPayload(payload, merchant = {}) {
   };
 }
 
+function addSupportLineToText(value = "") {
+  const text = String(value || "");
+  if (!text || text.includes(SUPPORT_LINE)) return text;
+  return `${text.trimEnd()}\n\n${SUPPORT_LINE}`;
+}
+
+function addSupportLineToHtml(value = "") {
+  const html = String(value || "");
+  if (!html || html.includes(SUPPORT_LINE)) return html;
+  const supportHtml = `<p style="margin:24px 0 0;font-size:16px;line-height:1.6;">${escapeHtml(SUPPORT_LINE)}</p>`;
+
+  if (html.includes("</body>")) {
+    return html.replace("</body>", `${supportHtml}</body>`);
+  }
+
+  return `${html}${supportHtml}`;
+}
+
 function buildDetailWelcomeEmail(payload, merchant, links, ownerInviteUrl = "") {
   const backendEmail = getWelcomeEmailFromPayload(payload, merchant);
   const setupUrl = pickFirst(ownerInviteUrl, links.merchantSetupUrl);
@@ -1040,12 +1061,12 @@ function buildDetailWelcomeEmail(payload, merchant, links, ownerInviteUrl = "") 
   }
 
   if (backendEmail.html || backendEmail.text || backendEmail.body) {
-    const text = pickFirst(backendEmail.text, backendEmail.body, subject);
+    const text = addSupportLineToText(pickFirst(backendEmail.text, backendEmail.body, subject));
     return {
       subject,
-      body: pickFirst(backendEmail.body, backendEmail.text, subject),
+      body: addSupportLineToText(pickFirst(backendEmail.body, backendEmail.text, subject)),
       text,
-      html: backendEmail.html,
+      html: addSupportLineToHtml(backendEmail.html),
       setupUrl: hasValidSetupUrl ? setupUrl : "",
       source,
       status,
@@ -1066,6 +1087,8 @@ function buildDetailWelcomeEmail(payload, merchant, links, ownerInviteUrl = "") 
     `Merchant dashboard: ${links.merchantDashboardUrl || "Not returned"}`,
     links.demoPassUrl ? `Demo pass: ${links.demoPassUrl}` : null,
     "Staff accounts can be created later.",
+    "",
+    SUPPORT_LINE,
     "",
     "Thanks,",
     "PocketStamp",
@@ -1098,6 +1121,7 @@ function buildDetailWelcomeEmail(payload, merchant, links, ownerInviteUrl = "") 
               ${links.demoPassUrl ? `<p style="margin:0 0 10px;font-size:15px;line-height:1.5;"><strong>Demo pass:</strong><br><a href="${escapeHtml(links.demoPassUrl)}" style="color:${escapeHtml(brandColor)};">${escapeHtml(links.demoPassUrl)}</a></p>` : ""}
               <p style="margin:0;font-size:15px;line-height:1.5;">Staff accounts can be created later.</p>
             </div>
+            <p style="margin:24px 0 0;font-size:16px;line-height:1.6;">${escapeHtml(SUPPORT_LINE)}</p>
             <p style="margin:24px 0 0;font-size:16px;line-height:1.6;">Thanks,<br>PocketStamp</p>
           </div>
         </div>

@@ -2,15 +2,16 @@ import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import AdminPortal from "./AdminPortal.jsx";
+import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
 import "./App.css";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
 
 const demoHref =
-  "mailto:hello@getpocketstamp.com?subject=PocketStamp demo enquiry";
+  `mailto:${SALES_EMAIL}?subject=PocketStamp demo enquiry`;
 const pilotHref =
-  "mailto:hello@getpocketstamp.com?subject=PocketStamp café pilot";
+  `mailto:${SALES_EMAIL}?subject=PocketStamp café pilot`;
 const demoJoinUrl = "/join/pocket-stamp-demo";
 const demoSuccessUrl = "/join/pocket-stamp-demo/success";
 const demoJoinAbsoluteUrl = "https://getpocketstamp.com/join/pocket-stamp-demo";
@@ -50,7 +51,7 @@ function getLoyaltyTermsSections(cafeName = "this café") {
     },
     {
       title: "6. Contact",
-      body: `Questions about stamps, rewards, or the loyalty programme should be directed to ${cafeName}. Questions about the PocketStamp technology can be directed to PocketStamp.`,
+      body: `Questions about stamps, rewards, or the loyalty programme should be directed to ${cafeName}. Questions about the PocketStamp technology can be sent to ${SUPPORT_EMAIL}.`,
     },
   ];
 }
@@ -106,7 +107,7 @@ function getPrivacyNoticeSections(cafeName = "this café") {
     },
     {
       title: "8. Contact",
-      body: `To ask a privacy question, request deletion, or withdraw marketing consent, contact ${cafeName} or PocketStamp.`,
+      body: `To ask a privacy question, request deletion, or withdraw marketing consent, contact ${cafeName} or email ${SUPPORT_EMAIL}.`,
     },
   ];
 }
@@ -2194,7 +2195,7 @@ function CounterScannerSection({ scanner }) {
           </a>
         ) : (
           <a
-            href="mailto:hello@getpocketstamp.com?subject=PocketStamp Scanner Mode setup"
+            href={`mailto:${SUPPORT_EMAIL}?subject=PocketStamp Scanner Mode setup`}
             className="inline-flex items-center justify-center rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300"
           >
             {scanner.isReady || scanner.isFallback
@@ -3464,8 +3465,8 @@ function MarketingHomepage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} PocketStamp.</p>
           <div className="flex flex-wrap gap-4">
-            <a href="mailto:hello@getpocketstamp.com" className="hover:text-slate-950">
-              hello@getpocketstamp.com
+            <a href={`mailto:${SALES_EMAIL}`} className="hover:text-slate-950">
+              {SALES_EMAIL}
             </a>
             <a href={demoJoinUrl} className="hover:text-slate-950">
               Try the PocketStamp demo card
