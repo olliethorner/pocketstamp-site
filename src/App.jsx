@@ -1734,6 +1734,11 @@ function LegalNoticeModal({ cafeName = "this café", type, onClose }) {
           Version: {consentVersions.privacyNoticeVersion} and{" "}
           {consentVersions.loyaltyTermsVersion}
         </p>
+        <div className="ps-legal-actions">
+          <button type="button" className="ps-legal-done" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );
