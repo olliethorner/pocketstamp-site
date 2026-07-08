@@ -6,6 +6,7 @@ import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
 import "./App.css";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
+const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
 
 const demoHref =
@@ -14,7 +15,7 @@ const pilotHref =
   `mailto:${SALES_EMAIL}?subject=PocketStamp café pilot`;
 const demoJoinUrl = "/join/pocket-stamp-demo";
 const demoSuccessUrl = "/join/pocket-stamp-demo/success";
-const demoJoinAbsoluteUrl = "https://getpocketstamp.com/join/pocket-stamp-demo";
+const demoJoinAbsoluteUrl = `${PUBLIC_SITE_BASE_URL}/join/pocket-stamp-demo`;
 const demoCreateCardUrl = "/demo/pocket-stamp-demo/create";
 const demoPassStorageKey = "pocketstampDemoPassUrl";
 const demoMerchantName = "PocketStamp Demo";
@@ -378,17 +379,39 @@ function safeSlug(value) {
     .replace(/^-|-$/g, "");
 }
 
+function toPublicDashboardUrl(pathOrUrl) {
+  if (!pathOrUrl) return pathOrUrl;
+
+  try {
+    const url = new URL(pathOrUrl, PUBLIC_SITE_BASE_URL);
+    const isDashboardRoute =
+      url.pathname.startsWith("/join/") ||
+      url.pathname.startsWith("/pass/") ||
+      url.pathname.startsWith("/merchant/");
+
+    if (!isDashboardRoute) return pathOrUrl;
+
+    return new URL(`${url.pathname}${url.search}${url.hash}`, PUBLIC_SITE_BASE_URL).toString();
+  } catch {
+    return pathOrUrl;
+  }
+}
+
 function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
 }
 
-function getBirthdayRewardsEnabled(source = {}) {
+function getBirthdayRewardsSetting(source = {}) {
   return pickFirst(
     source.birthdayRewardsEnabled,
     source.birthday_rewards_enabled,
     source.loyalty?.birthdayRewardsEnabled,
     source.loyalty?.birthday_rewards_enabled,
-  ) === true;
+  );
+}
+
+function getBirthdayRewardsEnabled(source = {}) {
+  return getBirthdayRewardsSetting(source) === true;
 }
 
 function buildScannerPassBody(scanResult = {}) {
@@ -511,7 +534,7 @@ function normalizeMerchantContext(payload) {
     role: pickFirst(source.role, user.role, payload?.role, "Merchant"),
     email: pickFirst(user.email, source.email, payload?.email),
     totalCustomers: pickFirst(source.totalCustomers, source.customerCount),
-    birthdayRewardsEnabled: getBirthdayRewardsEnabled({ ...payload, ...source }),
+    birthdayRewardsEnabled: getBirthdayRewardsSetting({ ...payload, ...source }),
   };
 }
 
@@ -671,15 +694,15 @@ function formatActivityTime(timestamp, { sentence = false } = {}) {
   }).format(date);
 }
 
-function formatActivityTitle(item) {
+function formatActivityTitle(item, birthdayRewardsEnabled = false) {
   const haystack = getActivityText(item);
   const backendTitle = pickFirst(item.title, item.description, item.message);
 
-  if (looksLikeBirthdayReward(item) && haystack.includes("activat")) {
+  if (birthdayRewardsEnabled && looksLikeBirthdayReward(item) && haystack.includes("activat")) {
     return "Birthday reward activated";
   }
 
-  if (looksLikeBirthdayReward(item)) return "Birthday reward redeemed";
+  if (birthdayRewardsEnabled && looksLikeBirthdayReward(item)) return "Birthday reward redeemed";
 
   if (looksLikeReward(item) && haystack.includes("redeem")) {
     return "Reward redeemed";
@@ -839,7 +862,7 @@ function formatActivitySource(item) {
     .join(" ")
     .toLowerCase();
 
-  if (sourceText.includes("scanner") || sourceText.includes("scan")) return "Via counter scanner";
+  if (sourceText.includes("scanner") || sourceText.includes("scan")) return "Via Scanner Mode";
   if (sourceText.includes("dashboard")) return "Via dashboard";
   if (sourceText.includes("manual") || sourceText.includes("staff")) return "Manual";
   if (directSource) return `Via ${toTitle(directSource).toLowerCase()}`;
@@ -903,8 +926,8 @@ function formatActivityDetail(item) {
   return formatActivityDetailParts(item).filter(Boolean).join(" · ");
 }
 
-function formatActivityBadge(item) {
-  if (looksLikeBirthdayReward(item)) return "Birthday";
+function formatActivityBadge(item, birthdayRewardsEnabled = false) {
+  if (birthdayRewardsEnabled && looksLikeBirthdayReward(item)) return "Birthday";
   if (looksLikeStamp(item)) return "Stamp";
   if (looksLikeReward(item)) return "Redeemed";
   if (looksLikeReminder(item)) return "Reminder";
@@ -945,7 +968,7 @@ function getScannerDashboardData(summary = {}) {
   const scanner = candidates[0] || null;
   const deviceList = [summary?.scannerDevices, summary?.devices, scanner?.devices].find(Array.isArray);
   const device = deviceList?.[0] || scanner;
-  const scannerUrl = pickFirst(
+  const scannerUrl = toPublicDashboardUrl(pickFirst(
     scanner?.scannerUrl,
     scanner?.scannerURL,
     scanner?.kioskUrl,
@@ -953,7 +976,7 @@ function getScannerDashboardData(summary = {}) {
     scanner?.url,
     device?.scannerUrl,
     device?.kioskUrl,
-  );
+  ));
   const hasExplicitReady = [
     summary?.hasScannerDevices,
     summary?.scannerDevicesCount > 0,
@@ -2163,7 +2186,7 @@ function CounterScannerSection({ scanner }) {
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-semibold text-[var(--ps-espresso)]">
-              Counter Scanner Mode
+              Scanner Mode
             </h2>
             <span
               className={`rounded-full px-3 py-1 text-sm font-semibold ${
@@ -2177,10 +2200,10 @@ function CounterScannerSection({ scanner }) {
           </div>
           <p className="mt-3 max-w-3xl leading-7 text-[var(--ps-muted)]">
             {scanner.isFallback
-              ? "Counter scanner setup is managed by PocketStamp."
+              ? "Scanner Mode setup is managed by PocketStamp."
               : scanner.isReady
-                ? "Customers can scan their Apple Wallet pass at the till and stamps are added automatically."
-                : "PocketStamp can connect a counter scanner so customers scan at the till and stamps are added automatically."}
+                ? "Customers show their Apple Wallet card. Staff scan the Wallet QR with a Zebra/USB scanner, tablet camera, or manual code entry."
+                : "PocketStamp can connect Scanner Mode for Zebra/USB scanners, tablet camera scanning, and manual code entry."}
           </p>
         </div>
 
@@ -2191,7 +2214,7 @@ function CounterScannerSection({ scanner }) {
             rel="noreferrer"
             className="inline-flex items-center justify-center rounded-full bg-[var(--ps-blue)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#255ddd]"
           >
-            Open scanner screen
+            Open Scanner Mode
           </a>
         ) : (
           <a
@@ -2278,14 +2301,14 @@ function formatActivityLogSummary({ pageStart, pageSize, total, filter }) {
   return description ? `${range} ${description}` : range;
 }
 
-function ActivityRow({ item, indexKey }) {
+function ActivityRow({ item, indexKey, birthdayRewardsEnabled = false }) {
   return (
     <div
       key={pickFirst(item.id, item._id, item.eventId, indexKey)}
       className="flex flex-col gap-3 border-b border-slate-100 p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="min-w-0">
-        <p className="font-semibold text-slate-950">{formatActivityTitle(item)}</p>
+        <p className="font-semibold text-slate-950">{formatActivityTitle(item, birthdayRewardsEnabled)}</p>
         <p className="mt-1 truncate text-sm text-slate-600" title={formatActivityDetail(item)}>
           {formatActivityDetail(item)}
         </p>
@@ -2294,13 +2317,13 @@ function ActivityRow({ item, indexKey }) {
         </p>
       </div>
       <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
-        {formatActivityBadge(item)}
+        {formatActivityBadge(item, birthdayRewardsEnabled)}
       </span>
     </div>
   );
 }
 
-function ActivityList({ activityRows, isLoading, error }) {
+function ActivityList({ activityRows, isLoading, error, birthdayRewardsEnabled = false }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(1);
@@ -2412,6 +2435,7 @@ function ActivityList({ activityRows, isLoading, error }) {
                   key={pickFirst(item.id, item._id, item.eventId, `log-${pageStart + index}-${getActivityTimestamp(item)}`)}
                   item={item}
                   indexKey={`log-${pageStart + index}-${getActivityTimestamp(item)}`}
+                  birthdayRewardsEnabled={birthdayRewardsEnabled}
                 />
               ))
             ) : (
@@ -2428,6 +2452,7 @@ function ActivityList({ activityRows, isLoading, error }) {
               key={pickFirst(item.id, item._id, item.eventId, `preview-${index}-${getActivityTimestamp(item)}`)}
               item={item}
               indexKey={`preview-${index}-${getActivityTimestamp(item)}`}
+              birthdayRewardsEnabled={birthdayRewardsEnabled}
             />
           ))}
         </div>
@@ -2679,7 +2704,7 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
     ["Halfway", "Active"],
     ["Almost there", "Active"],
     ["Reward ready", "Active"],
-    ["Birthday rewards", birthdayRewardsEnabled ? "Active" : "Disabled"],
+    ["Birthday rewards", birthdayRewardsEnabled ? "Active" : "Off"],
     ["Win-back", "Active"],
   ];
 
@@ -2778,9 +2803,12 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
       safeSlug(merchantContext.merchantName || merchantContext.merchantId),
     [merchantContext],
   );
-  const joinUrl = `https://getpocketstamp.com/join/${merchantSlug}`;
+  const joinUrl = `${PUBLIC_SITE_BASE_URL}/join/${merchantSlug}`;
   const birthdayRewardsEnabled =
-    getBirthdayRewardsEnabled(merchantContext) || getBirthdayRewardsEnabled(dashboardSummary || {});
+    pickFirst(
+      getBirthdayRewardsSetting(merchantContext),
+      getBirthdayRewardsSetting(dashboardSummary || {}),
+    ) === true;
   const effectiveCustomerStatus = birthdayRewardsEnabled || customerStatus !== "birthday_saved"
     ? customerStatus
     : "all";
@@ -3004,10 +3032,10 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
               isDashboardSummaryLoading
                 ? metricHelperFallback
                 : scannerDashboard.isFallback
-                  ? "Counter scanner setup is managed by PocketStamp."
+                  ? "Scanner Mode setup is managed by PocketStamp."
                   : scannerDashboard.isReady
-                    ? "Customers can scan at the till."
-                    : "Ask PocketStamp to connect your counter scanner."
+                    ? "Staff scan Wallet QR codes at the till."
+                    : "Ask PocketStamp to connect Scanner Mode."
             }
             iconLabel="Scan"
           />
@@ -3048,6 +3076,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
               activityRows={activityRows}
               isLoading={isActivityLoading}
               error={activityError}
+              birthdayRewardsEnabled={birthdayRewardsEnabled}
             />
           </section>
 
@@ -3059,7 +3088,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                     Join QR
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-[var(--ps-muted)]">
-                    Display this QR so new customers can add your Apple Wallet loyalty card.
+                    Print or display this QR so new customers can add your Apple Wallet loyalty card.
                   </p>
                 </div>
                 <span className="text-sm font-bold text-[var(--ps-blue)]">QR</span>
@@ -3104,12 +3133,15 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
                     Scanner setup
                   </h2>
                   <p className="mt-3 font-semibold text-[var(--ps-espresso)]">
-                    Counter Scanner Mode is live.
+                    Scanner Mode is the in-store flow.
                   </p>
-                  <p className="mt-2 leading-7 text-[var(--ps-muted)]">
-                    NFC tap-to-stamp support can be added later when Apple approval
-                    and compatible hardware are available.
-                  </p>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--ps-muted)]">
+                    <li>Print or display the Join QR.</li>
+                    <li>Open Scanner Mode on the till tablet or laptop.</li>
+                    <li>Use a Zebra/USB scanner, tablet camera, or manual code entry.</li>
+                    <li>Do a test scan with an Apple Wallet card.</li>
+                    <li>Email {SUPPORT_EMAIL} if you get stuck.</li>
+                  </ul>
                 </div>
               </div>
             </div>
