@@ -16,6 +16,11 @@ const demoSuccessUrl = "/join/pocket-stamp-demo/success";
 const demoJoinAbsoluteUrl = "https://getpocketstamp.com/join/pocket-stamp-demo";
 const demoCreateCardUrl = "/demo/pocket-stamp-demo/create";
 const demoPassStorageKey = "pocketstampDemoPassUrl";
+const consentVersions = {
+  privacyNoticeVersion: "privacy_notice_v1_2026_07",
+  loyaltyTermsVersion: "loyalty_terms_v1_2026_07",
+  marketingConsentTextVersion: "marketing_consent_v1_2026_07",
+};
 
 const steps = [
   ["Scan QR", "Customer scans your café’s Join QR.", "QR"],
@@ -1367,12 +1372,22 @@ function DemoWalletPreview() {
 function DemoJoinPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [legalModal, setLegalModal] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isFormValid = Boolean(fullName.trim() && email.trim() && termsAccepted);
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+
+    if (!termsAccepted) {
+      setError("Please agree to the Loyalty Terms and acknowledge the Privacy Notice to create your loyalty card.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const params = new URLSearchParams();
@@ -1381,6 +1396,11 @@ function DemoJoinPage() {
     if (email.trim()) params.set("email", email.trim());
     params.set("birthdayMonth", "");
     params.set("birthdayDay", "");
+    params.set("termsAccepted", termsAccepted ? "true" : "false");
+    params.set("marketingOptIn", marketingOptIn ? "true" : "false");
+    params.set("privacyNoticeVersion", consentVersions.privacyNoticeVersion);
+    params.set("loyaltyTermsVersion", consentVersions.loyaltyTermsVersion);
+    params.set("marketingConsentTextVersion", consentVersions.marketingConsentTextVersion);
 
     try {
       const response = await fetch(demoCreateCardUrl, {
@@ -1474,13 +1494,58 @@ function DemoJoinPage() {
               />
             </label>
 
+            <div className="ps-consent-section">
+              <p>
+                We use your details to create and manage your Apple Wallet loyalty card for this café.
+              </p>
+
+              <label className="ps-consent-option">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(event) => setTermsAccepted(event.target.checked)}
+                  required
+                />
+                <span>
+                  I agree to the{" "}
+                  <button
+                    type="button"
+                    className="ps-inline-link"
+                    onClick={() => setLegalModal("terms")}
+                  >
+                    Loyalty Terms
+                  </button>{" "}
+                  and acknowledge the{" "}
+                  <button
+                    type="button"
+                    className="ps-inline-link"
+                    onClick={() => setLegalModal("privacy")}
+                  >
+                    Privacy Notice
+                  </button>
+                  .
+                </span>
+              </label>
+
+              <label className="ps-consent-option">
+                <input
+                  type="checkbox"
+                  checked={marketingOptIn}
+                  onChange={(event) => setMarketingOptIn(event.target.checked)}
+                />
+                <span>
+                  I’d like to receive offers, rewards, and updates from this café by email and Apple Wallet notifications. I can unsubscribe at any time.
+                </span>
+              </label>
+            </div>
+
             {error ? (
               <div className="rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-700 ring-1 ring-red-100">
                 {error}
               </div>
             ) : null}
 
-            <button type="submit" disabled={isSubmitting} className="ps-button-primary w-full">
+            <button type="submit" disabled={isSubmitting || !isFormValid} className="ps-button-primary w-full">
               {isSubmitting ? "Creating demo card..." : "Create Demo Wallet Card"}
             </button>
           </form>
@@ -1497,7 +1562,40 @@ function DemoJoinPage() {
           <DemoWalletPreview />
         </section>
       </div>
+
+      <LegalNoticeModal type={legalModal} onClose={() => setLegalModal("")} />
     </main>
+  );
+}
+
+function LegalNoticeModal({ type, onClose }) {
+  if (!type) return null;
+
+  const isTerms = type === "terms";
+  const title = isTerms ? "Loyalty Terms" : "Privacy Notice";
+  const copy = isTerms
+    ? "These placeholder Loyalty Terms explain that your PocketStamp loyalty card is used to collect stamps and rewards for this café. The café may update reward rules, and PocketStamp manages the Wallet card experience."
+    : "This placeholder Privacy Notice explains that PocketStamp and this café use your name, email address, consent choices, and optional birthday details to create and manage your Apple Wallet loyalty card.";
+
+  return (
+    <div className="ps-legal-modal-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="ps-legal-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="legal-notice-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id="legal-notice-title">{title}</h2>
+        <p>{copy}</p>
+        <p>
+          Full legal pages will be added here before production rollout.
+        </p>
+        <button type="button" className="ps-button-primary w-full" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </div>
   );
 }
 

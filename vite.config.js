@@ -4,6 +4,15 @@ import tailwindcss from '@tailwindcss/vite'
 
 const API_BASE_URL = 'https://pocketstamp-wallet-backend-production.up.railway.app'
 
+function getBackendErrorMessage(text) {
+  try {
+    const payload = text ? JSON.parse(text) : null
+    return payload?.error || payload?.message || ''
+  } catch {
+    return text.trim()
+  }
+}
+
 function demoCreateMiddleware() {
   return {
     name: 'pocketstamp-demo-create-middleware',
@@ -32,6 +41,16 @@ function demoCreateMiddleware() {
             redirect: 'manual',
           })
           const location = createResponse.headers.get('location')
+
+          if (!createResponse.ok) {
+            const responseText = await createResponse.text()
+            response.statusCode = createResponse.status
+            response.setHeader('Content-Type', 'application/json')
+            response.end(JSON.stringify({
+              error: getBackendErrorMessage(responseText) || 'Unable to create the demo Wallet card.',
+            }))
+            return
+          }
 
           if (!location) {
             response.statusCode = 502

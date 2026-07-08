@@ -9,6 +9,15 @@ function extractAddToWalletHref(html) {
   return linkMatch?.[1] || "";
 }
 
+function getBackendErrorMessage(text) {
+  try {
+    const payload = text ? JSON.parse(text) : null;
+    return payload?.error || payload?.message || "";
+  } catch {
+    return text.trim();
+  }
+}
+
 async function readBody(request) {
   const chunks = [];
 
@@ -38,6 +47,14 @@ export default async function handler(request, response) {
     });
 
     const location = createResponse.headers.get("location");
+
+    if (!createResponse.ok) {
+      const responseText = await createResponse.text();
+      response.status(createResponse.status).json({
+        error: getBackendErrorMessage(responseText) || "Unable to create the demo Wallet card.",
+      });
+      return;
+    }
 
     if (!location) {
       response.status(502).json({ error: "Demo card was created, but no success URL was returned." });
