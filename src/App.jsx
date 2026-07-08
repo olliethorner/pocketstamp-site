@@ -8,6 +8,9 @@ import "./App.css";
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
+const MERCHANT_DATA_CHANGED_EVENT = "pocketstamp:merchant-data-changed";
+const MERCHANT_DASHBOARD_REFRESH_INTERVAL_MS = 20000;
+const MERCHANT_DATA_CHANGED_STORAGE_KEY = "pocketstampMerchantDataChangedAt";
 
 const demoHref =
   `mailto:${SALES_EMAIL}?subject=PocketStamp demo enquiry`;
@@ -359,6 +362,22 @@ function undoScannerStamp({ deviceToken, scanResult }) {
     method: "POST",
     body: JSON.stringify(buildScannerActionBody(deviceToken, scanResult)),
   });
+}
+
+function notifyMerchantDataChanged(detail = {}) {
+  if (typeof window === "undefined") return;
+  const payload = {
+    changedAt: Date.now(),
+    ...detail,
+  };
+
+  window.dispatchEvent(new CustomEvent(MERCHANT_DATA_CHANGED_EVENT, { detail: payload }));
+
+  try {
+    window.localStorage.setItem(MERCHANT_DATA_CHANGED_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // Same-tab custom events still cover the common case when storage is unavailable.
+  }
 }
 
 function toTitle(value) {
@@ -2759,6 +2778,9 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
 }
 
 function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
+  const isMountedRef = useRef(false);
+  const isDashboardRefreshInFlightRef = useRef(false);
+  const isCustomerRefreshInFlightRef = useRef(false);
   const [activityRows, setActivityRows] = useState([]);
   const [activityError, setActivityError] = useState("");
   const [isActivityLoading, setIsActivityLoading] = useState(true);
@@ -2775,6 +2797,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const [customerStatus, setCustomerStatus] = useState("all");
   const [expandedCustomerId, setExpandedCustomerId] = useState(null);
   const [copyState, setCopyState] = useState("idle");
+  const [manualRefreshState, setManualRefreshState] = useState("idle");
 
   const merchantSlug = useMemo(
     () =>
@@ -2792,24 +2815,27 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     ? customerStatus
     : "all";
 
-  useEffect(() => {
-    let isMounted = true;
+  async function refreshDashboardData({ showLoading = false } = {}) {
+    if (isDashboardRefreshInFlightRef.current) return;
+    isDashboardRefreshInFlightRef.current = true;
 
-    async function loadDashboardData() {
+    if (showLoading) {
       setIsActivityLoading(true);
-      setActivityError("");
       setIsDashboardSummaryLoading(true);
-      setDashboardSummaryError("");
       setIsReminderSummaryLoading(true);
-      setReminderError("");
+    }
+    setActivityError("");
+    setDashboardSummaryError("");
+    setReminderError("");
 
+    try {
       const [activityResult, dashboardResult, reminderResult] = await Promise.allSettled([
         fetchMerchantActivity(accessToken),
         fetchMerchantDashboardSummary(accessToken),
         fetchMerchantReminderSummary(accessToken),
       ]);
 
-      if (!isMounted) return;
+      if (!isMountedRef.current) return;
 
       if (activityResult.status === "fulfilled") {
         setActivityRows(extractActivityRows(activityResult.value));
@@ -2843,52 +2869,104 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             "Unable to load reminder stats right now.",
         );
       }
-
-      setIsActivityLoading(false);
-      setIsDashboardSummaryLoading(false);
-      setIsReminderSummaryLoading(false);
+    } finally {
+      if (isMountedRef.current) {
+        setIsActivityLoading(false);
+        setIsDashboardSummaryLoading(false);
+        setIsReminderSummaryLoading(false);
+      }
+      isDashboardRefreshInFlightRef.current = false;
     }
+  }
 
-    loadDashboardData();
+  async function refreshCustomers({ showLoading = false } = {}) {
+    if (isCustomerRefreshInFlightRef.current) return;
+    isCustomerRefreshInFlightRef.current = true;
 
+    if (showLoading) {
+      setIsCustomersLoading(true);
+    }
+    setCustomerError("");
+
+    try {
+      const payload = await fetchMerchantCustomers(accessToken, {
+        search: customerSearch,
+        status: effectiveCustomerStatus === "scanned_today" ? "all" : effectiveCustomerStatus,
+        limit: 50,
+      });
+
+      if (!isMountedRef.current) return;
+      setCustomerRows(extractCustomerRows(payload));
+    } catch (customerFetchError) {
+      if (!isMountedRef.current) return;
+      setCustomerError(
+        customerFetchError.message ||
+          "Unable to load loyalty customers right now.",
+      );
+    } finally {
+      if (isMountedRef.current) {
+        setIsCustomersLoading(false);
+      }
+      isCustomerRefreshInFlightRef.current = false;
+    }
+  }
+
+  function refreshAllDashboardData({ showLoading = false } = {}) {
+    return Promise.all([
+      refreshDashboardData({ showLoading }),
+      refreshCustomers({ showLoading }),
+    ]);
+  }
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    refreshDashboardData({ showLoading: true });
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
     };
   }, [accessToken]);
 
   useEffect(() => {
-    let isMounted = true;
+    refreshCustomers({ showLoading: true });
+  }, [accessToken, customerSearch, effectiveCustomerStatus]);
 
-    async function loadCustomers() {
-      setIsCustomersLoading(true);
-      setCustomerError("");
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      refreshAllDashboardData({ showLoading: false });
+    }, MERCHANT_DASHBOARD_REFRESH_INTERVAL_MS);
 
-      try {
-        const payload = await fetchMerchantCustomers(accessToken, {
-          search: customerSearch,
-          status: effectiveCustomerStatus === "scanned_today" ? "all" : effectiveCustomerStatus,
-          limit: 50,
-        });
+    function handleFocus() {
+      refreshAllDashboardData({ showLoading: false });
+    }
 
-        if (!isMounted) return;
-        setCustomerRows(extractCustomerRows(payload));
-      } catch (customerFetchError) {
-        if (!isMounted) return;
-        setCustomerError(
-          customerFetchError.message ||
-            "Unable to load loyalty customers right now.",
-        );
-      } finally {
-        if (isMounted) {
-          setIsCustomersLoading(false);
-        }
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        refreshAllDashboardData({ showLoading: false });
       }
     }
 
-    loadCustomers();
+    function handleMerchantDataChanged() {
+      refreshAllDashboardData({ showLoading: false });
+    }
+
+    function handleStorage(event) {
+      if (event.key === MERCHANT_DATA_CHANGED_STORAGE_KEY) {
+        refreshAllDashboardData({ showLoading: false });
+      }
+    }
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener(MERCHANT_DATA_CHANGED_EVENT, handleMerchantDataChanged);
+    window.addEventListener("storage", handleStorage);
 
     return () => {
-      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener(MERCHANT_DATA_CHANGED_EVENT, handleMerchantDataChanged);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [accessToken, customerSearch, effectiveCustomerStatus]);
 
@@ -2907,6 +2985,19 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
       setCopyState("failed");
       window.setTimeout(() => setCopyState("idle"), 1800);
     }
+  }
+
+  async function handleManualRefresh() {
+    setManualRefreshState("refreshing");
+
+    try {
+      await refreshAllDashboardData({ showLoading: false });
+      setManualRefreshState("done");
+    } catch {
+      setManualRefreshState("failed");
+    }
+
+    window.setTimeout(() => setManualRefreshState("idle"), 1600);
   }
 
   function handleCustomerSearchChange(nextSearch) {
@@ -2940,13 +3031,23 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onLogout}
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300"
-          >
-            Logout
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={manualRefreshState === "refreshing"}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {manualRefreshState === "refreshing" ? "Refreshing..." : "Refresh"}
+            </button>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -4334,6 +4435,9 @@ function ScannerKioskPage() {
       setScanResult(payload);
       setScanStatus(nextStatus);
       addActivity(nextStatus, payload);
+      if (nextStatus === "stamp_added" || nextStatus === "reward_ready") {
+        notifyMerchantDataChanged({ source: "scanner", action: nextStatus });
+      }
       if (nextStatus !== "reward_ready") scheduleReady(nextStatus === "stamp_added" ? 3200 : 5200);
     } catch (error) {
       const errorResult = { message: getScanMessage(error) };
@@ -4553,6 +4657,7 @@ function ScannerKioskPage() {
         success: "Stamp count updated",
       }));
       addActivity("stamp_adjusted", mergedResult);
+      notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
       scheduleReady(3600);
     } catch (error) {
       setAdjustment((current) => ({
@@ -4575,6 +4680,7 @@ function ScannerKioskPage() {
       setScanResult(payload);
       setScanStatus("reward_redeemed");
       addActivity("reward_redeemed", payload);
+      notifyMerchantDataChanged({ source: "scanner", action: "reward_redeemed" });
       scheduleReady(3600);
     } catch (error) {
       setScanResult({ message: getScanMessage(error) });
@@ -4595,6 +4701,7 @@ function ScannerKioskPage() {
       setScanResult(payload);
       setScanStatus("undo_success");
       addActivity("undo_success", payload);
+      notifyMerchantDataChanged({ source: "scanner", action: "undo_success" });
       scheduleReady(3200);
     } catch (error) {
       setScanResult({ message: getScanMessage(error) });
