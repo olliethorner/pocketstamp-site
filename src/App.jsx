@@ -1041,17 +1041,6 @@ function customerWasScannedToday(customer) {
   return date.toDateString() === today.toDateString();
 }
 
-function formatReminderDate(timestamp) {
-  if (!timestamp) return "None yet.";
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return "None yet.";
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
 function IconMark({ label, className = "" }) {
   return (
     <span
@@ -2704,7 +2693,7 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
     ["Halfway", "Active"],
     ["Almost there", "Active"],
     ["Reward ready", "Active"],
-    ["Birthday rewards", birthdayRewardsEnabled ? "Active" : "Off"],
+    ["Birthday rewards", birthdayRewardsEnabled ? "On" : "Off"],
     ["Win-back", "Active"],
   ];
 
@@ -2716,9 +2705,7 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
             Wallet reminders
           </h2>
           <p className="mt-1 max-w-2xl text-slate-600">
-            {birthdayRewardsEnabled
-              ? "Apple Wallet nudges for stamp progress, rewards and birthdays."
-              : "Apple Wallet nudges for stamp progress and rewards."}
+            Wallet reminders are handled automatically by PocketStamp.
           </p>
         </div>
         <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
@@ -2736,7 +2723,7 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
             Reminder stats unavailable.
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2">
             <ReminderStatCard
               label="Sent this month"
               value={summary?.sentThisMonth ?? 0}
@@ -2744,14 +2731,6 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
             <ReminderStatCard
               label="Scheduled"
               value={summary?.scheduled ?? 0}
-            />
-            <ReminderStatCard
-              label="Failed"
-              value={summary?.failed ?? 0}
-            />
-            <ReminderStatCard
-              label="Last reminder sent"
-              value={formatReminderDate(summary?.lastSentAt)}
             />
           </div>
         )}
@@ -2764,7 +2743,7 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
               <p className="font-semibold text-slate-950">{title}</p>
               <span
                 className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  status === "Active"
+                  status === "Active" || status === "On"
                     ? "bg-[#e7f7f3] text-[#16856f]"
                     : "bg-slate-100 text-slate-500"
                 }`}
