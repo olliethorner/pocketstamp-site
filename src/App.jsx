@@ -1708,33 +1708,40 @@ function LegalNoticeModal({ cafeName = "this café", type, onClose }) {
         aria-labelledby={titleId}
         onClick={(event) => event.stopPropagation()}
       >
-        <button
-          type="button"
-          className="ps-legal-close"
-          onClick={onClose}
-          aria-label="Close legal text"
-        >
-          ×
-        </button>
-        <h2 id={titleId}>{title}</h2>
-        {sections.map((section) => (
-          <section key={section.title || section.body}>
-            {section.title ? <h3>{section.title}</h3> : null}
-            <p>{section.body}</p>
-            {section.items ? (
-              <ul>
-                {section.items.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
-        ))}
-        <p className="ps-legal-version">
-          Version: {consentVersions.privacyNoticeVersion} and{" "}
-          {consentVersions.loyaltyTermsVersion}
-        </p>
-        <div className="ps-legal-actions">
+        <div className="ps-legal-header">
+          <div>
+            <h2 id={titleId}>{title}</h2>
+            <p className="ps-legal-version">
+              Version: {consentVersions.privacyNoticeVersion} and{" "}
+              {consentVersions.loyaltyTermsVersion}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="ps-legal-close"
+            onClick={onClose}
+            aria-label="Close legal text"
+          >
+            ×
+          </button>
+        </div>
+        <div className="ps-legal-body">
+          {sections.map((section) => (
+            <section key={section.title || section.body}>
+              {section.title ? <h3>{section.title}</h3> : null}
+              <p>{section.body}</p>
+              {section.items ? (
+                <ul>
+                  {section.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+          ))}
+        </div>
+        <div className="ps-legal-footer">
+          <p>Please read these terms before creating your loyalty card.</p>
           <button type="button" className="ps-legal-done" onClick={onClose}>
             Close
           </button>
