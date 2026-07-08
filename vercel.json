@@ -1,11 +1,4 @@
 {
-  "redirects": [
-    {
-      "source": "/:merchantSlug((?!admin$)(?!merchant$)(?!join$)(?!pass$)(?!demo$)(?!api$)(?!legal$)(?!assets$)(?!hero-wallet-cards$)(?!_next$)[^/]+)/:serial",
-      "destination": "/pass/:serial",
-      "permanent": false
-    }
-  ],
   "rewrites": [
     {
       "source": "/demo/pocket-stamp-demo/create",

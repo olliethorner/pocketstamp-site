@@ -8,7 +8,7 @@ This template provides a minimal setup to get React working in Vite with HMR and
 
 The backend origin should not appear in customer-facing join or pass links. Legal links should point to merchant-specific join page anchors, such as `/join/:merchantSlug#privacyNotice` and `/join/:merchantSlug#loyaltyTerms`.
 
-Legacy pass URLs shaped like `/:merchantSlug/:serial` are redirected to `/pass/:serial`.
+Generated legacy pass URLs shaped like `/:merchantSlug/:serial` should be normalized to `/pass/:serial` before they are shown to customers.
 
 Currently, two official plugins are available:
 
