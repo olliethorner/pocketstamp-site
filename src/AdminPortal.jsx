@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SUPPORT_LINE } from "./contactEmails.js";
+import {
+  buildPassThemeResolverPayload,
+  extractResolvedPassTheme,
+  PASS_THEME_RESOLVER_DEBOUNCE_MS,
+  requestPassThemeResolution,
+} from "./passThemeResolver.js";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
@@ -386,6 +392,7 @@ function normalizeWalletThemeState(merchant = {}) {
     stampFilledColor: pickFirst(merchant.stampFilledColor, finalTheme.stampFilledColor, finalTheme.passStampFilledColor, ""),
     stampEmptyColor: pickFirst(merchant.stampEmptyColor, finalTheme.stampEmptyColor, finalTheme.passStampEmptyColor, ""),
     logoTileEnabled: Boolean(pickFirst(merchant.logoTileEnabled, finalTheme.logoTileEnabled, merchant.passLogoTileEnabled, walletTheme.logoTileEnabled, false)),
+    logoTileColor: pickFirst(merchant.logoTileColor, finalTheme.logoTileColor, finalTheme.passLogoTileColor, merchant.passLogoTileColor, walletTheme.logoTileColor, ""),
     logoFit: pickFirst(merchant.logoFit, finalTheme.logoFit, merchant.passLogoFit, walletTheme.logoFit, "contain"),
   };
 }
@@ -1465,6 +1472,8 @@ function WalletPassLivePreview({
   finalStampFilledColor,
   finalStampEmptyColor,
   themeWarnings = [],
+  previewStatusMessage = "",
+  resolvedOnly = false,
 }) {
   const threshold = Number(rewardThreshold) || 9;
   const stampCount = Math.min(Math.max(threshold, 1), 12);
@@ -1476,13 +1485,13 @@ function WalletPassLivePreview({
     finalLabelColor,
     finalStampFilledColor,
     finalStampEmptyColor,
-    backgroundColor,
-    foregroundColor,
-    labelColor,
-    passStampFilledColor: stampFilledColor,
-    passStampEmptyColor: stampEmptyColor,
-    passAccentColor: accentColor,
-    passLogoTileColor: logoTileColor,
+    backgroundColor: resolvedOnly ? undefined : backgroundColor,
+    foregroundColor: resolvedOnly ? undefined : foregroundColor,
+    labelColor: resolvedOnly ? undefined : labelColor,
+    passStampFilledColor: resolvedOnly ? undefined : stampFilledColor,
+    passStampEmptyColor: resolvedOnly ? undefined : stampEmptyColor,
+    passAccentColor: resolvedOnly ? undefined : accentColor,
+    passLogoTileColor: resolvedOnly && !finalBackgroundColor ? undefined : logoTileColor,
   });
   const logoObjectFit = logoFit === "cover" ? "cover" : "contain";
   const reward = String(rewardText || "Collect stamps to unlock your reward.");
@@ -1572,6 +1581,11 @@ function WalletPassLivePreview({
       {themeWarnings.length ? (
         <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800 ring-1 ring-amber-100">
           {themeWarnings[0]}
+        </p>
+      ) : null}
+      {previewStatusMessage ? (
+        <p className="mt-3 text-center text-xs font-semibold text-slate-500" role="status">
+          {previewStatusMessage}
         </p>
       ) : null}
       <p className="mt-3 text-center text-xs font-semibold text-slate-500">
@@ -2283,6 +2297,22 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   const [ownerSetupEmail, setOwnerSetupEmail] = useState("");
   const [isRegeneratingInvite, setIsRegeneratingInvite] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState("overview");
+  const [resolvedPreviewTheme, setResolvedPreviewTheme] = useState(null);
+  const [previewResolutionStatus, setPreviewResolutionStatus] = useState("idle");
+  const previewResolutionRequestRef = useRef(0);
+  const resolverPayload = useMemo(() => buildPassThemeResolverPayload(form), [
+    form.passThemeMode,
+    form.passAccentColor,
+    form.backgroundColor,
+    form.foregroundColor,
+    form.labelColor,
+    form.passStampEmptyColor,
+    form.passStampFilledColor,
+    form.passLogoTileEnabled,
+    form.passLogoTileColor,
+    form.passLogoFit,
+  ]);
+  const resolverPayloadKey = JSON.stringify(resolverPayload);
 
   useEffect(() => {
     let isMounted = true;
@@ -2314,6 +2344,38 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     };
   }, [merchantId, accessToken]);
 
+  useEffect(() => {
+    if (!isEditing) {
+      previewResolutionRequestRef.current += 1;
+      setPreviewResolutionStatus("idle");
+      return undefined;
+    }
+
+    const requestId = previewResolutionRequestRef.current + 1;
+    previewResolutionRequestRef.current = requestId;
+    setPreviewResolutionStatus("updating");
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const nextResolvedTheme = await requestPassThemeResolution(
+          adminFetch,
+          accessToken,
+          JSON.parse(resolverPayloadKey),
+        );
+        if (previewResolutionRequestRef.current !== requestId) return;
+
+        if (!nextResolvedTheme) throw new Error("Theme resolver returned no usable result.");
+        setResolvedPreviewTheme(nextResolvedTheme);
+        setPreviewResolutionStatus("resolved");
+      } catch {
+        if (previewResolutionRequestRef.current !== requestId) return;
+        setPreviewResolutionStatus("unavailable");
+      }
+    }, PASS_THEME_RESOLVER_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [accessToken, isEditing, resolverPayloadKey]);
+
   if (isLoading) {
     return (
       <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
@@ -2342,19 +2404,30 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
       ownerState.inviteExpiresAt ||
       latestSetupUrl,
   );
-  const themeWarnings = getThemeWarnings(merchant, detailPayload || {});
+  const savedThemeWarnings = getThemeWarnings(merchant, detailPayload || {});
+  const themeWarnings = isEditing
+    ? resolvedPreviewTheme?.themeWarnings || []
+    : savedThemeWarnings;
   const detailPreviewSource = isEditing
     ? {
         ...form,
-        finalBackgroundColor: "",
-        finalForegroundColor: "",
-        finalLabelColor: "",
-        stampFilledColor: "",
-        stampEmptyColor: "",
-        logoTileEnabled: form.passLogoTileEnabled,
-        logoFit: form.passLogoFit,
+        finalBackgroundColor: resolvedPreviewTheme?.finalBackgroundColor,
+        finalForegroundColor: resolvedPreviewTheme?.finalForegroundColor,
+        finalLabelColor: resolvedPreviewTheme?.finalLabelColor,
+        stampFilledColor: resolvedPreviewTheme?.stampFilledColor,
+        stampEmptyColor: resolvedPreviewTheme?.stampEmptyColor,
+        logoTileEnabled: resolvedPreviewTheme?.logoTileEnabled,
+        passLogoTileEnabled: resolvedPreviewTheme?.logoTileEnabled,
+        passLogoTileColor: resolvedPreviewTheme?.logoTileColor,
+        logoFit: resolvedPreviewTheme?.logoFit,
+        passLogoFit: resolvedPreviewTheme?.logoFit,
       }
     : form;
+  const previewStatusMessage = isEditing && previewResolutionStatus === "updating"
+    ? "Preview is updating"
+    : isEditing && previewResolutionStatus === "unavailable"
+      ? "Unable to verify final Wallet colours"
+      : "";
   const editableFields = [
     ["cafeName", "Café/display name", "text"],
     ["contactName", "Contact name", "text"],
@@ -2385,10 +2458,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
 
   function updateForm(name, value) {
     setForm((current) => {
-      let next = { ...current, [name]: value };
-      if (name === "passThemeMode") {
-        next = { ...next, ...getThemePreset(value, next) };
-      }
+      const next = { ...current, [name]: value };
       if (name === "foregroundColor") next.textColor = value;
       if (name === "textColor") next.foregroundColor = value;
       return next;
@@ -2457,13 +2527,14 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         setMerchant(fallbackMerchant);
         setForm((current) => ({
           ...current,
-          finalBackgroundColor: "",
-          finalForegroundColor: "",
-          finalLabelColor: "",
-          stampFilledColor: "",
-          stampEmptyColor: "",
-          logoTileEnabled: current.passLogoTileEnabled,
-          logoFit: current.passLogoFit,
+          finalBackgroundColor: resolvedPreviewTheme?.finalBackgroundColor || current.finalBackgroundColor,
+          finalForegroundColor: resolvedPreviewTheme?.finalForegroundColor || current.finalForegroundColor,
+          finalLabelColor: resolvedPreviewTheme?.finalLabelColor || current.finalLabelColor,
+          stampFilledColor: resolvedPreviewTheme?.stampFilledColor || current.stampFilledColor,
+          stampEmptyColor: resolvedPreviewTheme?.stampEmptyColor || current.stampEmptyColor,
+          logoTileEnabled: resolvedPreviewTheme?.logoTileEnabled ?? current.passLogoTileEnabled,
+          passLogoTileColor: resolvedPreviewTheme?.logoTileColor || current.passLogoTileColor,
+          logoFit: resolvedPreviewTheme?.logoFit || current.passLogoFit,
           logoUpload: null,
           logoPreviewUrl: "",
           colorSuggestions: null,
@@ -2587,11 +2658,13 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   function toggleDetailEditing() {
     if (isEditing) {
       setForm(buildMerchantEditForm(merchant));
+      setResolvedPreviewTheme(null);
       setIsEditing(false);
       return;
     }
 
     setSaveMessage("");
+    setResolvedPreviewTheme(extractResolvedPassTheme(form));
     setIsEditing(true);
   }
 
@@ -2797,7 +2870,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                       stampFilledColor={detailPreviewSource.passStampFilledColor}
                       stampEmptyColor={detailPreviewSource.passStampEmptyColor}
                       logoTileEnabled={pickFirst(detailPreviewSource.logoTileEnabled, detailPreviewSource.passLogoTileEnabled)}
-                      logoTileColor={detailPreviewSource.passLogoTileColor}
+                      logoTileColor={pickFirst(detailPreviewSource.logoTileColor, detailPreviewSource.passLogoTileColor)}
                       logoFit={pickFirst(detailPreviewSource.logoFit, detailPreviewSource.passLogoFit)}
                       finalBackgroundColor={detailPreviewSource.finalBackgroundColor}
                       finalForegroundColor={detailPreviewSource.finalForegroundColor}
@@ -2805,6 +2878,8 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                       finalStampFilledColor={detailPreviewSource.stampFilledColor}
                       finalStampEmptyColor={detailPreviewSource.stampEmptyColor}
                       themeWarnings={themeWarnings}
+                      previewStatusMessage={previewStatusMessage}
+                      resolvedOnly={isEditing}
                     />
                   </div>
                 </div>
