@@ -3,6 +3,8 @@ import { SUPPORT_LINE } from "./contactEmails.js";
 import {
   buildPassThemeResolverPayload,
   extractResolvedPassTheme,
+  getWalletThemeDisplayForm,
+  isPassThemeResolverField,
   PASS_THEME_RESOLVER_DEBOUNCE_MS,
   requestPassThemeResolution,
 } from "./passThemeResolver.js";
@@ -2423,6 +2425,11 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         passLogoFit: resolvedPreviewTheme?.logoFit,
       }
     : form;
+  const walletDesignDisplayForm = getWalletThemeDisplayForm(
+    form,
+    resolvedPreviewTheme,
+    previewResolutionStatus,
+  );
   const previewStatusMessage = isEditing && previewResolutionStatus === "updating"
     ? "Preview is updating"
     : isEditing && previewResolutionStatus === "unavailable"
@@ -2457,6 +2464,12 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   ];
 
   function updateForm(name, value) {
+    if (isPassThemeResolverField(name)) {
+      previewResolutionRequestRef.current += 1;
+      setResolvedPreviewTheme(null);
+      setPreviewResolutionStatus("updating");
+    }
+
     setForm((current) => {
       const next = { ...current, [name]: value };
       if (name === "foregroundColor") next.textColor = value;
@@ -2800,7 +2813,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                       </Field>
                     </div>
                     <div className="mt-5">
-                      <WalletDesignFields form={form} isEditing={isEditing} onChange={updateForm} />
+                      <WalletDesignFields form={walletDesignDisplayForm} isEditing={isEditing} onChange={updateForm} />
                     </div>
                     <div className="mt-6 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
                       <p className="text-sm font-semibold text-[var(--ps-espresso)]">Logo</p>
