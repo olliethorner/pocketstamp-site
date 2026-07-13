@@ -35,6 +35,12 @@ export function isLatestPassThemeResolution(latestRequestId, requestId) {
   return latestRequestId === requestId;
 }
 
+export function transitionPassThemePreview(currentTheme, event = {}) {
+  if (event.type === "reset") return null;
+  if (event.type === "resolved" && event.theme) return event.theme;
+  return currentTheme;
+}
+
 export async function requestPassThemeResolution(adminRequest, accessToken, form = {}) {
   const payload = await adminRequest("/api/admin/resolve-pass-theme", {
     method: "POST",

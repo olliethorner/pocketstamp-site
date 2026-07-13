@@ -5,6 +5,7 @@ import {
   extractResolvedPassTheme,
   isLatestPassThemeResolution,
   requestPassThemeResolution,
+  transitionPassThemePreview,
 } from "./passThemeResolver.js";
 import {
   applyWalletColorSuggestions,
@@ -208,6 +209,26 @@ test("an incomplete response is not presented as authoritative", () => {
 test("stale resolver responses remain rejected", () => {
   assert.equal(isLatestPassThemeResolution(4, 3), false);
   assert.equal(isLatestPassThemeResolution(4, 4), true);
+});
+
+test("pending resolution retains the last successful preview", () => {
+  const previous = { finalBackgroundColor: "#112233" };
+  assert.strictEqual(transitionPassThemePreview(previous, { type: "pending" }), previous);
+});
+
+test("the neutral fallback remains available before the first successful resolution", () => {
+  assert.equal(transitionPassThemePreview(null, { type: "pending" }), null);
+});
+
+test("a newer successful resolution replaces the previous preview", () => {
+  const previous = { finalBackgroundColor: "#112233" };
+  const next = { finalBackgroundColor: "#445566" };
+  assert.strictEqual(transitionPassThemePreview(previous, { type: "resolved", theme: next }), next);
+});
+
+test("a failed resolution retains the last successful preview", () => {
+  const previous = { finalBackgroundColor: "#112233" };
+  assert.strictEqual(transitionPassThemePreview(previous, { type: "failed" }), previous);
 });
 
 test("non-theme fields do not change the resolver payload", () => {

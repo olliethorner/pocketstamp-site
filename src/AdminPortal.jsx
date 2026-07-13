@@ -7,6 +7,7 @@ import {
   isPassThemeResolverField,
   PASS_THEME_RESOLVER_DEBOUNCE_MS,
   requestPassThemeResolution,
+  transitionPassThemePreview,
 } from "./passThemeResolver.js";
 import {
   applyWalletColorSuggestions,
@@ -2239,10 +2240,14 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         if (!isLatestPassThemeResolution(previewResolutionRequestRef.current, requestId)) return;
 
         if (!nextResolvedTheme) throw new Error("Theme resolver returned no usable result.");
-        setResolvedPreviewTheme(nextResolvedTheme);
+        setResolvedPreviewTheme((current) => transitionPassThemePreview(current, {
+          type: "resolved",
+          theme: nextResolvedTheme,
+        }));
         setPreviewResolutionStatus("resolved");
       } catch {
         if (!isLatestPassThemeResolution(previewResolutionRequestRef.current, requestId)) return;
+        setResolvedPreviewTheme((current) => transitionPassThemePreview(current, { type: "failed" }));
         setPreviewResolutionStatus("unavailable");
       }
     }, PASS_THEME_RESOLVER_DEBOUNCE_MS);
@@ -2333,7 +2338,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   function updateForm(name, value) {
     if (isPassThemeResolverField(name)) {
       previewResolutionRequestRef.current += 1;
-      setResolvedPreviewTheme(null);
+      setResolvedPreviewTheme((current) => transitionPassThemePreview(current, { type: "pending" }));
       setPreviewResolutionStatus("updating");
     }
 
@@ -2530,13 +2535,16 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   function toggleDetailEditing() {
     if (isEditing) {
       setForm(buildMerchantEditForm(merchant));
-      setResolvedPreviewTheme(null);
+      setResolvedPreviewTheme((current) => transitionPassThemePreview(current, { type: "reset" }));
       setIsEditing(false);
       return;
     }
 
     setSaveMessage("");
-    setResolvedPreviewTheme(extractResolvedPassTheme(form));
+    setResolvedPreviewTheme((current) => transitionPassThemePreview(current, {
+      type: "resolved",
+      theme: extractResolvedPassTheme(form),
+    }));
     setIsEditing(true);
   }
 
