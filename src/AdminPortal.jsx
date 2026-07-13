@@ -3,11 +3,17 @@ import { SUPPORT_LINE } from "./contactEmails.js";
 import {
   buildPassThemeResolverPayload,
   extractResolvedPassTheme,
-  getWalletThemeDisplayForm,
+  isLatestPassThemeResolution,
   isPassThemeResolverField,
   PASS_THEME_RESOLVER_DEBOUNCE_MS,
   requestPassThemeResolution,
 } from "./passThemeResolver.js";
+import {
+  applyWalletColorSuggestions,
+  applyWalletThemePreset,
+  buildMerchantEditPatchPayload,
+  getWalletDraftColorValue,
+} from "./walletThemeDraft.js";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
@@ -413,132 +419,6 @@ function isCssRgbColor(value) {
     .slice(0, 3)
     .map((channel) => Number(channel.trim()));
   return channels.every((channel) => Number.isFinite(channel) && channel >= 0 && channel <= 255);
-}
-
-function clamp(value, min = 0, max = 255) {
-  return Math.min(Math.max(Number(value) || 0, min), max);
-}
-
-function hexToRgb(value) {
-  if (!isValidHexColor(value)) return null;
-  const hex = String(value).slice(1);
-  return {
-    r: parseInt(hex.slice(0, 2), 16),
-    g: parseInt(hex.slice(2, 4), 16),
-    b: parseInt(hex.slice(4, 6), 16),
-  };
-}
-
-function rgbToHex({ r, g, b }) {
-  return `#${[r, g, b]
-    .map((channel) => Math.round(clamp(channel)).toString(16).padStart(2, "0"))
-    .join("")}`;
-}
-
-function mixHex(hex, targetHex, amount) {
-  const base = hexToRgb(hex);
-  const target = hexToRgb(targetHex);
-  if (!base || !target) return hex;
-  return rgbToHex({
-    r: base.r + (target.r - base.r) * amount,
-    g: base.g + (target.g - base.g) * amount,
-    b: base.b + (target.b - base.b) * amount,
-  });
-}
-
-function darkenHex(hex, amount = 0.2) {
-  return mixHex(hex, "#000000", amount);
-}
-
-function lightenHex(hex, amount = 0.2) {
-  return mixHex(hex, "#ffffff", amount);
-}
-
-function desaturateHex(hex, amount = 0.25) {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return hex;
-  const gray = rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114;
-  return rgbToHex({
-    r: rgb.r + (gray - rgb.r) * amount,
-    g: rgb.g + (gray - rgb.g) * amount,
-    b: rgb.b + (gray - rgb.b) * amount,
-  });
-}
-
-function getRelativeLuminance(hex) {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return 0;
-  const channels = [rgb.r, rgb.g, rgb.b].map((channel) => {
-    const value = channel / 255;
-    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  });
-  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-}
-
-function chooseReadableTextColor(backgroundHex) {
-  return getRelativeLuminance(backgroundHex) > 0.48 ? "#26211d" : "#ffffff";
-}
-
-function getThemeAccent(form = {}) {
-  return [form.passAccentColor, form.brandColor, "#143d3b"].find(isValidHexColor) || "#143d3b";
-}
-
-function getThemePreset(themeMode, currentForm = {}) {
-  const accentColor = getThemeAccent(currentForm);
-
-  if (themeMode === "custom") {
-    return { passThemeMode: "custom" };
-  }
-
-  if (themeMode === "light_clean") {
-    return {
-      passThemeMode: themeMode,
-      backgroundColor: "#fff8ea",
-      foregroundColor: "#26211d",
-      textColor: "#26211d",
-      labelColor: "#6f675d",
-      passAccentColor: accentColor,
-      passStampFilledColor: accentColor,
-      passStampEmptyColor: "#ffffff",
-      passLogoTileEnabled: true,
-      passLogoTileColor: "#ffffff",
-      passLogoFit: "contain",
-    };
-  }
-
-  if (themeMode === "brand_bold") {
-    const backgroundColor = accentColor;
-    const foregroundColor = chooseReadableTextColor(backgroundColor);
-    const darkBackground = foregroundColor === "#ffffff";
-    return {
-      passThemeMode: themeMode,
-      backgroundColor,
-      foregroundColor,
-      textColor: foregroundColor,
-      labelColor: darkBackground ? "#f5f2ea" : "#6f675d",
-      passAccentColor: accentColor,
-      passStampFilledColor: darkBackground ? lightenHex(accentColor, 0.55) : darkenHex(accentColor, 0.2),
-      passStampEmptyColor: darkBackground ? "#ffffff" : "#f5f2ea",
-      passLogoTileEnabled: true,
-      passLogoTileColor: "#ffffff",
-      passLogoFit: "contain",
-    };
-  }
-
-  const backgroundColor = darkenHex(desaturateHex(accentColor, 0.3), 0.55);
-  return {
-    passThemeMode: "premium_dark",
-    backgroundColor,
-    foregroundColor: "#ffffff",
-    textColor: "#ffffff",
-    labelColor: "#f5f2ea",
-    passAccentColor: accentColor,
-    passStampFilledColor: accentColor,
-    passStampEmptyColor: "#f5f2ea",
-    passLogoTileEnabled: true,
-    passLogoTileColor: "#ffffff",
-    passLogoFit: "contain",
-  };
 }
 
 function normalizePreviewColor(value, fallback) {
@@ -1381,7 +1261,7 @@ function WalletDesignFields({ form, isEditing = true, onChange }) {
         {walletColorFields.map(([name, label]) => (
           <Field key={name} label={label}>
             {isEditing ? (
-              <ColorInput value={form[name] || ""} onChange={(value) => onChange(name, value)} />
+              <ColorInput value={getWalletDraftColorValue(form, name) || ""} onChange={(value) => onChange(name, value)} />
             ) : (
               <div className="flex items-center gap-3 rounded-xl bg-[#fbfaf7] p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
                 {form[name] && (isValidHexColor(form[name]) || isCssRgbColor(form[name])) ? (
@@ -1687,15 +1567,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
   function applyColorSuggestions() {
     const suggestions = form.colorSuggestions;
     if (!suggestions) return;
-    setForm((current) => ({
-      ...current,
-      brandColor: suggestions.brandColor || current.brandColor,
-      passAccentColor: suggestions.brandColor || current.passAccentColor,
-      backgroundColor: suggestions.backgroundColor || current.backgroundColor,
-      textColor: suggestions.textColor || current.textColor,
-      foregroundColor: suggestions.textColor || current.foregroundColor,
-      labelColor: suggestions.labelColor || current.labelColor,
-    }));
+    setForm((current) => applyWalletColorSuggestions(current, suggestions));
   }
 
   function updateField(name, value) {
@@ -1703,7 +1575,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
       let next = { ...current, [name]: value };
 
       if (name === "passThemeMode") {
-        next = { ...next, ...getThemePreset(value, next) };
+        next = applyWalletThemePreset(current, value);
       }
 
       if (name === "cafeName" && !slugEdited) {
@@ -2364,13 +2236,13 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
           accessToken,
           JSON.parse(resolverPayloadKey),
         );
-        if (previewResolutionRequestRef.current !== requestId) return;
+        if (!isLatestPassThemeResolution(previewResolutionRequestRef.current, requestId)) return;
 
         if (!nextResolvedTheme) throw new Error("Theme resolver returned no usable result.");
         setResolvedPreviewTheme(nextResolvedTheme);
         setPreviewResolutionStatus("resolved");
       } catch {
-        if (previewResolutionRequestRef.current !== requestId) return;
+        if (!isLatestPassThemeResolution(previewResolutionRequestRef.current, requestId)) return;
         setPreviewResolutionStatus("unavailable");
       }
     }, PASS_THEME_RESOLVER_DEBOUNCE_MS);
@@ -2425,11 +2297,6 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         passLogoFit: resolvedPreviewTheme?.logoFit,
       }
     : form;
-  const walletDesignDisplayForm = getWalletThemeDisplayForm(
-    form,
-    resolvedPreviewTheme,
-    previewResolutionStatus,
-  );
   const previewStatusMessage = isEditing && previewResolutionStatus === "updating"
     ? "Preview is updating"
     : isEditing && previewResolutionStatus === "unavailable"
@@ -2471,7 +2338,10 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     }
 
     setForm((current) => {
-      const next = { ...current, [name]: value };
+      let next = { ...current, [name]: value };
+      if (name === "passThemeMode") {
+        next = applyWalletThemePreset(current, value);
+      }
       if (name === "foregroundColor") next.textColor = value;
       if (name === "textColor") next.foregroundColor = value;
       return next;
@@ -2506,15 +2376,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   function applyDetailColorSuggestions() {
     const suggestions = form.colorSuggestions;
     if (!suggestions) return;
-    setForm((current) => ({
-      ...current,
-      brandColor: suggestions.brandColor || current.brandColor,
-      passAccentColor: suggestions.brandColor || current.passAccentColor,
-      backgroundColor: suggestions.backgroundColor || current.backgroundColor,
-      textColor: suggestions.textColor || current.textColor,
-      foregroundColor: suggestions.textColor || current.foregroundColor,
-      labelColor: suggestions.labelColor || current.labelColor,
-    }));
+    setForm((current) => applyWalletColorSuggestions(current, suggestions));
   }
 
   async function handleSave() {
@@ -2525,10 +2387,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
     try {
       const payload = await adminFetch(`/api/admin/merchants/${merchantId}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          ...form,
-          rewardThreshold: form.rewardThreshold ? Number(form.rewardThreshold) : undefined,
-        }),
+        body: JSON.stringify(buildMerchantEditPatchPayload(form)),
       }, accessToken);
       const nextMerchant = extractMerchant(payload);
       setDetailPayload(payload || detailPayload);
@@ -2546,7 +2405,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
           stampFilledColor: resolvedPreviewTheme?.stampFilledColor || current.stampFilledColor,
           stampEmptyColor: resolvedPreviewTheme?.stampEmptyColor || current.stampEmptyColor,
           logoTileEnabled: resolvedPreviewTheme?.logoTileEnabled ?? current.passLogoTileEnabled,
-          passLogoTileColor: resolvedPreviewTheme?.logoTileColor || current.passLogoTileColor,
+          logoTileColor: resolvedPreviewTheme?.logoTileColor || current.logoTileColor,
           logoFit: resolvedPreviewTheme?.logoFit || current.passLogoFit,
           logoUpload: null,
           logoPreviewUrl: "",
@@ -2813,7 +2672,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                       </Field>
                     </div>
                     <div className="mt-5">
-                      <WalletDesignFields form={walletDesignDisplayForm} isEditing={isEditing} onChange={updateForm} />
+                      <WalletDesignFields form={form} isEditing={isEditing} onChange={updateForm} />
                     </div>
                     <div className="mt-6 rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
                       <p className="text-sm font-semibold text-[var(--ps-espresso)]">Logo</p>

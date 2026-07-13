@@ -31,19 +31,8 @@ export function isPassThemeResolverField(field) {
   return supportedThemeFieldSet.has(field);
 }
 
-export function getWalletThemeDisplayForm(form = {}, resolvedTheme = null, resolutionStatus = "idle") {
-  if (!resolvedTheme || resolutionStatus !== "resolved") return form;
-
-  return {
-    ...form,
-    passAccentColor: firstDefined(resolvedTheme.accentColor, form.passAccentColor),
-    backgroundColor: firstDefined(resolvedTheme.finalBackgroundColor, form.backgroundColor),
-    foregroundColor: firstDefined(resolvedTheme.finalForegroundColor, form.foregroundColor, form.textColor),
-    textColor: firstDefined(resolvedTheme.finalForegroundColor, form.textColor, form.foregroundColor),
-    labelColor: firstDefined(resolvedTheme.finalLabelColor, form.labelColor),
-    passStampFilledColor: firstDefined(resolvedTheme.stampFilledColor, form.passStampFilledColor),
-    passStampEmptyColor: firstDefined(resolvedTheme.stampEmptyColor, form.passStampEmptyColor),
-  };
+export function isLatestPassThemeResolution(latestRequestId, requestId) {
+  return latestRequestId === requestId;
 }
 
 export async function requestPassThemeResolution(adminRequest, accessToken, form = {}) {
@@ -62,7 +51,6 @@ export function extractResolvedPassTheme(payload = {}) {
   const finalLabelColor = firstDefined(theme?.finalLabelColor, theme?.labelColor);
   const stampFilledColor = firstDefined(theme?.finalStampFilledColor, theme?.stampFilledColor, theme?.passStampFilledColor);
   const stampEmptyColor = firstDefined(theme?.finalStampEmptyColor, theme?.stampEmptyColor, theme?.passStampEmptyColor);
-  const accentColor = firstDefined(theme?.finalAccentColor, theme?.accentColor, theme?.passAccentColor);
 
   if (!finalBackgroundColor || !finalForegroundColor || !finalLabelColor || !stampFilledColor || !stampEmptyColor) {
     return null;
@@ -87,6 +75,5 @@ export function extractResolvedPassTheme(payload = {}) {
     logoTileColor: firstDefined(theme?.logoTileColor, theme?.passLogoTileColor, "#ffffff"),
     logoFit: firstDefined(theme?.logoFit, theme?.passLogoFit, "contain"),
     themeWarnings: Array.isArray(warnings) ? warnings.filter(Boolean) : warnings ? [String(warnings)] : [],
-    ...(accentColor ? { accentColor } : {}),
   };
 }

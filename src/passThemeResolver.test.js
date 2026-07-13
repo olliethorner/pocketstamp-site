@@ -3,9 +3,15 @@ import test from "node:test";
 import {
   buildPassThemeResolverPayload,
   extractResolvedPassTheme,
-  getWalletThemeDisplayForm,
+  isLatestPassThemeResolution,
   requestPassThemeResolution,
 } from "./passThemeResolver.js";
+import {
+  applyWalletColorSuggestions,
+  applyWalletThemePreset,
+  buildMerchantEditPatchPayload,
+  getWalletDraftColorValue,
+} from "./walletThemeDraft.js";
 
 const originalForm = {
   passThemeMode: "custom",
@@ -16,74 +22,123 @@ const originalForm = {
   labelColor: "#444444",
   passStampFilledColor: "#555555",
   passStampEmptyColor: "#666666",
+  passLogoTileColor: "#777777",
 };
 
-const resolvedPresets = {
-  brand_bold: {
-    accentColor: "#a02030",
-    finalBackgroundColor: "#a02030",
-    finalForegroundColor: "#ffffff",
-    finalLabelColor: "#f5f2ea",
-    stampFilledColor: "#d68f99",
-    stampEmptyColor: "#ffffff",
-  },
-  light_clean: {
-    accentColor: "#a02030",
-    finalBackgroundColor: "#fff8ea",
-    finalForegroundColor: "#26211d",
-    finalLabelColor: "#6f675d",
-    stampFilledColor: "#a02030",
-    stampEmptyColor: "#ffffff",
-  },
-  premium_dark: {
-    accentColor: "#a02030",
-    finalBackgroundColor: "#391d22",
-    finalForegroundColor: "#ffffff",
-    finalLabelColor: "#f5f2ea",
-    stampFilledColor: "#a02030",
-    stampEmptyColor: "#f5f2ea",
-  },
-};
+test("all seven controls read their distinct raw draft fields without resolved fallbacks", () => {
+  const fields = [
+    "passAccentColor",
+    "backgroundColor",
+    "foregroundColor",
+    "labelColor",
+    "passStampFilledColor",
+    "passStampEmptyColor",
+    "passLogoTileColor",
+  ];
 
-for (const [mode, resolvedTheme] of Object.entries(resolvedPresets)) {
-  test(`${mode} displays all six authoritative colour values without changing the draft`, () => {
-    const draft = { ...originalForm, passThemeMode: mode };
-    const display = getWalletThemeDisplayForm(draft, resolvedTheme, "resolved");
+  assert.deepEqual(fields.map((field) => getWalletDraftColorValue(originalForm, field)), [
+    "#111111",
+    "#222222",
+    "#333333",
+    "#444444",
+    "#555555",
+    "#666666",
+    "#777777",
+  ]);
+  assert.equal(getWalletDraftColorValue(originalForm, "backgroundColor"), "#222222");
+  assert.notEqual(getWalletDraftColorValue(originalForm, "backgroundColor"), "rgb(17, 14, 11)");
+});
 
-    assert.deepEqual({
-      passAccentColor: display.passAccentColor,
-      backgroundColor: display.backgroundColor,
-      foregroundColor: display.foregroundColor,
-      labelColor: display.labelColor,
-      passStampFilledColor: display.passStampFilledColor,
-      passStampEmptyColor: display.passStampEmptyColor,
-    }, {
-      passAccentColor: resolvedTheme.accentColor,
-      backgroundColor: resolvedTheme.finalBackgroundColor,
-      foregroundColor: resolvedTheme.finalForegroundColor,
-      labelColor: resolvedTheme.finalLabelColor,
-      passStampFilledColor: resolvedTheme.stampFilledColor,
-      passStampEmptyColor: resolvedTheme.stampEmptyColor,
-    });
-    assert.deepEqual(draft, { ...originalForm, passThemeMode: mode });
+test("logo suggestions do not change the draft before Apply", () => {
+  const draft = { ...originalForm, colorSuggestions: { brandColor: "#a02030" } };
+  assert.deepEqual(draft, { ...originalForm, colorSuggestions: { brandColor: "#a02030" } });
+});
+
+test("logo suggestion Apply populates the complete raw Wallet palette", () => {
+  const suggestions = {
+    brandColor: "#a02030",
+    backgroundColor: "#faf0e6",
+    textColor: "#101820",
+    labelColor: "#405060",
+    passStampFilledColor: "#b03040",
+    passStampEmptyColor: "#e0e0e0",
+    passLogoTileColor: "#fefefe",
+  };
+  const applied = applyWalletColorSuggestions({ ...originalForm, passThemeMode: "light_clean" }, suggestions);
+
+  assert.deepEqual({
+    passAccentColor: applied.passAccentColor,
+    backgroundColor: applied.backgroundColor,
+    foregroundColor: applied.foregroundColor,
+    textColor: applied.textColor,
+    labelColor: applied.labelColor,
+    passStampFilledColor: applied.passStampFilledColor,
+    passStampEmptyColor: applied.passStampEmptyColor,
+    passLogoTileColor: applied.passLogoTileColor,
+  }, {
+    passAccentColor: "#a02030",
+    backgroundColor: "#faf0e6",
+    foregroundColor: "#101820",
+    textColor: "#101820",
+    labelColor: "#405060",
+    passStampFilledColor: "#b03040",
+    passStampEmptyColor: "#e0e0e0",
+    passLogoTileColor: "#fefefe",
+  });
+});
+
+for (const mode of ["brand_bold", "light_clean", "premium_dark"]) {
+  test(`${mode} populates raw suggested fields sent to the resolver`, () => {
+    const draft = applyWalletThemePreset({ ...originalForm, passAccentColor: "#a02030" }, mode);
+    const payload = buildPassThemeResolverPayload(draft);
+
+    assert.equal(draft.passThemeMode, mode);
+    assert.equal(draft.passAccentColor, "#a02030");
+    assert.equal(payload.backgroundColor, draft.backgroundColor);
+    assert.equal(payload.foregroundColor, draft.foregroundColor);
+    assert.equal(payload.labelColor, draft.labelColor);
+    assert.equal(payload.passStampFilledColor, draft.passStampFilledColor);
+    assert.equal(payload.passStampEmptyColor, draft.passStampEmptyColor);
+    assert.equal(payload.passLogoTileColor, draft.passLogoTileColor);
   });
 }
 
-test("a pending manual colour edit is displayed and retained in the save draft", () => {
-  const draft = { ...originalForm, passThemeMode: "brand_bold", backgroundColor: "#abcdef" };
-  const display = getWalletThemeDisplayForm(draft, resolvedPresets.brand_bold, "updating");
-
-  assert.strictEqual(display, draft);
-  assert.equal(display.backgroundColor, "#abcdef");
+test("manual edits remain the visible and saved raw value while resolution is pending", () => {
+  const draft = { ...originalForm, backgroundColor: "#abcdef", passLogoTileColor: "#fedcba" };
+  assert.equal(getWalletDraftColorValue(draft, "backgroundColor"), "#abcdef");
+  assert.equal(getWalletDraftColorValue(draft, "passLogoTileColor"), "#fedcba");
 });
 
-test("display projection leaves save and cancel state unchanged", () => {
-  const saved = { ...originalForm };
-  const draft = { ...saved, passThemeMode: "premium_dark" };
-  const display = getWalletThemeDisplayForm(draft, resolvedPresets.premium_dark, "resolved");
+test("Save payload contains exactly the raw values displayed by the controls", () => {
+  const draft = {
+    ...originalForm,
+    rewardThreshold: "9",
+    backgroundColor: "#abcdef",
+    passLogoTileColor: "#fedcba",
+  };
+  const payload = buildMerchantEditPatchPayload(draft);
 
-  assert.notStrictEqual(display, draft);
-  assert.deepEqual(draft, { ...saved, passThemeMode: "premium_dark" });
+  assert.equal(payload.backgroundColor, getWalletDraftColorValue(draft, "backgroundColor"));
+  assert.equal(payload.passLogoTileColor, getWalletDraftColorValue(draft, "passLogoTileColor"));
+  assert.equal(payload.rewardThreshold, 9);
+  assert.deepEqual(payload, { ...draft, rewardThreshold: 9 });
+});
+
+test("resolver output does not mutate input, save, or cancel draft values", () => {
+  const saved = { ...originalForm };
+  const draft = { ...saved, passThemeMode: "brand_bold", backgroundColor: "#abcdef" };
+  const beforeResolution = { ...draft };
+  const resolved = extractResolvedPassTheme({
+    backgroundColor: "rgb(17, 14, 11)",
+    foregroundColor: "rgb(17, 14, 11)",
+    labelColor: "rgb(17, 14, 11)",
+    stampFilledColor: "rgb(17, 14, 11)",
+    stampEmptyColor: "rgb(17, 14, 11)",
+  });
+
+  assert.equal(resolved.finalForegroundColor, "rgb(17, 14, 11)");
+  assert.deepEqual(draft, beforeResolution);
+  assert.equal(getWalletDraftColorValue(draft, "backgroundColor"), "#abcdef");
   assert.deepEqual(saved, originalForm);
 });
 
@@ -126,7 +181,6 @@ test("resolver response normalizes authoritative colours, logo settings, and war
       labelColor: "#d9e2e8",
       stampFilledColor: "#ffcc00",
       stampEmptyColor: "#40505c",
-      passAccentColor: "#ffcc00",
       logoTileEnabled: false,
       logoTileColor: "#abcdef",
       logoFit: "cover",
@@ -144,12 +198,16 @@ test("resolver response normalizes authoritative colours, logo settings, and war
     logoTileColor: "#abcdef",
     logoFit: "cover",
     themeWarnings: ["Stamp colour was adjusted."],
-    accentColor: "#ffcc00",
   });
 });
 
 test("an incomplete response is not presented as authoritative", () => {
   assert.equal(extractResolvedPassTheme({ result: { backgroundColor: "#101820" } }), null);
+});
+
+test("stale resolver responses remain rejected", () => {
+  assert.equal(isLatestPassThemeResolution(4, 3), false);
+  assert.equal(isLatestPassThemeResolution(4, 4), true);
 });
 
 test("non-theme fields do not change the resolver payload", () => {
@@ -173,15 +231,19 @@ test("resolution uses the authenticated admin request mechanism", async () => {
     };
   };
 
-  const resolved = await requestPassThemeResolution(adminRequest, "admin-access-token", {
-    passThemeMode: "brand_bold",
+  const draft = applyWalletThemePreset({
+    ...originalForm,
+    passAccentColor: "#a02030",
     cafeName: "Must not be sent",
-  });
+  }, "brand_bold");
+  const resolved = await requestPassThemeResolution(adminRequest, "admin-access-token", draft);
 
   assert.equal(resolved.finalBackgroundColor, "#101820");
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], "/api/admin/resolve-pass-theme");
   assert.equal(calls[0][1].method, "POST");
   assert.equal(calls[0][2], "admin-access-token");
-  assert.deepEqual(JSON.parse(calls[0][1].body), buildPassThemeResolverPayload({ passThemeMode: "brand_bold" }));
+  assert.deepEqual(JSON.parse(calls[0][1].body), buildPassThemeResolverPayload(draft));
+  assert.equal(JSON.parse(calls[0][1].body).backgroundColor, draft.backgroundColor);
+  assert.equal(JSON.parse(calls[0][1].body).passLogoTileColor, draft.passLogoTileColor);
 });
