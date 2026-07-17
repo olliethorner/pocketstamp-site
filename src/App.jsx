@@ -3,6 +3,13 @@ import { motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import AdminPortal from "./AdminPortal.jsx";
 import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
+import {
+  canManageCampaigns,
+  formatCampaignDateTime,
+  isFutureLocalDateTime,
+  normalizeCampaignRows,
+  toScheduledAtIso,
+} from "./merchantCampaigns.js";
 import "./App.css";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
@@ -284,6 +291,27 @@ function fetchMerchantDashboardSummary(accessToken) {
   });
 }
 
+function fetchMerchantCampaigns(accessToken) {
+  return requestJson("/api/merchant/campaigns", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+function createMerchantCampaign(accessToken, { message, scheduledAt }) {
+  return requestJson("/api/merchant/campaigns", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ message, scheduledAt }),
+  });
+}
+
+function cancelMerchantCampaign(accessToken, campaignId) {
+  return requestJson(`/api/merchant/campaigns/${encodeURIComponent(campaignId)}/cancel`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
 async function fetchScannerDevice(deviceToken) {
   const requestUrl = `${API_BASE_URL}/api/merchant/scanner/device?deviceToken=${encodeURIComponent(deviceToken)}`;
   const response = await fetch(requestUrl, {
@@ -543,13 +571,19 @@ function normalizeMerchantContext(payload) {
     merchantId: pickFirst(source.merchantId, source.id, source._id, payload?.merchantId),
     merchantName,
     merchantSlug: pickFirst(source.merchantSlug, source.slug, payload?.merchantSlug),
-    locationName: pickFirst(
-      source.locationName,
-      location.name,
-      location.displayName,
-      payload?.locationName,
-      "Primary location",
-    ),
+    locationId:
+      source.locationId !== undefined
+        ? source.locationId
+        : location.id ?? payload?.locationId,
+    locationName:
+      source.locationName !== undefined
+        ? source.locationName
+        : pickFirst(
+            location.name,
+            location.displayName,
+            payload?.locationName,
+            "Primary location",
+          ),
     role: pickFirst(source.role, user.role, payload?.role, "Merchant"),
     email: pickFirst(user.email, source.email, payload?.email),
     totalCustomers: pickFirst(source.totalCustomers, source.customerCount),
@@ -2707,6 +2741,164 @@ function ReminderStatCard({ label, value }) {
   );
 }
 
+function MerchantCampaignSection({
+  accessToken,
+  merchantContext,
+  campaigns,
+  isLoading,
+  error,
+  onRefresh,
+}) {
+  const [message, setMessage] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [formError, setFormError] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [cancellingId, setCancellingId] = useState("");
+  const canManage = canManageCampaigns(merchantContext);
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "device time";
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage || trimmedMessage.length > 90) {
+      setFormError("Enter a message of up to 90 characters.");
+      return;
+    }
+    if (!isFutureLocalDateTime(scheduledAt)) {
+      setFormError("Choose a time in the future.");
+      return;
+    }
+
+    setFormError("");
+    setIsCreating(true);
+    try {
+      await createMerchantCampaign(accessToken, {
+        message: trimmedMessage,
+        scheduledAt: toScheduledAtIso(scheduledAt),
+      });
+      setMessage("");
+      setScheduledAt("");
+      await onRefresh();
+    } catch (campaignError) {
+      setFormError(campaignError.message || "Unable to schedule this update.");
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  async function handleCancel(campaignId) {
+    if (!window.confirm("Cancel this scheduled update?")) return;
+    setFormError("");
+    setCancellingId(campaignId);
+    try {
+      await cancelMerchantCampaign(accessToken, campaignId);
+      await onRefresh();
+    } catch (campaignError) {
+      setFormError(campaignError.message || "Unable to cancel this update.");
+    } finally {
+      setCancellingId("");
+    }
+  }
+
+  return (
+    <section className="ps-dashboard-card rounded-2xl p-6">
+      <div>
+        <h2 className="text-2xl font-semibold text-[var(--ps-espresso)]">Send an Update</h2>
+        <p className="mt-1 text-[var(--ps-muted)]">
+          Schedule a one-time Apple Wallet update for your loyalty customers.
+        </p>
+      </div>
+
+      {canManage ? (
+        <form className="mt-6 grid gap-4 lg:grid-cols-[1fr_18rem_auto] lg:items-end" onSubmit={handleSubmit}>
+          <label className="block text-sm font-semibold text-[var(--ps-espresso)]">
+            Message
+            <textarea
+              className="ps-input mt-2 min-h-24 w-full resize-y"
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              maxLength={90}
+              required
+              placeholder="Share a short update"
+            />
+            <span className="mt-1 block text-right text-xs font-normal text-[var(--ps-muted)]">
+              {message.length}/90
+            </span>
+          </label>
+          <label className="block text-sm font-semibold text-[var(--ps-espresso)]">
+            Schedule time
+            <input
+              className="ps-input mt-2 w-full"
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(event) => setScheduledAt(event.target.value)}
+              required
+            />
+            <span className="mt-1 block text-xs font-normal text-[var(--ps-muted)]">
+              Uses this device’s timezone ({timeZone}).
+            </span>
+          </label>
+          <button className="ps-button-primary" type="submit" disabled={isCreating}>
+            {isCreating ? "Scheduling..." : "Schedule Update"}
+          </button>
+        </form>
+      ) : null}
+
+      {formError ? (
+        <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800 ring-1 ring-red-100">
+          {formError}
+        </p>
+      ) : null}
+
+      <div className="mt-7 border-t border-[var(--ps-border)] pt-6">
+        <h3 className="text-lg font-semibold text-[var(--ps-espresso)]">Campaign history</h3>
+        {isLoading && campaigns.length === 0 ? (
+          <p className="mt-4 text-sm text-[var(--ps-muted)]">Loading campaign history...</p>
+        ) : null}
+        {error ? (
+          <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800 ring-1 ring-amber-100">
+            Campaign history is unavailable right now.
+          </p>
+        ) : null}
+        {!isLoading && campaigns.length === 0 && !error ? (
+          <p className="mt-4 text-sm text-[var(--ps-muted)]">No updates scheduled yet.</p>
+        ) : campaigns.length > 0 ? (
+          <div className="mt-4 divide-y divide-[var(--ps-border)] rounded-xl ring-1 ring-[var(--ps-border)]">
+            {campaigns.map((campaign) => (
+              <div key={campaign.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-semibold text-[var(--ps-espresso)]">{campaign.message}</p>
+                  <p className="mt-1 text-sm text-[var(--ps-muted)]">
+                    {formatCampaignDateTime(campaign.scheduledAt)}
+                  </p>
+                  {campaign.deliveredText ? (
+                    <p className="mt-1 text-sm text-[var(--ps-muted)]">{campaign.deliveredText}</p>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="rounded-full bg-[var(--ps-blue-soft)] px-3 py-1 text-xs font-semibold text-[var(--ps-blue)]">
+                    {campaign.statusLabel}
+                  </span>
+                  {canManage && campaign.status === "scheduled" ? (
+                    <button
+                      className="ps-button-secondary"
+                      type="button"
+                      disabled={cancellingId === campaign.id}
+                      onClick={() => handleCancel(campaign.id)}
+                    >
+                      {cancellingId === campaign.id ? "Cancelling..." : "Cancel"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabled = false }) {
   const reminderRows = [
     ["Halfway", "Active"],
@@ -2781,6 +2973,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const isMountedRef = useRef(false);
   const isDashboardRefreshInFlightRef = useRef(false);
   const isCustomerRefreshInFlightRef = useRef(false);
+  const isCampaignRefreshInFlightRef = useRef(false);
   const [activityRows, setActivityRows] = useState([]);
   const [activityError, setActivityError] = useState("");
   const [isActivityLoading, setIsActivityLoading] = useState(true);
@@ -2798,6 +2991,9 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const [expandedCustomerId, setExpandedCustomerId] = useState(null);
   const [copyState, setCopyState] = useState("idle");
   const [manualRefreshState, setManualRefreshState] = useState("idle");
+  const [campaignRows, setCampaignRows] = useState([]);
+  const [campaignError, setCampaignError] = useState("");
+  const [isCampaignsLoading, setIsCampaignsLoading] = useState(true);
 
   const merchantSlug = useMemo(
     () =>
@@ -2911,16 +3107,36 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     }
   }
 
+  async function refreshCampaigns({ showLoading = false } = {}) {
+    if (isCampaignRefreshInFlightRef.current) return;
+    isCampaignRefreshInFlightRef.current = true;
+    if (showLoading) setIsCampaignsLoading(true);
+    setCampaignError("");
+    try {
+      const payload = await fetchMerchantCampaigns(accessToken);
+      if (!isMountedRef.current) return;
+      setCampaignRows(normalizeCampaignRows(payload));
+    } catch (campaignFetchError) {
+      if (!isMountedRef.current) return;
+      setCampaignError(campaignFetchError.message || "Unable to load campaign history.");
+    } finally {
+      if (isMountedRef.current) setIsCampaignsLoading(false);
+      isCampaignRefreshInFlightRef.current = false;
+    }
+  }
+
   function refreshAllDashboardData({ showLoading = false } = {}) {
     return Promise.all([
       refreshDashboardData({ showLoading }),
       refreshCustomers({ showLoading }),
+      refreshCampaigns({ showLoading }),
     ]);
   }
 
   useEffect(() => {
     isMountedRef.current = true;
     refreshDashboardData({ showLoading: true });
+    refreshCampaigns({ showLoading: true });
     return () => {
       isMountedRef.current = false;
     };
@@ -3226,6 +3442,17 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
               </div>
             </div>
           </aside>
+        </div>
+
+        <div className="mt-8">
+          <MerchantCampaignSection
+            accessToken={accessToken}
+            merchantContext={merchantContext}
+            campaigns={campaignRows}
+            isLoading={isCampaignsLoading}
+            error={campaignError}
+            onRefresh={() => refreshCampaigns({ showLoading: false })}
+          />
         </div>
 
         <div className="mt-8">
