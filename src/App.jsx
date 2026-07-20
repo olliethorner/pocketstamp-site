@@ -1120,68 +1120,6 @@ function LoadingText({ label = "Loading..." }) {
   return <span>{label}</span>;
 }
 
-function WalletPassMockup({ hero = false }) {
-  return (
-    <div className={`mx-auto w-full ${hero ? "max-w-lg" : "max-w-sm"}`}>
-      <div className="rounded-[34px] bg-[#24201c] p-3 shadow-2xl shadow-stone-900/10">
-        <div className="rounded-[28px] bg-[#fffdf8] p-3">
-          <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
-            <div className="bg-[#26354f] p-6 text-white">
-              <div className="flex items-start justify-between gap-4">
-                <IconMark label="PS" className="h-12 w-12 bg-white text-[#26354f]" />
-                <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
-                  <span className="h-2 w-2 rounded-full bg-[#9ec5ff]" />
-                  Apple Wallet
-                </div>
-              </div>
-
-              <p className="mt-8 text-sm font-semibold uppercase text-white/65">
-                Harbour House Café
-              </p>
-              <p className="mt-3 text-xs font-semibold uppercase text-white/55">
-                Stamps
-              </p>
-              <p className="mt-1 text-5xl font-semibold">0/10</p>
-            </div>
-
-            <div className="p-6">
-              <div className="grid grid-cols-5 gap-2.5">
-                {Array.from({ length: 10 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="aspect-square rounded-full border border-slate-300 bg-slate-50"
-                  />
-                ))}
-              </div>
-
-              <div className="mt-6 grid grid-cols-[1fr_auto] items-end gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase text-stone-400">
-                    Reward
-                  </p>
-                  <p className="mt-1 font-semibold text-[#26211d]">
-                    10th coffee free
-                  </p>
-                </div>
-                <div className="grid grid-cols-4 gap-1 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
-                  {Array.from({ length: 16 }).map((_, index) => (
-                    <span
-                      key={index}
-                      className={`h-2 w-2 rounded-sm ${
-                        index % 3 === 0 ? "bg-slate-950" : "bg-slate-300"
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function HeroWalletPassShowcase() {
   const introDurationMs = 1450;
   const wheelCooldownMs = 620;
@@ -3751,19 +3689,16 @@ function MarketingHomepage() {
       </section>
 
       <section className="ps-glow-band py-20 lg:py-28">
-        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-8">
-          <div>
-            <p className="ps-eyebrow">Branded Wallet cards</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.5rem,5vw,5rem)] leading-[0.98]">
-              Your café, inside your customer’s Wallet.
-            </h2>
-            <p className="mt-7 max-w-xl text-lg leading-8 text-slate-700">
-              No loose paper. No app fatigue. Just a polished branded Wallet
-              pass customers can scan at the till and keep on their phone.
-            </p>
-            <SimpleBullets items={walletBullets} />
-          </div>
-          <WalletPassMockup />
+        <div className="mx-auto max-w-5xl px-5 sm:px-6 lg:px-8">
+          <p className="ps-eyebrow">Branded Wallet cards</p>
+          <h2 className="ps-display mt-4 max-w-4xl text-[clamp(2.5rem,5vw,5rem)] leading-[0.98]">
+            Your café, inside your customer’s Wallet.
+          </h2>
+          <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-700">
+            No loose paper. No app fatigue. Just a polished branded Wallet
+            pass customers can scan at the till and keep on their phone.
+          </p>
+          <SimpleBullets items={walletBullets} />
         </div>
       </section>
 
