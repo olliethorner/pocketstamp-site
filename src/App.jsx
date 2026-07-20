@@ -1453,12 +1453,42 @@ function DashboardMockup() {
 }
 
 function ScannerProductVisual() {
+  const visualRef = useRef(null);
+  const [hasEnteredViewport, setHasEnteredViewport] = useState(false);
+
+  useEffect(() => {
+    const visual = visualRef.current;
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    if (!visual || prefersReducedMotion.matches) return undefined;
+
+    if (!("IntersectionObserver" in window)) {
+      setHasEnteredViewport(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setHasEnteredViewport(true);
+        observer.disconnect();
+      },
+      {
+        threshold: 0.35,
+        rootMargin: "0px 0px -10% 0px",
+      },
+    );
+
+    observer.observe(visual);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="ps-scanner-visual">
+    <div ref={visualRef} className="ps-scanner-visual">
       <img
         src="/webzebra.png"
         alt="Counter scanner for PocketStamp Scanner Mode"
-        className="ps-scanner-image"
+        className={`ps-scanner-image ${hasEnteredViewport ? "is-turning" : ""}`}
         loading="lazy"
         decoding="async"
       />
