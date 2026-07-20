@@ -1430,15 +1430,15 @@ function CampaignUpdateMockup() {
           <div className="mt-3 grid gap-2">
             <div className="ps-campaign-row">
               <div>
-                <strong>2-for-1 coffees this Friday ☕️</strong>
-                <span>Friday at 10:00 AM</span>
+                <strong>New summer menu now available 🌞</strong>
+                <span>Delivered to 126 customers</span>
               </div>
-              <span className="ps-campaign-status">Scheduled</span>
+              <span className="ps-campaign-status">Delivered</span>
             </div>
             <div className="ps-campaign-row">
               <div>
-                <strong>New summer menu now available 🌞</strong>
-                <span>Delivered to 126 customers</span>
+                <strong>Late-night opening this Saturday 🌙</strong>
+                <span>Delivered to 98 customers</span>
               </div>
               <span className="ps-campaign-status">Delivered</span>
             </div>
