@@ -1453,42 +1453,12 @@ function DashboardMockup() {
 }
 
 function ScannerProductVisual() {
-  const visualRef = useRef(null);
-  const [hasEnteredViewport, setHasEnteredViewport] = useState(false);
-
-  useEffect(() => {
-    const visual = visualRef.current;
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-    if (!visual || prefersReducedMotion.matches) return undefined;
-
-    if (!("IntersectionObserver" in window)) {
-      setHasEnteredViewport(true);
-      return undefined;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        setHasEnteredViewport(true);
-        observer.disconnect();
-      },
-      {
-        threshold: 0.35,
-        rootMargin: "0px 0px -10% 0px",
-      },
-    );
-
-    observer.observe(visual);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <div ref={visualRef} className="ps-scanner-visual">
+    <div className="ps-scanner-visual">
       <img
         src="/webzebra.png"
         alt="Counter scanner for PocketStamp Scanner Mode"
-        className={`ps-scanner-image ${hasEnteredViewport ? "is-turning" : ""}`}
+        className="ps-scanner-image"
         loading="lazy"
         decoding="async"
       />
@@ -3719,16 +3689,18 @@ function MarketingHomepage() {
       </section>
 
       <section className="ps-glow-band py-20 lg:py-28">
-        <div className="mx-auto max-w-5xl px-5 sm:px-6 lg:px-8">
-          <p className="ps-eyebrow">Branded Wallet cards</p>
-          <h2 className="ps-display mt-4 max-w-4xl text-[clamp(2.5rem,5vw,5rem)] leading-[0.98]">
-            Your café, inside your customer’s Wallet.
-          </h2>
-          <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-700">
-            No loose paper. No app fatigue. Just a polished branded Wallet
-            pass customers can scan at the till and keep on their phone.
-          </p>
-          <SimpleBullets items={walletBullets} />
+        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+          <div className="max-w-5xl">
+            <p className="ps-eyebrow">Branded Wallet cards</p>
+            <h2 className="ps-display mt-4 max-w-4xl text-[clamp(2.5rem,5vw,5rem)] leading-[0.98]">
+              Your café, inside your customer’s Wallet.
+            </h2>
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-700">
+              No loose paper. No app fatigue. Just a polished branded Wallet
+              pass customers can scan at the till and keep on their phone.
+            </p>
+            <SimpleBullets items={walletBullets} />
+          </div>
         </div>
       </section>
 
