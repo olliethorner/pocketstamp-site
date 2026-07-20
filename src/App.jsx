@@ -132,8 +132,8 @@ const steps = [
     "Scan",
   ],
   [
-    "Track and remind",
-    "You see activity in the dashboard, and PocketStamp can trigger Wallet reminders at key milestones.",
+    "Track and bring them back",
+    "See loyalty activity, while automatic reminders and updates you schedule give customers a reason to return.",
     "Data",
   ],
 ];
@@ -151,9 +151,9 @@ const dashboardBullets = [
   "Live activity",
   "Customer list",
   "Reward redemptions",
-  "Scanner Mode status",
-  "Join QR and URL",
-  "Wallet reminder activity",
+  "Schedule Wallet updates",
+  "Campaign history",
+  "Successful delivery counts",
 ];
 
 const reminderBullets = [
@@ -169,7 +169,7 @@ const setupSteps = [
   "We build your Wallet card and join page",
   "You get your dashboard, Join QR and scanner setup",
   "Customers scan at the till to collect stamps",
-  "Wallet reminders help bring them back",
+  "Wallet reminders and scheduled updates help bring them back",
 ];
 
 const cafeFeatures = [
@@ -183,11 +183,11 @@ const cafeFeatures = [
     "Merchant dashboard",
     "See joins, stamps, rewards, scanner activity and customers in one calm view.",
   ],
+  ["Automatic loyalty reminders", "Timely Wallet reminders based on progress, rewards and customer activity."],
   [
-    "Customer list",
-    "Names, emails, stamp progress and reward status — something paper cards never gave you.",
+    "Promotional Wallet updates",
+    "Schedule short updates for offers, events, launches or timely reasons to return.",
   ],
-  ["Wallet reminders", "Automatic Apple Wallet nudges when customers are close to a reward."],
 ];
 
 const scannerModeBullets = [
@@ -1371,7 +1371,7 @@ function HeroWalletPassShowcase() {
   );
 }
 
-function ReminderMockup() {
+function ReminderMockup({ compact = false }) {
   return (
     <div className="mx-auto w-full max-w-xl">
       <div className="overflow-hidden rounded-3xl bg-[#fffdf8] p-3 shadow-2xl shadow-stone-900/10 ring-1 ring-stone-200">
@@ -1383,14 +1383,75 @@ function ReminderMockup() {
           decoding="async"
         />
       </div>
-      <div className="mt-5 rounded-2xl bg-[#fffdf8] p-5 shadow-xl shadow-stone-900/10 ring-1 ring-stone-200">
-        <p className="text-lg font-semibold text-[#26211d]">
-          Automated Apple Wallet reminders
-        </p>
-        <p className="mt-2 leading-7 text-stone-600">
-          PocketStamp can remind customers when they’re close to a reward, have
-          earned one, have a birthday reward, or haven’t visited in a while.
-        </p>
+      {!compact ? (
+        <div className="mt-5 rounded-2xl bg-[#fffdf8] p-5 shadow-xl shadow-stone-900/10 ring-1 ring-stone-200">
+          <p className="text-lg font-semibold text-[#26211d]">
+            Automated Apple Wallet reminders
+          </p>
+          <p className="mt-2 leading-7 text-stone-600">
+            PocketStamp can remind customers when they’re close to a reward, have
+            earned one, have a birthday reward, or haven’t visited in a while.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CampaignUpdateMockup() {
+  return (
+    <div className="ps-campaign-story" aria-label="A merchant schedules a promotional Wallet update">
+      <div className="ps-campaign-composer">
+        <div>
+          <p className="text-xl font-semibold text-[#26211d]">Send an Update</p>
+          <p className="mt-1 text-sm leading-6 text-stone-500">
+            Schedule a short Apple Wallet update for your loyalty customers.
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_0.72fr]">
+          <div className="ps-campaign-field">
+            <span>Message</span>
+            <strong>2-for-1 coffees this Friday ☕️</strong>
+            <small>31/90</small>
+          </div>
+          <div className="ps-campaign-field">
+            <span>Schedule time</span>
+            <strong>Friday, 10:00 AM</strong>
+          </div>
+        </div>
+
+        <button type="button" className="ps-button-primary mt-3" tabIndex={-1}>
+          Schedule Update
+        </button>
+
+        <div className="mt-6 border-t border-stone-200 pt-5">
+          <p className="text-sm font-semibold text-[#26211d]">Campaign history</p>
+          <div className="mt-3 grid gap-2">
+            <div className="ps-campaign-row">
+              <div>
+                <strong>2-for-1 coffees this Friday ☕️</strong>
+                <span>Friday at 10:00 AM</span>
+              </div>
+              <span className="ps-campaign-status">Scheduled</span>
+            </div>
+            <div className="ps-campaign-row">
+              <div>
+                <strong>New summer menu now available 🌞</strong>
+                <span>Delivered to 126 customers</span>
+              </div>
+              <span className="ps-campaign-status">Delivered</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="ps-wallet-notification">
+        <span className="ps-wallet-notification-icon" aria-hidden="true">PS</span>
+        <div>
+          <p><strong>PocketStamp</strong><span>now</span></p>
+          <p>2-for-1 coffees this Friday ☕️</p>
+        </div>
       </div>
     </div>
   );
@@ -3583,8 +3644,8 @@ function MarketingHomepage() {
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-700 sm:text-xl">
               PocketStamp gives cafés a branded Apple Wallet loyalty card,
-              counter scanner workflow, customer list and automatic reminders
-              — without asking customers to download an app.
+              counter scanner workflow, automatic loyalty reminders and promotional
+              updates you schedule — with no customer app required.
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <a
@@ -3652,8 +3713,8 @@ function MarketingHomepage() {
             </h2>
             <p className="max-w-2xl text-lg leading-8 text-slate-700">
               A simple QR starts the flow. The card lives in Apple Wallet, the
-              dashboard tracks activity, and reminders help customers remember
-              the next coffee.
+              dashboard tracks activity, and timely reminders and updates give
+              customers a reason to return.
             </p>
           </div>
           <div className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -3717,28 +3778,55 @@ function MarketingHomepage() {
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
               Your dashboard shows today’s joins, stamps, rewards, customer
-              progress, scanner activity and Wallet reminder performance.
+              progress and scanner activity. It also lets you schedule Wallet
+              updates, review campaign history and see successful delivery counts.
             </p>
             <SimpleBullets items={dashboardBullets} />
           </div>
         </div>
       </section>
 
-      <section className="bg-white py-20 lg:py-28">
-        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
-          <div>
-            <p className="ps-eyebrow">Wallet reminders</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
-              Automatic reminders, straight from Apple Wallet.
-            </h2>
-            <p className="mt-7 text-lg leading-8 text-slate-700">
-              Once customers have joined, PocketStamp can nudge them back
-              through Apple Wallet when they are halfway there, one coffee away,
-              reward-ready, due a birthday treat, or haven’t visited in a while.
-            </p>
-            <FeatureBullets items={reminderBullets} />
+      <section className="ps-engagement bg-white py-20 lg:py-28">
+        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+          <p className="ps-eyebrow">Bring customers back</p>
+          <h2 className="ps-display mt-4 max-w-5xl text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
+            Your loyalty card keeps the conversation going.
+          </h2>
+          <p className="mt-7 max-w-3xl text-lg leading-8 text-slate-700">
+            PocketStamp helps bring your café back to mind with automatic loyalty
+            reminders and promotional updates you schedule yourself, delivered
+            through Apple Wallet. Customers do not need to download an app.
+          </p>
+
+          <div className="ps-engagement-grid mt-14">
+            <div className="ps-engagement-campaign-visual">
+              <CampaignUpdateMockup />
+            </div>
+
+            <div className="ps-engagement-scheduled">
+              <p className="ps-engagement-label">Scheduled by you</p>
+              <h3>Send the right update at the right time.</h3>
+              <p>
+                Write a short message and choose when it should go out. Share offers,
+                events, new products, launches or timely announcements with your
+                loyal customers through Apple Wallet.
+              </p>
+            </div>
+
+            <div className="ps-engagement-reminder-visual">
+              <ReminderMockup compact />
+            </div>
+
+            <div className="ps-engagement-automatic">
+              <p className="ps-engagement-label">Automatic by PocketStamp</p>
+              <h3>Timely loyalty nudges, handled for you.</h3>
+              <p>
+                PocketStamp responds to customer activity with reminders about
+                progress, ready rewards, birthdays and reasons to return after time away.
+              </p>
+              <FeatureBullets items={reminderBullets} />
+            </div>
           </div>
-          <ReminderMockup />
         </div>
       </section>
 
@@ -3750,9 +3838,9 @@ function MarketingHomepage() {
               Setup in days. Ready this week.
             </h2>
             <p className="mt-7 text-lg leading-8 text-slate-700">
-              Pilot spaces are open for independent cafés. We build the Wallet
-              card, Join QR, merchant dashboard and counter scanner setup
-              around your café brand.
+              Pilot spaces are open for independent cafés. We build a simple
+              loyalty system around your café brand, from its Wallet card and
+              Join QR to the dashboard and counter scanner setup.
             </p>
             <p className="mt-5 text-base leading-7 text-slate-600">
               Built for cafés that want to replace paper stamp cards without
@@ -3783,11 +3871,11 @@ function MarketingHomepage() {
       <section className="px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
         <div className="mx-auto max-w-7xl border-t border-slate-950/15 pt-14">
           <p className="ps-display max-w-5xl text-[clamp(2.6rem,6vw,5.6rem)] leading-[0.96]">
-            Your café’s Wallet card can be ready this week.
+            Start bringing loyal customers back this week.
           </p>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-700">
-            Start with a Join QR and Counter Scanner Mode. Add NFC tap-to-stamp
-            later when available.
+            Give customers a loyalty card they keep, a simple way to collect
+            stamps, and timely reasons to return through Apple Wallet.
           </p>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             <a href={demoHref} className="ps-pill ps-pill-dark">
