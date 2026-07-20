@@ -1442,15 +1442,14 @@ function CampaignUpdateMockup() {
               </div>
               <span className="ps-campaign-status">Delivered</span>
             </div>
+            <div className="ps-campaign-row">
+              <div>
+                <strong>2-for-1 coffees this Friday ☕️</strong>
+                <span>Sent through Apple Wallet</span>
+              </div>
+              <span className="ps-campaign-status">Wallet notification</span>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <div className="ps-wallet-notification">
-        <span className="ps-wallet-notification-icon" aria-hidden="true">PS</span>
-        <div>
-          <p><strong>PocketStamp</strong><span>now</span></p>
-          <p>2-for-1 coffees this Friday ☕️</p>
         </div>
       </div>
     </div>
