@@ -466,22 +466,23 @@
 .ps-scanner-visual::after {
   background: linear-gradient(
     to left,
-    rgba(220, 38, 38, 0.2) 0%,
-    rgba(239, 68, 68, 0.09) 42%,
+    rgba(220, 38, 38, 0.3) 0%,
+    rgba(239, 68, 68, 0.15) 38%,
+    rgba(248, 113, 113, 0.07) 68%,
     rgba(239, 68, 68, 0) 100%
   );
-  clip-path: polygon(0 18%, 100% 43%, 100% 57%, 0 82%);
+  clip-path: polygon(0 4%, 100% 44%, 100% 56%, 0 96%);
   content: "";
   display: none;
-  filter: blur(11px);
-  height: clamp(5rem, 11vw, 8.5rem);
+  filter: blur(9px);
+  height: clamp(8rem, 16vw, 12.5rem);
   pointer-events: none;
   position: absolute;
-  right: 48%;
-  top: 43%;
-  transform: translateY(-50%) rotate(-3deg);
+  right: 50%;
+  top: 35%;
+  transform: translateY(-50%) rotate(-2deg);
   transform-origin: right center;
-  width: clamp(15rem, 30vw, 25rem);
+  width: clamp(17rem, 32vw, 27rem);
   z-index: 0;
 }
 
