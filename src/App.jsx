@@ -1,6 +1,5 @@
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { QRCodeSVG } from "qrcode.react";
 import AdminPortal from "./AdminPortal.jsx";
 import MerchantPortalShell from "./merchant/MerchantPortal.jsx";
 import MerchantSetup from "./merchant/MerchantSetup.jsx";
@@ -8,6 +7,8 @@ import MerchantLayout from "./merchant/MerchantLayout.jsx";
 import MerchantOverview from "./merchant/pages/MerchantOverview.jsx";
 import MerchantCustomers from "./merchant/pages/MerchantCustomers.jsx";
 import MerchantActivity from "./merchant/pages/MerchantActivity.jsx";
+import MerchantGetCustomers from "./merchant/pages/MerchantGetCustomers.jsx";
+import { buildMerchantJoinUrl } from "./merchant/utils/joinUrl.js";
 import {
   isMerchantScannerPath,
   isMerchantSetupPath,
@@ -2065,26 +2066,6 @@ function MerchantLogin({ onLogin }) {
   );
 }
 
-function DashboardQrCode({ value }) {
-  return (
-    <div className="mt-5 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
-      <div className="mx-auto max-w-[220px] rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
-        <QRCodeSVG
-          value={value}
-          size={196}
-          level="M"
-          includeMargin
-          role="img"
-          title={`QR code for ${value}`}
-          className="block h-auto w-full"
-          bgColor="#ffffff"
-          fgColor="#020617"
-        />
-      </div>
-    </div>
-  );
-}
-
 function ReminderStatCard({ label, value }) {
   return (
     <div className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
@@ -2349,9 +2330,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout, page = "ove
   const [isCampaignsLoading, setIsCampaignsLoading] = useState(true);
 
   const merchantSlug = merchantContext.merchantSlug || "";
-  const joinUrl = merchantSlug
-    ? `${PUBLIC_SITE_BASE_URL}/join/${merchantSlug}`
-    : "";
+  const joinUrl = buildMerchantJoinUrl(merchantSlug);
   const birthdayRewardsEnabled =
     pickFirst(
       getBirthdayRewardsSetting(merchantContext),
@@ -2673,38 +2652,11 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout, page = "ove
       ) : null}
 
       {page === "get-customers" ? (
-        <section className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
-          <div className="ps-dashboard-card rounded-2xl p-6">
-            <h2 className="text-2xl font-semibold">Customer join QR</h2>
-            <p className="mt-2 leading-7 text-[var(--ps-muted)]">
-              Display this QR at the counter so customers can join and add your loyalty card to Apple Wallet.
-            </p>
-            {joinUrl ? (
-              <>
-                <div className="mt-5 rounded-xl bg-[var(--ps-cream)] p-4 text-sm font-semibold leading-6 break-all">{joinUrl}</div>
-                <DashboardQrCode value={joinUrl} />
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                  <button type="button" onClick={handleCopyJoinUrl} className="inline-flex items-center justify-center rounded-full bg-[var(--ps-blue)] px-4 py-2.5 text-sm font-semibold text-white">
-                    {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy link"}
-                  </button>
-                  <a href={joinUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-full border border-[var(--ps-border)] bg-white px-4 py-2.5 text-sm font-semibold">Open join page</a>
-                </div>
-              </>
-            ) : (
-              <div className="mt-5 rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">
-                Your customer join link is unavailable. Please contact PocketStamp support.
-              </div>
-            )}
-          </div>
-          <aside className="ps-dashboard-card rounded-2xl p-6">
-            <h2 className="text-xl font-semibold">How customers join</h2>
-            <ol className="mt-4 space-y-3 text-sm leading-6 text-[var(--ps-muted)]">
-              <li>1. Display the QR at your counter.</li>
-              <li>2. The customer scans it and enters their details.</li>
-              <li>3. They add your loyalty card to Apple Wallet.</li>
-            </ol>
-          </aside>
-        </section>
+        <MerchantGetCustomers
+          joinUrl={joinUrl}
+          copyState={copyState}
+          onCopyJoinUrl={handleCopyJoinUrl}
+        />
       ) : null}
     </MerchantLayout>
   );
