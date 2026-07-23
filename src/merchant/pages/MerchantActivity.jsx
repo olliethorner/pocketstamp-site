@@ -69,8 +69,8 @@ export default function MerchantActivity({
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-slate-500">Page {safePage} of {pageCount}</p>
           <div className="flex gap-2">
-            <button disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>Previous</button>
-            <button disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}>Next</button>
+            <button type="button" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)} className="min-h-11 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold disabled:opacity-45">Previous</button>
+            <button type="button" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)} className="min-h-11 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold disabled:opacity-45">Next</button>
           </div>
         </div>
       ) : null}

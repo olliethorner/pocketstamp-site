@@ -67,9 +67,10 @@ Current assumptions:
 - The periods for `activeWalletCards`, `customersJoined`, and
   `rewardsRedeemed` are not defined by the frontend.
 - `stampsToday` is assumed to use the relevant merchant day/timezone.
-- Any scanner URL or positive readiness/configuration field means ready.
-- When no scanner data exists, the UI falls back to “Available” and says
-  setup is managed by PocketStamp; this does not prove a device exists.
+- The management UI exposes Scanner Mode as actionable only when a real
+  scanner launch URL is returned.
+- When no scanner URL exists, the UI says launch is unavailable and does not
+  claim that a scanner is ready.
 
 ## `GET /api/merchant/activity?limit=10`
 
@@ -131,10 +132,11 @@ Consumed fields:
 - `summary.sentThisMonth`
 - `summary.scheduled`
 
-The overall Active badge and the Halfway, Almost there, Reward ready, and
-Win-back statuses are hard-coded in the current UI. Birthday status comes
-from the merchant/dashboard birthday setting. The current UI therefore does
-not prove per-reminder operational state.
+The UI describes Halfway, Almost there, Reward ready, Birthday, and Win-back
+as possible automated product behaviours. It does not present these
+descriptions as verified operational health. Birthday wording distinguishes
+the real merchant birthday-reward setting. The backend does not currently
+provide authoritative per-reminder health.
 
 ## `GET /api/merchant/campaigns`
 
@@ -164,3 +166,17 @@ This is a presentation rule; backend authorization is still required.
 - The backend repository and authoritative response schemas are unavailable
   here, so metric definitions, timezone rules, total counts, and entitlement
   behavior must be confirmed before Stage 3 changes their presentation.
+
+## Remaining backend contract gaps
+
+- Activity requests remain limited to the latest 10 returned events.
+- Activity date filters operate only over those 10 returned events.
+- Customer requests remain limited to 50 returned records.
+- Customer pagination is client-side over the returned subset.
+- `scanned_today` is evaluated only over returned customers.
+- The periods represented by `activeWalletCards`, `customersJoined`, and
+  `rewardsRedeemed` are not fully defined.
+- Reminder summary counts do not establish authoritative automation health.
+- Campaign entitlement and operational-readiness fields are not supplied.
+- Returning-customer rate, retention, repeat visits, revenue, ROI, and
+  campaign attribution are not supported by the current contract.
