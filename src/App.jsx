@@ -8,6 +8,7 @@ import MerchantOverview from "./merchant/pages/MerchantOverview.jsx";
 import MerchantCustomers from "./merchant/pages/MerchantCustomers.jsx";
 import MerchantActivity from "./merchant/pages/MerchantActivity.jsx";
 import MerchantGetCustomers from "./merchant/pages/MerchantGetCustomers.jsx";
+import MerchantMarketing from "./merchant/pages/MerchantMarketing.jsx";
 import { buildMerchantJoinUrl } from "./merchant/utils/joinUrl.js";
 import {
   isMerchantScannerPath,
@@ -15,8 +16,6 @@ import {
   resolveMerchantManagementPage,
 } from "./merchant/merchantRoutes.js";
 import {
-  cancelMerchantCampaign as cancelMerchantCampaignRequest,
-  createMerchantCampaign as createMerchantCampaignRequest,
   fetchMerchantActivity as fetchMerchantActivityRequest,
   fetchMerchantCampaigns as fetchMerchantCampaignsRequest,
   fetchMerchantCustomers as fetchMerchantCustomersRequest,
@@ -25,11 +24,7 @@ import {
 } from "./merchant/api/merchantApi.js";
 import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
 import {
-  canManageCampaigns,
-  formatCampaignDateTime,
-  isFutureLocalDateTime,
   normalizeCampaignRows,
-  toScheduledAtIso,
 } from "./merchantCampaigns.js";
 import "./App.css";
 
@@ -2066,243 +2061,6 @@ function MerchantLogin({ onLogin }) {
   );
 }
 
-function ReminderStatCard({ label, value }) {
-  return (
-    <div className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
-      <p className="text-sm font-semibold text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function MerchantCampaignSection({
-  accessToken,
-  merchantContext,
-  campaigns,
-  isLoading,
-  error,
-  onRefresh,
-}) {
-  const [message, setMessage] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
-  const [formError, setFormError] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [cancellingId, setCancellingId] = useState("");
-  const canManage = canManageCampaigns(merchantContext);
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "device time";
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage || trimmedMessage.length > 90) {
-      setFormError("Enter a message of up to 90 characters.");
-      return;
-    }
-    if (!isFutureLocalDateTime(scheduledAt)) {
-      setFormError("Choose a time in the future.");
-      return;
-    }
-
-    setFormError("");
-    setIsCreating(true);
-    try {
-      await createMerchantCampaignRequest(accessToken, {
-        message: trimmedMessage,
-        scheduledAt: toScheduledAtIso(scheduledAt),
-      });
-      setMessage("");
-      setScheduledAt("");
-      await onRefresh();
-    } catch (campaignError) {
-      setFormError(campaignError.message || "Unable to schedule this update.");
-    } finally {
-      setIsCreating(false);
-    }
-  }
-
-  async function handleCancel(campaignId) {
-    if (!window.confirm("Cancel this scheduled update?")) return;
-    setFormError("");
-    setCancellingId(campaignId);
-    try {
-      await cancelMerchantCampaignRequest(accessToken, campaignId);
-      await onRefresh();
-    } catch (campaignError) {
-      setFormError(campaignError.message || "Unable to cancel this update.");
-    } finally {
-      setCancellingId("");
-    }
-  }
-
-  return (
-    <section className="ps-dashboard-card rounded-2xl p-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-[var(--ps-espresso)]">Send an Update</h2>
-        <p className="mt-1 text-[var(--ps-muted)]">
-          Schedule a one-time Apple Wallet update for your loyalty customers.
-        </p>
-      </div>
-
-      {canManage ? (
-        <form className="mt-6 grid gap-4 lg:grid-cols-[1fr_18rem_auto] lg:items-end" onSubmit={handleSubmit}>
-          <label className="block text-sm font-semibold text-[var(--ps-espresso)]">
-            Message
-            <textarea
-              className="ps-input mt-2 min-h-24 w-full resize-y"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              maxLength={90}
-              required
-              placeholder="Share a short update"
-            />
-            <span className="mt-1 block text-right text-xs font-normal text-[var(--ps-muted)]">
-              {message.length}/90
-            </span>
-          </label>
-          <label className="block text-sm font-semibold text-[var(--ps-espresso)]">
-            Schedule time
-            <input
-              className="ps-input mt-2 w-full"
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(event) => setScheduledAt(event.target.value)}
-              required
-            />
-            <span className="mt-1 block text-xs font-normal text-[var(--ps-muted)]">
-              Uses this device’s timezone ({timeZone}).
-            </span>
-          </label>
-          <button className="ps-button-primary" type="submit" disabled={isCreating}>
-            {isCreating ? "Scheduling..." : "Schedule Update"}
-          </button>
-        </form>
-      ) : null}
-
-      {formError ? (
-        <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800 ring-1 ring-red-100">
-          {formError}
-        </p>
-      ) : null}
-
-      <div className="mt-7 border-t border-[var(--ps-border)] pt-6">
-        <h3 className="text-lg font-semibold text-[var(--ps-espresso)]">Campaign history</h3>
-        {isLoading && campaigns.length === 0 ? (
-          <p className="mt-4 text-sm text-[var(--ps-muted)]">Loading campaign history...</p>
-        ) : null}
-        {error ? (
-          <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800 ring-1 ring-amber-100">
-            Campaign history is unavailable right now.
-          </p>
-        ) : null}
-        {!isLoading && campaigns.length === 0 && !error ? (
-          <p className="mt-4 text-sm text-[var(--ps-muted)]">No updates scheduled yet.</p>
-        ) : campaigns.length > 0 ? (
-          <div className="mt-4 divide-y divide-[var(--ps-border)] rounded-xl ring-1 ring-[var(--ps-border)]">
-            {campaigns.map((campaign) => (
-              <div key={campaign.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="font-semibold text-[var(--ps-espresso)]">{campaign.message}</p>
-                  <p className="mt-1 text-sm text-[var(--ps-muted)]">
-                    {formatCampaignDateTime(campaign.scheduledAt)}
-                  </p>
-                  {campaign.deliveredText ? (
-                    <p className="mt-1 text-sm text-[var(--ps-muted)]">{campaign.deliveredText}</p>
-                  ) : null}
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="rounded-full bg-[var(--ps-blue-soft)] px-3 py-1 text-xs font-semibold text-[var(--ps-blue)]">
-                    {campaign.statusLabel}
-                  </span>
-                  {canManage && campaign.status === "scheduled" ? (
-                    <button
-                      className="ps-button-secondary"
-                      type="button"
-                      disabled={cancellingId === campaign.id}
-                      onClick={() => handleCancel(campaign.id)}
-                    >
-                      {cancellingId === campaign.id ? "Cancelling..." : "Cancel"}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabled = false }) {
-  const reminderRows = [
-    ["Halfway", "Automatic"],
-    ["Almost there", "Automatic"],
-    ["Reward ready", "Automatic"],
-    ["Birthday rewards", birthdayRewardsEnabled ? "On" : "Off"],
-    ["Win-back", "Automatic"],
-  ];
-
-  return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-950">
-            Wallet reminders
-          </h2>
-          <p className="mt-1 max-w-2xl text-slate-600">
-            Wallet reminders are handled automatically by PocketStamp.
-          </p>
-        </div>
-        <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
-          Managed automatically
-        </span>
-      </div>
-
-      <div className="mt-6">
-        {isLoading ? (
-          <div className="rounded-xl bg-[#fbfaf7] p-4 text-sm font-semibold text-slate-500 ring-1 ring-slate-100">
-            Loading reminder stats...
-          </div>
-        ) : error ? (
-          <div className="rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800 ring-1 ring-amber-100">
-            Reminder stats unavailable.
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            <ReminderStatCard
-              label="Sent this month"
-              value={summary?.sentThisMonth ?? 0}
-            />
-            <ReminderStatCard
-              label="Scheduled"
-              value={summary?.scheduled ?? 0}
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        {reminderRows.map(([title, status]) => (
-          <div key={title} className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
-            <div className="flex items-start justify-between gap-3">
-              <p className="font-semibold text-slate-950">{title}</p>
-              <span
-                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  status === "On"
-                    ? "bg-[#e7f7f3] text-[#16856f]"
-                    : "bg-slate-100 text-slate-500"
-                }`}
-              >
-                {status}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function MerchantDashboard({ accessToken, merchantContext, onLogout, page = "overview" }) {
   const isMountedRef = useRef(false);
   const isDashboardRefreshInFlightRef = useRef(false);
@@ -2627,28 +2385,18 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout, page = "ove
       ) : null}
 
       {page === "marketing" ? (
-        <div className="space-y-8">
-          <div>
-            <h2 className="mb-4 text-2xl font-semibold">Automated Loyalty Reminders</h2>
-            <ReminderStatusSection
-              summary={reminderSummary}
-              isLoading={isReminderSummaryLoading}
-              error={reminderError}
-              birthdayRewardsEnabled={birthdayRewardsEnabled}
-            />
-          </div>
-          <div>
-            <h2 className="mb-4 text-2xl font-semibold">Promotional Campaigns</h2>
-          <MerchantCampaignSection
-            accessToken={accessToken}
-            merchantContext={merchantContext}
-            campaigns={campaignRows}
-            isLoading={isCampaignsLoading}
-            error={campaignError}
-            onRefresh={() => refreshCampaigns({ showLoading: false })}
-          />
-          </div>
-        </div>
+        <MerchantMarketing
+          accessToken={accessToken}
+          merchantContext={merchantContext}
+          campaigns={campaignRows}
+          isLoading={isCampaignsLoading}
+          error={campaignError}
+          onRefresh={() => refreshCampaigns({ showLoading: false })}
+          reminderSummary={reminderSummary}
+          isReminderSummaryLoading={isReminderSummaryLoading}
+          reminderError={reminderError}
+          birthdayRewardsEnabled={birthdayRewardsEnabled}
+        />
       ) : null}
 
       {page === "get-customers" ? (
