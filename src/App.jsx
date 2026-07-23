@@ -2,6 +2,26 @@ import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import AdminPortal from "./AdminPortal.jsx";
+import MerchantPortalShell from "./merchant/MerchantPortal.jsx";
+import MerchantSetup from "./merchant/MerchantSetup.jsx";
+import MerchantLayout from "./merchant/MerchantLayout.jsx";
+import MerchantOverview from "./merchant/pages/MerchantOverview.jsx";
+import MerchantCustomers from "./merchant/pages/MerchantCustomers.jsx";
+import MerchantActivity from "./merchant/pages/MerchantActivity.jsx";
+import {
+  isMerchantScannerPath,
+  isMerchantSetupPath,
+  resolveMerchantManagementPage,
+} from "./merchant/merchantRoutes.js";
+import {
+  cancelMerchantCampaign as cancelMerchantCampaignRequest,
+  createMerchantCampaign as createMerchantCampaignRequest,
+  fetchMerchantActivity as fetchMerchantActivityRequest,
+  fetchMerchantCampaigns as fetchMerchantCampaignsRequest,
+  fetchMerchantCustomers as fetchMerchantCustomersRequest,
+  fetchMerchantDashboardSummary as fetchMerchantDashboardSummaryRequest,
+  fetchMerchantReminderSummary as fetchMerchantReminderSummaryRequest,
+} from "./merchant/api/merchantApi.js";
 import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
 import {
   canManageCampaigns,
@@ -777,113 +797,6 @@ function formatActivityTitle(item, birthdayRewardsEnabled = false) {
   );
 }
 
-function formatCustomerDate(timestamp) {
-  if (!timestamp) return "Not recorded";
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return "Not recorded";
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-  }).format(date);
-}
-
-function formatCustomerShortDate(timestamp) {
-  if (!timestamp) return "No activity yet";
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return "No activity yet";
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
-function formatCustomerBirthday(customer) {
-  const month = Number(customer.birthdayMonth);
-  const day = Number(customer.birthdayDay);
-
-  if (!month || !day) return "Not saved";
-
-  const date = new Date(2024, month - 1, day);
-  if (Number.isNaN(date.getTime())) return "Not saved";
-
-  const formattedMonth = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-  }).format(date);
-
-  return `${formattedMonth} ${day}`;
-}
-
-function getCustomerName(customer) {
-  return pickFirst(customer.name, customer.fullName, customer.firstName, "Wallet customer");
-}
-
-function getCustomerId(customer, index) {
-  return pickFirst(customer.id, customer.passSerialNumber, customer.email, `customer-${index}`);
-}
-
-function getCustomerStampProgress(customer) {
-  const currentStamps = Number(customer.currentStamps ?? 0);
-  const rewardThreshold = Number(customer.rewardThreshold ?? 10);
-
-  return `${Number.isFinite(currentStamps) ? currentStamps : 0}/${
-    Number.isFinite(rewardThreshold) && rewardThreshold > 0 ? rewardThreshold : 10
-  }`;
-}
-
-function getCustomerStatus(customer, birthdayRewardsEnabled = false) {
-  const statusText = [
-    customer.rewardStatus,
-    customer.status,
-    customer.walletPassStatus,
-    birthdayRewardsEnabled && customer.birthdayActive ? "birthday_active" : null,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  const currentStamps = Number(customer.currentStamps ?? 0);
-  const rewardThreshold = Number(customer.rewardThreshold ?? 10);
-  const hasBirthday = Boolean(customer.birthdayMonth && customer.birthdayDay);
-
-  if (birthdayRewardsEnabled && statusText.includes("birthday_active")) return "Birthday reward active";
-  if (statusText.includes("reward_ready") || statusText.includes("ready")) {
-    return "Reward ready";
-  }
-  if (statusText.includes("almost_there") || statusText.includes("almost")) {
-    return "Almost there";
-  }
-  if (birthdayRewardsEnabled && hasBirthday && statusText.includes("birthday")) return "Birthday saved";
-  if (
-    Number.isFinite(currentStamps) &&
-    Number.isFinite(rewardThreshold) &&
-    rewardThreshold > 0
-  ) {
-    if (currentStamps >= rewardThreshold) return "Reward ready";
-    if (rewardThreshold - currentStamps <= 2) return "Almost there";
-  }
-  if (birthdayRewardsEnabled && hasBirthday) return "Birthday saved";
-  return "Active";
-}
-
-function getCustomerStatusClass(status) {
-  if (status === "Reward ready" || status === "Birthday reward active") {
-    return "bg-[#e7f7f3] text-[#16856f]";
-  }
-  if (status === "Almost there") return "bg-amber-50 text-amber-800";
-  if (status === "Birthday saved") return "bg-violet-50 text-violet-700";
-  return "bg-slate-100 text-slate-600";
-}
-
-function formatCustomerWalletStatus(customer) {
-  return toTitle(pickFirst(customer.walletPassStatus, customer.passStatus, "Active"));
-}
-
-function formatCustomerCardId(customer) {
-  const cardId = pickFirst(customer.passSerialNumber, customer.passId, customer.cardId);
-  if (!cardId) return "Not recorded";
-
-  const text = String(cardId);
-  return text.length > 18 ? `${text.slice(0, 8)}...${text.slice(-6)}` : text;
-}
-
 function formatActivityMeta(item) {
   return pickFirst(
     getActivityCustomerName(item),
@@ -1082,16 +995,6 @@ function getScannerDashboardData(summary = {}) {
       pickFirst(device?.lastScanAt, scanner?.lastScanAt, scanner?.lastScan?.createdAt),
     ),
   };
-}
-
-function customerWasScannedToday(customer) {
-  if (customer.scannedToday || customer.hasScannedToday) return true;
-  const timestamp = pickFirst(customer.lastScannedAt, customer.lastScanAt, customer.lastScannerScanAt);
-  if (!timestamp) return false;
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return false;
-  const today = new Date();
-  return date.toDateString() === today.toDateString();
 }
 
 function IconMark({ label, className = "" }) {
@@ -2162,554 +2065,6 @@ function MerchantLogin({ onLogin }) {
   );
 }
 
-function OverviewCard({ label, value, helper, iconLabel }) {
-  return (
-    <div className="ps-dashboard-card rounded-2xl p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-[var(--ps-muted)]">{label}</p>
-          <p className="mt-3 text-3xl font-semibold text-[var(--ps-espresso)]">{value}</p>
-          {helper ? <p className="mt-2 text-sm text-[var(--ps-muted)]">{helper}</p> : null}
-        </div>
-        <div className="rounded-xl bg-[var(--ps-blue-soft)] p-3 text-[var(--ps-blue)]">
-          <span className="text-xs font-bold">{iconLabel}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PaginationControls({ page, pageCount, onPageChange }) {
-  if (pageCount <= 1) return null;
-
-  return (
-    <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm font-semibold text-slate-500">
-        Page {page} of {pageCount}
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onPageChange(Math.max(1, page - 1))}
-          disabled={page <= 1}
-          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          onClick={() => onPageChange(Math.min(pageCount, page + 1))}
-          disabled={page >= pageCount}
-          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function CounterScannerSection({ scanner }) {
-  const detailRows = [
-    ["Device", scanner.deviceName],
-    ["Mode", scanner.mode],
-    ["Cooldown", scanner.cooldown],
-    ["Reward confirmation", scanner.rewardConfirmation],
-    ["Last scan", scanner.lastScan],
-  ].filter(([, value]) => Boolean(value));
-
-  const statusLabel = scanner.isFallback ? "Available" : scanner.isReady ? "Ready" : "Not set up";
-
-  return (
-    <section className="ps-dashboard-card rounded-2xl p-6">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-2xl font-semibold text-[var(--ps-espresso)]">
-              Scanner Mode
-            </h2>
-            <span
-              className={`rounded-full px-3 py-1 text-sm font-semibold ${
-                scanner.isReady || scanner.isFallback
-                  ? "bg-[#e7f7f3] text-[#16856f]"
-                  : "bg-amber-50 text-amber-800"
-              }`}
-            >
-              {statusLabel}
-            </span>
-          </div>
-          <p className="mt-3 max-w-3xl leading-7 text-[var(--ps-muted)]">
-            {scanner.isFallback
-              ? "Scanner Mode setup is managed by PocketStamp."
-              : scanner.isReady
-                ? "Customers show their Apple Wallet card. Staff scan the Wallet QR with a Zebra/USB scanner, tablet camera, or manual code entry."
-                : "PocketStamp can connect Scanner Mode for Zebra/USB scanners, tablet camera scanning, and manual code entry."}
-          </p>
-        </div>
-
-        {scanner.scannerUrl ? (
-          <a
-            href={scanner.scannerUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center justify-center rounded-full bg-[var(--ps-blue)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#255ddd]"
-          >
-            Open Scanner Mode
-          </a>
-        ) : (
-          <a
-            href={`mailto:${SUPPORT_EMAIL}?subject=PocketStamp Scanner Mode setup`}
-            className="inline-flex items-center justify-center rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300"
-          >
-            {scanner.isReady || scanner.isFallback
-              ? "Scanner setup is handled by PocketStamp"
-              : "Ask PocketStamp to set up Scanner Mode"}
-          </a>
-        )}
-      </div>
-
-      {detailRows.length ? (
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {detailRows.map(([label, value]) => (
-            <div key={label} className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
-              <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
-              <p className="mt-2 truncate font-semibold text-slate-950" title={String(value)}>
-                {value}
-              </p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-const activityPreviewSize = 5;
-const activityPageSize = 10;
-const customerPageSize = 10;
-
-const activityFilters = [
-  ["today", "Today"],
-  ["7_days", "7 days"],
-  ["30_days", "30 days"],
-  ["all", "All"],
-];
-
-function filterActivityRows(activityRows, filter) {
-  if (filter === "all") return activityRows;
-
-  const now = new Date();
-  const start = new Date(now);
-
-  if (filter === "today") {
-    start.setHours(0, 0, 0, 0);
-  } else if (filter === "7_days") {
-    start.setDate(start.getDate() - 7);
-  } else if (filter === "30_days") {
-    start.setDate(start.getDate() - 30);
-  }
-
-  return activityRows.filter((item) => {
-    const timestamp = getActivityTimestamp(item);
-    if (!timestamp) return false;
-    const activityDate = new Date(timestamp);
-    if (Number.isNaN(activityDate.getTime())) return false;
-    return activityDate >= start && activityDate <= now;
-  });
-}
-
-function getActivityFilterDescription(filter) {
-  if (filter === "today") return "today";
-  if (filter === "7_days") return "from the last 7 days";
-  if (filter === "30_days") return "from the last 30 days";
-  return "";
-}
-
-function getActivityEmptyText(filter) {
-  if (filter === "today") return "No activity today yet.";
-  if (filter === "7_days") return "No activity in the last 7 days.";
-  if (filter === "30_days") return "No activity in the last 30 days.";
-  return "No activity yet. Scans, stamps and rewards will appear here.";
-}
-
-function formatActivityLogSummary({ pageStart, pageSize, total, filter }) {
-  if (!total) return "Showing 0 activities";
-
-  const range = `Showing ${pageStart + 1}-${Math.min(pageStart + pageSize, total)} of ${total} activities`;
-  const description = getActivityFilterDescription(filter);
-
-  return description ? `${range} ${description}` : range;
-}
-
-function ActivityRow({ item, indexKey, birthdayRewardsEnabled = false }) {
-  return (
-    <div
-      key={pickFirst(item.id, item._id, item.eventId, indexKey)}
-      className="flex flex-col gap-3 border-b border-slate-100 p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div className="min-w-0">
-        <p className="font-semibold text-slate-950">{formatActivityTitle(item, birthdayRewardsEnabled)}</p>
-        <p className="mt-1 truncate text-sm text-slate-600" title={formatActivityDetail(item)}>
-          {formatActivityDetail(item)}
-        </p>
-        <p className="mt-1 text-sm text-slate-500">
-          {formatActivityTime(getActivityTimestamp(item), { sentence: true })}
-        </p>
-      </div>
-      <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
-        {formatActivityBadge(item, birthdayRewardsEnabled)}
-      </span>
-    </div>
-  );
-}
-
-function ActivityList({ activityRows, isLoading, error, birthdayRewardsEnabled = false }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [filter, setFilter] = useState("all");
-  const [page, setPage] = useState(1);
-  const filteredActivityRows = filterActivityRows(activityRows, filter);
-  const previewRows = activityRows.slice(0, activityPreviewSize);
-  const pageCount = Math.max(1, Math.ceil(filteredActivityRows.length / activityPageSize));
-  const safePage = Math.min(page, pageCount);
-  const pageStart = (safePage - 1) * activityPageSize;
-  const pagedActivityRows = filteredActivityRows.slice(pageStart, pageStart + activityPageSize);
-  const previewSummary =
-    activityRows.length > activityPreviewSize
-      ? `Showing ${previewRows.length} of ${activityRows.length} activities`
-      : `Showing latest ${activityRows.length} ${activityRows.length === 1 ? "activity" : "activities"}`;
-  const logSummary = formatActivityLogSummary({
-    pageStart,
-    pageSize: activityPageSize,
-    total: filteredActivityRows.length,
-    filter,
-  });
-
-  useEffect(() => {
-    setPage(1);
-  }, [activityRows]);
-
-  useEffect(() => {
-    if (page > pageCount) setPage(pageCount);
-  }, [page, pageCount]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [filter]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center gap-3 rounded-2xl bg-white p-6 text-slate-600 ring-1 ring-slate-200">
-        <LoadingText label="Loading recent activity..." />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex gap-3 rounded-2xl bg-white p-6 text-red-700 ring-1 ring-red-100">
-        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-bold">
-          !
-        </span>
-        <p>{error}</p>
-      </div>
-    );
-  }
-
-  if (!activityRows.length) {
-    return (
-      <div className="rounded-2xl bg-white p-6 text-slate-600 ring-1 ring-slate-200">
-        No activity yet. Scans, stamps and rewards will appear here.
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm font-semibold text-slate-500">
-          {isExpanded ? logSummary : previewSummary}
-        </p>
-        {activityRows.length > activityPreviewSize ? (
-          <button
-            type="button"
-            onClick={() => setIsExpanded((current) => !current)}
-            className="w-fit rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
-          >
-            {isExpanded ? "Hide activity log" : "View all activity"}
-          </button>
-        ) : null}
-      </div>
-
-      {isExpanded ? (
-        <div className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h3 className="font-semibold text-slate-950">Activity log</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {activityFilters.map(([filterValue, label]) => {
-                const isSelected = filter === filterValue;
-
-                return (
-                  <button
-                    key={filterValue}
-                    type="button"
-                    onClick={() => setFilter(filterValue)}
-                    className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
-                      isSelected
-                        ? "bg-[#143d3b] text-white"
-                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:text-slate-950"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-xl bg-white ring-1 ring-slate-100">
-            {pagedActivityRows.length ? (
-              pagedActivityRows.map((item, index) => (
-                <ActivityRow
-                  key={pickFirst(item.id, item._id, item.eventId, `log-${pageStart + index}-${getActivityTimestamp(item)}`)}
-                  item={item}
-                  indexKey={`log-${pageStart + index}-${getActivityTimestamp(item)}`}
-                  birthdayRewardsEnabled={birthdayRewardsEnabled}
-                />
-              ))
-            ) : (
-              <div className="p-4 text-slate-600">{getActivityEmptyText(filter)}</div>
-            )}
-          </div>
-
-          <PaginationControls page={safePage} pageCount={pageCount} onPageChange={setPage} />
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl ring-1 ring-slate-100">
-          {previewRows.map((item, index) => (
-            <ActivityRow
-              key={pickFirst(item.id, item._id, item.eventId, `preview-${index}-${getActivityTimestamp(item)}`)}
-              item={item}
-              indexKey={`preview-${index}-${getActivityTimestamp(item)}`}
-              birthdayRewardsEnabled={birthdayRewardsEnabled}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const baseCustomerFilters = [
-  ["all", "All"],
-  ["almost_there", "Almost there"],
-  ["reward_ready", "Reward ready"],
-  ["birthday_saved", "Birthday saved"],
-];
-
-function LoyaltyCustomersSection({
-  customers,
-  isLoading,
-  error,
-  search,
-  onSearchChange,
-  status,
-  onStatusChange,
-  expandedCustomerId,
-  onExpandedCustomerChange,
-  birthdayRewardsEnabled = false,
-}) {
-  const [page, setPage] = useState(1);
-  const supportsScannedToday = customers.some((customer) =>
-    ["scannedToday", "hasScannedToday", "lastScannedAt", "lastScanAt", "lastScannerScanAt"].some(
-      (field) => customer[field] !== undefined && customer[field] !== null,
-    ),
-  );
-  const customerFilters = supportsScannedToday
-    ? [
-        ...baseCustomerFilters.filter(([filterValue]) => birthdayRewardsEnabled || filterValue !== "birthday_saved"),
-        ["scanned_today", "Scanned today"],
-      ]
-    : baseCustomerFilters.filter(([filterValue]) => birthdayRewardsEnabled || filterValue !== "birthday_saved");
-  const visibleCustomers =
-    status === "scanned_today" ? customers.filter(customerWasScannedToday) : customers;
-  const pageCount = Math.max(1, Math.ceil(visibleCustomers.length / customerPageSize));
-  const safePage = Math.min(page, pageCount);
-  const pageStart = (safePage - 1) * customerPageSize;
-  const pagedCustomers = visibleCustomers.slice(pageStart, pageStart + customerPageSize);
-  const customerSummary = isLoading
-    ? "Loading customers"
-    : visibleCustomers.length
-      ? `Showing ${pageStart + 1}-${Math.min(pageStart + customerPageSize, visibleCustomers.length)} of ${visibleCustomers.length} customers`
-      : "Showing 0 customers";
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, status]);
-
-  useEffect(() => {
-    if (page > pageCount) setPage(pageCount);
-  }, [page, pageCount]);
-
-  return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-950">
-            Loyalty Customers
-          </h2>
-          <p className="mt-1 max-w-2xl text-slate-500">
-            Customers who have joined your Apple Wallet loyalty program.
-          </p>
-          <p className="mt-2 text-sm font-semibold text-slate-500">
-            {customerSummary}
-          </p>
-        </div>
-
-        <label className="w-full lg:max-w-sm">
-          <span className="sr-only">Search loyalty customers</span>
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search by name or email"
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#16856f] focus:ring-4 focus:ring-[#16856f]/10"
-          />
-        </label>
-      </div>
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        {customerFilters.map(([filterValue, label]) => {
-          const isSelected = status === filterValue;
-
-          return (
-            <button
-              key={filterValue}
-              type="button"
-              onClick={() => onStatusChange(filterValue)}
-              className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
-                isSelected
-                  ? "bg-[#143d3b] text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-950"
-              }`}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-xl ring-1 ring-slate-100">
-        {isLoading ? (
-          <div className="flex items-center gap-3 p-5 text-slate-600">
-            <LoadingText label="Loading loyalty customers..." />
-          </div>
-        ) : error ? (
-          <div className="flex gap-3 p-5 text-red-700">
-            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-bold">
-              !
-            </span>
-            <p>{error}</p>
-          </div>
-        ) : !visibleCustomers.length ? (
-          <div className="p-5 text-slate-600">
-            {status === "scanned_today"
-              ? "No scanned customers found for today."
-              : "No loyalty customers yet. Customers will appear here when they create an Apple Wallet card."}
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {pagedCustomers.map((customer, index) => {
-              const customerId = getCustomerId(customer, pageStart + index);
-              const customerStatus = getCustomerStatus(customer, birthdayRewardsEnabled);
-              const isExpanded = expandedCustomerId === customerId;
-              const detailRows = [
-                ["Joined", formatCustomerDate(customer.joinedDate)],
-                birthdayRewardsEnabled ? ["Birthday", formatCustomerBirthday(customer)] : null,
-                ["Apple Wallet card", formatCustomerWalletStatus(customer)],
-                ["Card ID", formatCustomerCardId(customer)],
-                ["Reward threshold", `${Number(customer.rewardThreshold ?? 10) || 10} stamps`],
-                ["Last activity", formatCustomerDate(customer.lastUpdated)],
-              ].filter(Boolean);
-
-              return (
-                <div
-                  key={customerId}
-                  className="bg-white transition hover:bg-slate-50/70"
-                >
-                  <button
-                    type="button"
-                    aria-expanded={isExpanded}
-                    onClick={() =>
-                      onExpandedCustomerChange(isExpanded ? null : customerId)
-                    }
-                    className="flex w-full flex-col gap-3 p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-[#16856f]/10 sm:p-5 lg:flex-row lg:items-center lg:justify-between"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold text-slate-950">
-                        {getCustomerName(customer)}
-                      </span>
-                      <span className="mt-1 block truncate text-sm text-slate-500">
-                        {customer.email || "No email saved"}
-                      </span>
-                    </span>
-
-                    <span className="flex flex-wrap items-center gap-2 text-sm lg:justify-end">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getCustomerStatusClass(
-                          customerStatus,
-                        )}`}
-                      >
-                        {customerStatus}
-                      </span>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">
-                        {getCustomerStampProgress(customer)}
-                      </span>
-                      <span className="text-slate-500">
-                        Last activity {formatCustomerShortDate(customer.lastUpdated)}
-                      </span>
-                      <span
-                        className={`text-slate-400 transition ${
-                          isExpanded ? "rotate-180" : ""
-                        }`}
-                        aria-hidden="true"
-                      >
-                        ˅
-                      </span>
-                    </span>
-                  </button>
-
-                  {isExpanded ? (
-                    <div className="border-t border-slate-100 bg-[#fbfaf7] px-4 py-4 sm:px-5">
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {detailRows.map(([label, value]) => (
-                          <div key={label} className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-400">
-                              {label}
-                            </p>
-                            <p
-                              className="mt-1 truncate text-sm font-semibold text-slate-700"
-                              title={String(value)}
-                            >
-                              {value}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      <PaginationControls page={safePage} pageCount={pageCount} onPageChange={setPage} />
-    </section>
-  );
-}
-
 function DashboardQrCode({ value }) {
   return (
     <div className="mt-5 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
@@ -2770,7 +2125,7 @@ function MerchantCampaignSection({
     setFormError("");
     setIsCreating(true);
     try {
-      await createMerchantCampaign(accessToken, {
+      await createMerchantCampaignRequest(accessToken, {
         message: trimmedMessage,
         scheduledAt: toScheduledAtIso(scheduledAt),
       });
@@ -2789,7 +2144,7 @@ function MerchantCampaignSection({
     setFormError("");
     setCancellingId(campaignId);
     try {
-      await cancelMerchantCampaign(accessToken, campaignId);
+      await cancelMerchantCampaignRequest(accessToken, campaignId);
       await onRefresh();
     } catch (campaignError) {
       setFormError(campaignError.message || "Unable to cancel this update.");
@@ -2899,11 +2254,11 @@ function MerchantCampaignSection({
 
 function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabled = false }) {
   const reminderRows = [
-    ["Halfway", "Active"],
-    ["Almost there", "Active"],
-    ["Reward ready", "Active"],
+    ["Halfway", "Automatic"],
+    ["Almost there", "Automatic"],
+    ["Reward ready", "Automatic"],
     ["Birthday rewards", birthdayRewardsEnabled ? "On" : "Off"],
-    ["Win-back", "Active"],
+    ["Win-back", "Automatic"],
   ];
 
   return (
@@ -2918,7 +2273,7 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
           </p>
         </div>
         <span className="w-fit rounded-full bg-[#e7f7f3] px-3 py-1 text-sm font-semibold text-[#16856f]">
-          Active
+          Managed automatically
         </span>
       </div>
 
@@ -2952,7 +2307,7 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
               <p className="font-semibold text-slate-950">{title}</p>
               <span
                 className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  status === "Active" || status === "On"
+                  status === "On"
                     ? "bg-[#e7f7f3] text-[#16856f]"
                     : "bg-slate-100 text-slate-500"
                 }`}
@@ -2967,7 +2322,7 @@ function ReminderStatusSection({ summary, isLoading, error, birthdayRewardsEnabl
   );
 }
 
-function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
+function MerchantDashboard({ accessToken, merchantContext, onLogout, page = "overview" }) {
   const isMountedRef = useRef(false);
   const isDashboardRefreshInFlightRef = useRef(false);
   const isCustomerRefreshInFlightRef = useRef(false);
@@ -2993,13 +2348,10 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
   const [campaignError, setCampaignError] = useState("");
   const [isCampaignsLoading, setIsCampaignsLoading] = useState(true);
 
-  const merchantSlug = useMemo(
-    () =>
-      merchantContext.merchantSlug ||
-      safeSlug(merchantContext.merchantName || merchantContext.merchantId),
-    [merchantContext],
-  );
-  const joinUrl = `${PUBLIC_SITE_BASE_URL}/join/${merchantSlug}`;
+  const merchantSlug = merchantContext.merchantSlug || "";
+  const joinUrl = merchantSlug
+    ? `${PUBLIC_SITE_BASE_URL}/join/${merchantSlug}`
+    : "";
   const birthdayRewardsEnabled =
     pickFirst(
       getBirthdayRewardsSetting(merchantContext),
@@ -3024,9 +2376,9 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
 
     try {
       const [activityResult, dashboardResult, reminderResult] = await Promise.allSettled([
-        fetchMerchantActivity(accessToken),
-        fetchMerchantDashboardSummary(accessToken),
-        fetchMerchantReminderSummary(accessToken),
+        fetchMerchantActivityRequest(accessToken),
+        fetchMerchantDashboardSummaryRequest(accessToken),
+        fetchMerchantReminderSummaryRequest(accessToken),
       ]);
 
       if (!isMountedRef.current) return;
@@ -3083,7 +2435,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     setCustomerError("");
 
     try {
-      const payload = await fetchMerchantCustomers(accessToken, {
+      const payload = await fetchMerchantCustomersRequest(accessToken, {
         search: customerSearch,
         status: effectiveCustomerStatus === "scanned_today" ? "all" : effectiveCustomerStatus,
         limit: 50,
@@ -3111,7 +2463,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     if (showLoading) setIsCampaignsLoading(true);
     setCampaignError("");
     try {
-      const payload = await fetchMerchantCampaigns(accessToken);
+      const payload = await fetchMerchantCampaignsRequest(accessToken);
       if (!isMountedRef.current) return;
       setCampaignRows(normalizeCampaignRows(payload));
     } catch (campaignFetchError) {
@@ -3123,50 +2475,58 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     }
   }
 
-  function refreshAllDashboardData({ showLoading = false } = {}) {
-    return Promise.all([
-      refreshDashboardData({ showLoading }),
-      refreshCustomers({ showLoading }),
-      refreshCampaigns({ showLoading }),
-    ]);
+  function refreshCurrentPageData({ showLoading = false } = {}) {
+    if (page === "customers") {
+      return refreshCustomers({ showLoading });
+    }
+    if (page === "marketing") {
+      return Promise.all([
+        refreshDashboardData({ showLoading }),
+        refreshCampaigns({ showLoading }),
+      ]);
+    }
+    if (page === "overview" || page === "activity") {
+      return refreshDashboardData({ showLoading });
+    }
+    return Promise.resolve();
   }
 
   useEffect(() => {
     isMountedRef.current = true;
-    refreshDashboardData({ showLoading: true });
-    refreshCampaigns({ showLoading: true });
+    refreshCurrentPageData({ showLoading: true });
     return () => {
       isMountedRef.current = false;
     };
-  }, [accessToken]);
+  }, [accessToken, page]);
 
   useEffect(() => {
+    if (page !== "customers") return;
     refreshCustomers({ showLoading: true });
-  }, [accessToken, customerSearch, effectiveCustomerStatus]);
+  }, [accessToken, customerSearch, effectiveCustomerStatus, page]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === "hidden") return;
-      refreshAllDashboardData({ showLoading: false });
+      refreshCurrentPageData({ showLoading: false });
     }, MERCHANT_DASHBOARD_REFRESH_INTERVAL_MS);
 
     function handleFocus() {
-      refreshAllDashboardData({ showLoading: false });
+      refreshCurrentPageData({ showLoading: false });
     }
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
-        refreshAllDashboardData({ showLoading: false });
+        refreshCurrentPageData({ showLoading: false });
       }
     }
 
     function handleMerchantDataChanged() {
-      refreshAllDashboardData({ showLoading: false });
+      refreshCurrentPageData({ showLoading: false });
     }
 
     function handleStorage(event) {
       if (event.key === MERCHANT_DATA_CHANGED_STORAGE_KEY) {
-        refreshAllDashboardData({ showLoading: false });
+        refreshCurrentPageData({ showLoading: false });
       }
     }
 
@@ -3182,15 +2542,12 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
       window.removeEventListener(MERCHANT_DATA_CHANGED_EVENT, handleMerchantDataChanged);
       window.removeEventListener("storage", handleStorage);
     };
-  }, [accessToken, customerSearch, effectiveCustomerStatus]);
+  }, [accessToken, customerSearch, effectiveCustomerStatus, page]);
 
-  const metricFallback = dashboardSummaryError ? "Totals unavailable" : "—";
-  const metricHelperFallback = dashboardSummaryError
-    ? "Dashboard totals could not be loaded."
-    : "Loading totals...";
   const scannerDashboard = getScannerDashboardData(dashboardSummary || {});
 
   async function handleCopyJoinUrl() {
+    if (!joinUrl) return;
     try {
       await navigator.clipboard.writeText(joinUrl);
       setCopyState("copied");
@@ -3205,7 +2562,7 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     setManualRefreshState("refreshing");
 
     try {
-      await refreshAllDashboardData({ showLoading: false });
+      await refreshCurrentPageData({ showLoading: false });
       setManualRefreshState("done");
     } catch {
       setManualRefreshState("failed");
@@ -3224,225 +2581,85 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
     setExpandedCustomerId(null);
   }
 
+  const pageTitles = {
+    overview: "Overview",
+    customers: "Customers",
+    activity: "Activity",
+    marketing: "Marketing",
+    "get-customers": "Get Customers",
+  };
+
   return (
-    <main className="ps-dashboard min-h-screen text-[var(--ps-espresso)]">
-      <header className="border-b border-[var(--ps-border)] bg-[rgba(255,253,248,0.86)]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-6 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-          <div className="flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--ps-espresso)] text-white">
-              PS
-            </span>
-            <div>
-              <p className="text-sm font-semibold uppercase text-[var(--ps-blue)]">
-                PocketStamp Merchant
-              </p>
-              <h1 className="mt-1 text-2xl font-semibold text-[var(--ps-espresso)]">
-                {merchantContext.merchantName}
-              </h1>
-              <p className="mt-1 text-sm text-[var(--ps-muted)]">
-                {merchantContext.locationName} · {merchantContext.role}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleManualRefresh}
-              disabled={manualRefreshState === "refreshing"}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {manualRefreshState === "refreshing" ? "Refreshing..." : "Refresh"}
-            </button>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <OverviewCard
-            label="Active Wallet cards"
-            value={
-              isDashboardSummaryLoading
-                ? "..."
-                : dashboardSummary?.activeWalletCards ?? metricFallback
-            }
-            helper={
-              isDashboardSummaryLoading
-                ? metricHelperFallback
-                : dashboardSummaryError
-                  ? metricHelperFallback
-                  : `${dashboardSummary?.customersJoined ?? 0} customers joined`
-            }
-            iconLabel="Wallet"
-          />
-          <OverviewCard
-            label="Stamps today"
-            value={
-              isDashboardSummaryLoading
-                ? "..."
-                : dashboardSummary?.stampsToday ?? metricFallback
-            }
-            helper={
-              isDashboardSummaryLoading || dashboardSummaryError
-                ? metricHelperFallback
-                  : "stamps collected today"
-            }
-            iconLabel="Stamps"
-          />
-          <OverviewCard
-            label="Rewards redeemed"
-            value={
-              isDashboardSummaryLoading
-                ? "..."
-                : dashboardSummary?.rewardsRedeemed ?? metricFallback
-            }
-            helper={
-              isDashboardSummaryLoading || dashboardSummaryError
-                ? metricHelperFallback
-                  : "rewards claimed"
-            }
-            iconLabel="✓"
-          />
-          <OverviewCard
-            label="Scanner Mode"
-            value={
-              isDashboardSummaryLoading
-                ? "..."
-                : scannerDashboard.isFallback
-                  ? "Available"
-                  : scannerDashboard.isReady
-                    ? "Ready"
-                    : "Not set up"
-            }
-            helper={
-              isDashboardSummaryLoading
-                ? metricHelperFallback
-                : scannerDashboard.isFallback
-                  ? "Scanner Mode setup is managed by PocketStamp."
-                  : scannerDashboard.isReady
-                    ? "Staff scan Wallet QR codes at the till."
-                    : "Ask PocketStamp to connect Scanner Mode."
-            }
-            iconLabel="Scan"
-          />
-        </div>
-
-        <div className="mt-8">
-          <CounterScannerSection scanner={scannerDashboard} />
-        </div>
-
-        <div className="mt-8">
-          <LoyaltyCustomersSection
-            customers={customerRows}
-            isLoading={isCustomersLoading}
-            error={customerError}
-            search={customerSearch}
-            onSearchChange={handleCustomerSearchChange}
-            status={effectiveCustomerStatus}
-            onStatusChange={handleCustomerStatusChange}
-            expandedCustomerId={expandedCustomerId}
-            onExpandedCustomerChange={setExpandedCustomerId}
-            birthdayRewardsEnabled={birthdayRewardsEnabled}
-          />
-        </div>
-
-        <div className="mt-8 grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-          <section>
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-[var(--ps-espresso)]">
-                  Recent activity
-                </h2>
-                <p className="mt-1 text-[var(--ps-muted)]">
-                  Latest stamps, rewards and joins from your loyalty program.
-                </p>
-              </div>
-            </div>
-            <ActivityList
+    <MerchantLayout
+      merchantContext={merchantContext}
+      page={page}
+      pageTitle={pageTitles[page]}
+      scannerUrl={scannerDashboard.scannerUrl || ""}
+      onLogout={onLogout}
+      onRefresh={handleManualRefresh}
+      refreshLabel={manualRefreshState === "refreshing" ? "Refreshing..." : "Refresh"}
+    >
+      {page === "overview" ? (
+        <MerchantOverview
+          dashboardSummary={dashboardSummary}
+          dashboardSummaryError={dashboardSummaryError}
+          isDashboardSummaryLoading={isDashboardSummaryLoading}
+          activityContent={(
+            <MerchantActivity
               activityRows={activityRows}
               isLoading={isActivityLoading}
               error={activityError}
               birthdayRewardsEnabled={birthdayRewardsEnabled}
+              preview
             />
-          </section>
+          )}
+          scanner={scannerDashboard}
+          reminderSummary={reminderSummary}
+          reminderError={reminderError}
+          isReminderSummaryLoading={isReminderSummaryLoading}
+          joinUrl={joinUrl}
+          copyState={copyState}
+          onCopyJoinUrl={handleCopyJoinUrl}
+        />
+      ) : null}
 
-          <aside className="space-y-6">
-            <div className="ps-dashboard-card rounded-2xl p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-semibold text-[var(--ps-espresso)]">
-                    Join QR
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-[var(--ps-muted)]">
-                    Print or display this QR so new customers can add your Apple Wallet loyalty card.
-                  </p>
-                </div>
-                <span className="text-sm font-bold text-[var(--ps-blue)]">QR</span>
-              </div>
+      {page === "customers" ? (
+        <MerchantCustomers
+          customers={customerRows}
+          isLoading={isCustomersLoading}
+          error={customerError}
+          search={customerSearch}
+          onSearchChange={handleCustomerSearchChange}
+          status={effectiveCustomerStatus}
+          onStatusChange={handleCustomerStatusChange}
+          expandedCustomerId={expandedCustomerId}
+          onExpandedCustomerChange={setExpandedCustomerId}
+          birthdayRewardsEnabled={birthdayRewardsEnabled}
+        />
+      ) : null}
 
-              <div className="mt-5 rounded-xl bg-[var(--ps-cream)] p-4 text-sm font-semibold leading-6 text-[var(--ps-espresso)] break-all">
-                {joinUrl}
-              </div>
+      {page === "activity" ? (
+          <MerchantActivity
+            activityRows={activityRows}
+            isLoading={isActivityLoading}
+            error={activityError}
+            birthdayRewardsEnabled={birthdayRewardsEnabled}
+          />
+      ) : null}
 
-              <DashboardQrCode value={joinUrl} />
-
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={handleCopyJoinUrl}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--ps-blue)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#255ddd]"
-                >
-                  {copyState === "copied"
-                    ? "Copied"
-                    : copyState === "failed"
-                      ? "Copy failed"
-                      : "Copy link"}
-                </button>
-                <a
-                  href={joinUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--ps-border)] bg-[var(--ps-card)] px-4 py-2.5 text-sm font-semibold text-[var(--ps-espresso)] transition hover:border-stone-300"
-                >
-                  Open
-                </a>
-              </div>
-            </div>
-
-            <div className="ps-dashboard-card rounded-2xl p-6">
-              <div className="flex items-start gap-4">
-                <div className="rounded-xl bg-[var(--ps-blue-soft)] p-3 text-[var(--ps-blue)]">
-                  <span className="text-xs font-bold">Scan</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-[var(--ps-espresso)]">
-                    Scanner setup
-                  </h2>
-                  <p className="mt-3 font-semibold text-[var(--ps-espresso)]">
-                    Scanner Mode is the in-store flow.
-                  </p>
-                  <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--ps-muted)]">
-                    <li>Print or display the Join QR.</li>
-                    <li>Open Scanner Mode on the till tablet or laptop.</li>
-                    <li>Use a Zebra/USB scanner, tablet camera, or manual code entry.</li>
-                    <li>Do a test scan with an Apple Wallet card.</li>
-                    <li>Email {SUPPORT_EMAIL} if you get stuck.</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </aside>
-        </div>
-
-        <div className="mt-8">
+      {page === "marketing" ? (
+        <div className="space-y-8">
+          <div>
+            <h2 className="mb-4 text-2xl font-semibold">Automated Loyalty Reminders</h2>
+            <ReminderStatusSection
+              summary={reminderSummary}
+              isLoading={isReminderSummaryLoading}
+              error={reminderError}
+              birthdayRewardsEnabled={birthdayRewardsEnabled}
+            />
+          </div>
+          <div>
+            <h2 className="mb-4 text-2xl font-semibold">Promotional Campaigns</h2>
           <MerchantCampaignSection
             accessToken={accessToken}
             merchantContext={merchantContext}
@@ -3451,18 +2668,45 @@ function MerchantDashboard({ accessToken, merchantContext, onLogout }) {
             error={campaignError}
             onRefresh={() => refreshCampaigns({ showLoading: false })}
           />
+          </div>
         </div>
+      ) : null}
 
-        <div className="mt-8">
-          <ReminderStatusSection
-            summary={reminderSummary}
-            isLoading={isReminderSummaryLoading}
-            error={reminderError}
-            birthdayRewardsEnabled={birthdayRewardsEnabled}
-          />
-        </div>
-      </div>
-    </main>
+      {page === "get-customers" ? (
+        <section className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
+          <div className="ps-dashboard-card rounded-2xl p-6">
+            <h2 className="text-2xl font-semibold">Customer join QR</h2>
+            <p className="mt-2 leading-7 text-[var(--ps-muted)]">
+              Display this QR at the counter so customers can join and add your loyalty card to Apple Wallet.
+            </p>
+            {joinUrl ? (
+              <>
+                <div className="mt-5 rounded-xl bg-[var(--ps-cream)] p-4 text-sm font-semibold leading-6 break-all">{joinUrl}</div>
+                <DashboardQrCode value={joinUrl} />
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  <button type="button" onClick={handleCopyJoinUrl} className="inline-flex items-center justify-center rounded-full bg-[var(--ps-blue)] px-4 py-2.5 text-sm font-semibold text-white">
+                    {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy link"}
+                  </button>
+                  <a href={joinUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-full border border-[var(--ps-border)] bg-white px-4 py-2.5 text-sm font-semibold">Open join page</a>
+                </div>
+              </>
+            ) : (
+              <div className="mt-5 rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+                Your customer join link is unavailable. Please contact PocketStamp support.
+              </div>
+            )}
+          </div>
+          <aside className="ps-dashboard-card rounded-2xl p-6">
+            <h2 className="text-xl font-semibold">How customers join</h2>
+            <ol className="mt-4 space-y-3 text-sm leading-6 text-[var(--ps-muted)]">
+              <li>1. Display the QR at your counter.</li>
+              <li>2. The customer scans it and enters their details.</li>
+              <li>3. They add your loyalty card to Apple Wallet.</li>
+            </ol>
+          </aside>
+        </section>
+      ) : null}
+    </MerchantLayout>
   );
 }
 
@@ -5323,11 +4567,11 @@ export default function App() {
     return <DemoSuccessPage />;
   }
 
-  if (pathname === "/merchant/setup") {
-    return <MerchantSetupPage />;
+  if (isMerchantSetupPath(pathname)) {
+    return <MerchantSetup tokenStorageKey={TOKEN_STORAGE_KEY} />;
   }
 
-  if (pathname === "/merchant/scanner") {
+  if (isMerchantScannerPath(pathname)) {
     return (
       <ScannerRenderBoundary>
         <ScannerKioskPage />
@@ -5336,7 +4580,28 @@ export default function App() {
   }
 
   if (pathname.startsWith("/merchant")) {
-    return <MerchantPortal />;
+    const merchantPage = resolveMerchantManagementPage(pathname);
+    if (!merchantPage) {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-[#fbfaf7] px-6 text-slate-950">
+          <div className="max-w-md rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+            <p className="text-sm font-semibold uppercase text-[#2f6df6]">PocketStamp Merchant</p>
+            <h1 className="mt-3 text-3xl font-semibold">Page not found</h1>
+            <p className="mt-3 leading-7 text-slate-600">This merchant page does not exist.</p>
+            <a href="/merchant" className="mt-6 inline-flex rounded-full bg-[#143d3b] px-5 py-3 font-semibold text-white">
+              Return to Overview
+            </a>
+          </div>
+        </main>
+      );
+    }
+    return (
+      <MerchantPortalShell
+        DashboardComponent={MerchantDashboard}
+        tokenStorageKey={TOKEN_STORAGE_KEY}
+        page={merchantPage}
+      />
+    );
   }
 
   if (pathname.startsWith("/admin")) {
