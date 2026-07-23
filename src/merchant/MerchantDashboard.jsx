@@ -75,7 +75,13 @@ function getScannerDashboardData(summary = {}) {
   };
 }
 
-export default function MerchantDashboard({ accessToken, merchantContext, onLogout, page = "overview" }) {
+export default function MerchantDashboard({
+  accessToken,
+  merchantContext,
+  onLogout,
+  onNavigate,
+  page = "overview",
+}) {
   const isMountedRef = useRef(false);
   const isDashboardRefreshInFlightRef = useRef(false);
   const isCustomerRefreshInFlightRef = useRef(false);
@@ -342,6 +348,7 @@ export default function MerchantDashboard({ accessToken, merchantContext, onLogo
       pageTitle={pageTitles[page]}
       scannerUrl={scannerDashboard.scannerUrl || ""}
       onLogout={onLogout}
+      onNavigate={onNavigate}
       onRefresh={handleManualRefresh}
       refreshLabel={manualRefreshState === "refreshing" ? "Refreshing..." : "Refresh"}
     >

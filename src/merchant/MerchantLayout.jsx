@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { resolveMerchantManagementNavigation } from "./merchantRoutes.js";
 
 const navigation = [
   ["/merchant", "Overview", "overview"],
@@ -15,6 +16,7 @@ export default function MerchantLayout({
   pageTitle,
   scannerUrl,
   onLogout,
+  onNavigate,
   onRefresh,
   refreshLabel,
 }) {
@@ -23,6 +25,37 @@ export default function MerchantLayout({
   useEffect(() => {
     setIsMenuOpen(false);
   }, [page]);
+
+  function handleManagementLinkClick(event) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+
+    const anchor = event.target.closest?.("a[href]");
+    if (
+      !anchor ||
+      anchor.hasAttribute("download") ||
+      (anchor.target && anchor.target !== "_self")
+    ) {
+      return;
+    }
+
+    const destination = resolveMerchantManagementNavigation(
+      anchor.href,
+      window.location.origin,
+    );
+    if (!destination) return;
+
+    event.preventDefault();
+    onNavigate(destination.href, destination.page);
+  }
 
   function NavigationLinks() {
     return (
@@ -66,7 +99,10 @@ export default function MerchantLayout({
   }
 
   return (
-    <main className="ps-dashboard min-h-screen text-[var(--ps-espresso)]">
+    <main
+      className="ps-dashboard min-h-screen text-[var(--ps-espresso)]"
+      onClick={handleManagementLinkClick}
+    >
       <div className="min-h-screen lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
         <aside className="hidden border-r border-[var(--ps-border)] bg-[rgba(255,253,248,0.82)] lg:flex lg:min-h-screen lg:flex-col lg:p-5">
           <a href="/merchant" className="flex items-center gap-3" aria-label="PocketStamp merchant overview">

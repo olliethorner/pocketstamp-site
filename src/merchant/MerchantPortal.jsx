@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import MerchantLogin from "./MerchantLogin.jsx";
 import { fetchMerchantMe } from "./api/merchantApi.js";
+import { resolveMerchantManagementPage } from "./merchantRoutes.js";
 import { normalizeMerchantContext } from "./utils/merchantData.js";
 
 export default function MerchantPortal({
@@ -13,6 +14,7 @@ export default function MerchantPortal({
   );
   const [merchantContext, setMerchantContext] = useState(null);
   const [isCheckingSession, setIsCheckingSession] = useState(Boolean(accessToken));
+  const [activePage, setActivePage] = useState(page);
 
   useEffect(() => {
     let isMounted = true;
@@ -48,6 +50,16 @@ export default function MerchantPortal({
     };
   }, [accessToken, tokenStorageKey]);
 
+  useEffect(() => {
+    function handlePopState() {
+      const nextPage = resolveMerchantManagementPage(window.location.pathname);
+      if (nextPage) setActivePage(nextPage);
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   async function handleLogin(token, initialContext) {
     setAccessToken(token);
     setMerchantContext(initialContext);
@@ -64,6 +76,11 @@ export default function MerchantPortal({
     localStorage.removeItem(tokenStorageKey);
     setAccessToken(null);
     setMerchantContext(null);
+  }
+
+  function handleNavigate(href, nextPage) {
+    window.history.pushState({}, "", href);
+    setActivePage(nextPage);
   }
 
   if (isCheckingSession) {
@@ -90,7 +107,8 @@ export default function MerchantPortal({
       accessToken={accessToken}
       merchantContext={merchantContext}
       onLogout={handleLogout}
-      page={page}
+      onNavigate={handleNavigate}
+      page={activePage}
     />
   );
 }

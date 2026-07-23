@@ -43,6 +43,35 @@ test("retains the existing birthday setting precedence", () => {
   );
 });
 
+test("retains an authoritative slug from nested authenticated response data", () => {
+  const context = normalizeMerchantContext({
+    merchantContext: {
+      id: "merchant_yeems",
+      displayName: "Yeems",
+    },
+    data: {
+      user: {
+        merchant: {
+          merchantSlug: "backend-provided-slug",
+        },
+      },
+    },
+  });
+
+  assert.equal(context.merchantSlug, "backend-provided-slug");
+});
+
+test("does not derive a missing merchant slug from a name or id", () => {
+  const context = normalizeMerchantContext({
+    merchant: {
+      id: "merchant_yeems",
+      name: "Yeems Coffee",
+    },
+  });
+
+  assert.equal(context.merchantSlug, undefined);
+});
+
 test("extracts supported existing access token shapes", () => {
   assert.equal(
     extractAccessToken({ data: { session: { accessToken: "token_1" } } }),

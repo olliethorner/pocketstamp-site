@@ -29,6 +29,44 @@ export function normalizeMerchantContext(payload) {
     source?.locations?.[0] ||
     payload?.location ||
     {};
+  const merchantSlug = pickFirst(
+    source.merchantSlug,
+    source.merchant_slug,
+    source.slug,
+    source.merchant?.merchantSlug,
+    source.merchant?.merchant_slug,
+    source.merchant?.slug,
+    payload?.merchantSlug,
+    payload?.merchant_slug,
+    payload?.merchant?.merchantSlug,
+    payload?.merchant?.merchant_slug,
+    payload?.merchant?.slug,
+    payload?.user?.merchantSlug,
+    payload?.user?.merchant_slug,
+    payload?.user?.merchant?.merchantSlug,
+    payload?.user?.merchant?.merchant_slug,
+    payload?.user?.merchant?.slug,
+    payload?.data?.merchantSlug,
+    payload?.data?.merchant_slug,
+    payload?.data?.merchant?.merchantSlug,
+    payload?.data?.merchant?.merchant_slug,
+    payload?.data?.merchant?.slug,
+    payload?.data?.user?.merchantSlug,
+    payload?.data?.user?.merchant_slug,
+    payload?.data?.user?.merchant?.merchantSlug,
+    payload?.data?.user?.merchant?.merchant_slug,
+    payload?.data?.user?.merchant?.slug,
+    payload?.result?.merchantSlug,
+    payload?.result?.merchant_slug,
+    payload?.result?.merchant?.merchantSlug,
+    payload?.result?.merchant?.merchant_slug,
+    payload?.result?.merchant?.slug,
+    payload?.data?.result?.merchantSlug,
+    payload?.data?.result?.merchant_slug,
+    payload?.data?.result?.merchant?.merchantSlug,
+    payload?.data?.result?.merchant?.merchant_slug,
+    payload?.data?.result?.merchant?.slug,
+  );
 
   return {
     raw: payload,
@@ -41,7 +79,7 @@ export function normalizeMerchantContext(payload) {
       payload?.merchantName,
       "PocketStamp merchant",
     ),
-    merchantSlug: pickFirst(source.merchantSlug, source.slug, payload?.merchantSlug),
+    merchantSlug,
     locationId:
       source.locationId !== undefined
         ? source.locationId

@@ -11,6 +11,18 @@ export function resolveMerchantManagementPage(pathname) {
   return MERCHANT_MANAGEMENT_ROUTES[pathname] || null;
 }
 
+export function resolveMerchantManagementNavigation(href, origin) {
+  try {
+    const url = new URL(href, origin);
+    if (url.origin !== origin) return null;
+
+    const page = resolveMerchantManagementPage(url.pathname);
+    return page ? { href: `${url.pathname}${url.search}${url.hash}`, page } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function isMerchantSetupPath(pathname) {
   return pathname === "/merchant/setup";
 }

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isMerchantScannerPath,
   isMerchantSetupPath,
+  resolveMerchantManagementNavigation,
   resolveMerchantManagementPage,
 } from "./merchant/merchantRoutes.js";
 
@@ -25,4 +26,48 @@ test("keeps merchant setup and scanner routes separate", () => {
   assert.equal(isMerchantScannerPath("/merchant/scanner"), true);
   assert.equal(resolveMerchantManagementPage("/merchant/setup"), null);
   assert.equal(resolveMerchantManagementPage("/merchant/scanner"), null);
+});
+
+test("resolves same-origin management links for client-side navigation", () => {
+  assert.deepEqual(
+    resolveMerchantManagementNavigation(
+      "/merchant/customers",
+      "https://getpocketstamp.com",
+    ),
+    { href: "/merchant/customers", page: "customers" },
+  );
+  assert.deepEqual(
+    resolveMerchantManagementNavigation(
+      "https://getpocketstamp.com/merchant/activity",
+      "https://getpocketstamp.com",
+    ),
+    { href: "/merchant/activity", page: "activity" },
+  );
+});
+
+test("leaves standalone, unsupported, and external links to the browser", () => {
+  const origin = "https://getpocketstamp.com";
+
+  assert.equal(
+    resolveMerchantManagementNavigation("/merchant/setup", origin),
+    null,
+  );
+  assert.equal(
+    resolveMerchantManagementNavigation(
+      "/merchant/scanner?deviceToken=test",
+      origin,
+    ),
+    null,
+  );
+  assert.equal(
+    resolveMerchantManagementNavigation("/merchant/unknown", origin),
+    null,
+  );
+  assert.equal(
+    resolveMerchantManagementNavigation(
+      "https://example.com/merchant/customers",
+      origin,
+    ),
+    null,
+  );
 });
