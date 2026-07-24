@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import AdminPortal from "./AdminPortal.jsx";
 import MerchantPortalShell from "./merchant/MerchantPortal.jsx";
@@ -170,24 +170,6 @@ const setupSteps = [
   "You get your dashboard, Join QR and scanner setup",
   "Customers scan at the till to collect stamps",
   "Wallet reminders and scheduled updates help bring them back",
-];
-
-const cafeFeatures = [
-  ["Wallet card", "The stamp card your customers actually keep."],
-  ["Join QR", "Customers scan your café QR and add the loyalty card to Apple Wallet."],
-  [
-    "Counter Scanner Mode",
-    "Customers scan their Wallet pass at the till. Stamps are added automatically.",
-  ],
-  [
-    "Merchant dashboard",
-    "See joins, stamps, rewards, scanner activity and customers in one calm view.",
-  ],
-  ["Automatic loyalty reminders", "Timely Wallet reminders based on progress, rewards and customer activity."],
-  [
-    "Promotional Wallet updates",
-    "Schedule short updates for offers, events, launches or timely reasons to return.",
-  ],
 ];
 
 const scannerModeBullets = [
@@ -1594,60 +1576,113 @@ function DemoSuccessPage() {
 }
 
 function MarketingHomepage() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [retentionView, setRetentionView] = useState("automatic");
+  const menuButtonRef = useRef(null);
+  const firstMenuLinkRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    firstMenuLinkRef.current?.focus();
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
+
   return (
-    <main className="ps-site min-h-screen bg-[#f7f3ec] text-slate-950">
-      <section className="ps-hero relative overflow-hidden">
-        <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-6 lg:px-8">
+    <main className="ps-site ps-marketing min-h-screen bg-[#f7f3ec] text-slate-950">
+      <header className="ps-site-header">
+        <nav className="ps-nav-shell" aria-label="Primary navigation">
           <a href="/" className="ps-wordmark" aria-label="PocketStamp home">
-            PocketStamp
+            <span className="ps-logo-mark" aria-hidden="true">P</span>
+            <span>PocketStamp</span>
           </a>
-          <div className="flex items-center gap-4">
-            <a href="#how-it-works" className="ps-nav-link hidden sm:inline-flex">
+          <div className="ps-desktop-nav">
+            <a href="#how-it-works" className="ps-nav-link">
               How it works
             </a>
-            <a href="/merchant" className="ps-nav-link hidden sm:inline-flex">
+            <a href="#system" className="ps-nav-link">
+              Product
+            </a>
+            <a href="#retention" className="ps-nav-link">
+              Retention
+            </a>
+            <a href="/merchant" className="ps-nav-link">
               Merchant
             </a>
-            <a href={demoHref} className="ps-pill ps-pill-dark">
+          </div>
+          <div className="ps-nav-actions">
+            <a href={demoHref} className="ps-pill ps-pill-dark ps-header-cta">
               Book a demo
             </a>
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className="ps-menu-button"
+              aria-expanded={menuOpen}
+              aria-controls="mobile-menu"
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span />
+              <span />
+            </button>
           </div>
         </nav>
+        {menuOpen ? (
+          <div id="mobile-menu" className="ps-mobile-menu" role="dialog" aria-modal="true" aria-label="Navigation menu">
+            <a ref={firstMenuLinkRef} href="#how-it-works" onClick={closeMenu}>How it works</a>
+            <a href="#system" onClick={closeMenu}>The product</a>
+            <a href="#retention" onClick={closeMenu}>Bring customers back</a>
+            <a href="#pilot" onClick={closeMenu}>Café pilot</a>
+            <a href="/merchant" onClick={closeMenu}>Merchant login</a>
+            <a href={demoHref} className="ps-pill ps-pill-dark" onClick={closeMenu}>Book a demo</a>
+          </div>
+        ) : null}
+      </header>
 
-        <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 pb-20 pt-12 sm:px-6 md:pb-28 lg:grid-cols-[1.02fr_0.98fr] lg:px-8 lg:pt-20">
+      <section className="ps-hero relative overflow-hidden">
+        <div className="ps-hero-grid">
           <motion.div
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
+            className="ps-hero-copy"
           >
             <p className="ps-eyebrow">Apple Wallet loyalty for independent cafés</p>
-            <h1 className="ps-display mt-5 max-w-4xl text-[clamp(3.05rem,7vw,6.7rem)] leading-[0.94]">
+            <h1 className="ps-display">
               Paper stamp cards, rebuilt for Apple Wallet.
             </h1>
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-700 sm:text-xl">
+            <p className="ps-hero-intro">
               PocketStamp gives cafés a branded Apple Wallet loyalty card,
               counter scanner workflow, automatic loyalty reminders and promotional
               updates you schedule — with no customer app required.
             </p>
-            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-              <a
-                href={demoHref}
-                className="ps-pill ps-pill-dark"
-              >
-                Book a demo
-              </a>
-              <a
-                href={demoJoinUrl}
-                className="ps-text-link"
-              >
-                Try a demo Wallet card
-              </a>
+            <div className="ps-hero-actions">
+              <a href={demoHref} className="ps-pill ps-pill-dark">Book a demo</a>
+              <a href={demoJoinUrl} className="ps-pill ps-pill-light">Try a demo card</a>
             </div>
-            <div className="ps-badges mt-10 flex flex-wrap gap-2.5">
+            <div className="ps-badges">
               <span>No customer app</span>
               <span>Apple Wallet</span>
               <span>Counter Scanner Mode</span>
-              <span>Built for independent cafés</span>
             </div>
           </motion.div>
 
@@ -1657,58 +1692,38 @@ function MarketingHomepage() {
             transition={{ duration: 0.45, delay: 0.1 }}
             className="ps-hero-visual"
           >
-            <div className="ps-blue-glow" aria-hidden="true" />
             <HeroWalletPassShowcase />
           </motion.div>
         </div>
       </section>
 
       <section className="ps-manifesto">
-        <p>No app. No paper. No forgotten stamp cards.</p>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
-        <div className="grid gap-14 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
-          <div>
-            <p className="ps-eyebrow">What cafés get</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.4rem,5vw,4.8rem)] leading-[0.98]">
-              The stamp card your customers actually keep.
-            </h2>
-          </div>
-          <div className="grid gap-x-8 gap-y-10 md:grid-cols-2">
-            {cafeFeatures.map(([title, body]) => (
-              <div key={title} className="ps-feature-block">
-                <p>{title}</p>
-                <span>{body}</span>
-              </div>
-            ))}
-          </div>
+        <div className="ps-section-shell">
+          <p>No app. <span>No paper.</span> No forgotten stamp cards.</p>
+          <small>A loyalty experience that stays with your customer, not in a drawer.</small>
         </div>
       </section>
 
-      <section id="how-it-works" className="bg-white py-20 lg:py-28">
-        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+      <section id="how-it-works" className="ps-section ps-journey">
+        <div className="ps-section-shell">
           <p className="ps-eyebrow">How it works</p>
-          <div className="mt-6 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
-            <h2 className="ps-display text-[clamp(2.4rem,5vw,5rem)] leading-[0.98]">
-              Scan. Add to Wallet. Stamp. Bring them back.
-            </h2>
-            <p className="max-w-2xl text-lg leading-8 text-slate-700">
-              A simple QR starts the flow. The card lives in Apple Wallet, the
-              dashboard tracks activity, and timely reminders and updates give
-              customers a reason to return.
-            </p>
-          </div>
-          <div className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {steps.map(([title, body], index) => (
+          <h2 className="ps-display ps-section-title">From a quick scan to a customer who comes back.</h2>
+          <p className="ps-section-lede">
+            A simple QR starts the flow. The card lives in Apple Wallet, the dashboard tracks activity, and timely reminders and updates give customers a reason to return.
+          </p>
+          <div className="ps-stepper">
+            {steps.map(([title, body, label], index) => (
               <div key={title} className="ps-step">
-                <span>0{index + 1}</span>
-                <p>{title}</p>
-                <small>{body}</small>
+                <div className="ps-step-marker"><span>0{index + 1}</span></div>
+                <div>
+                  <small>{label}</small>
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                </div>
               </div>
             ))}
           </div>
-          <p className="mt-8 max-w-3xl text-sm leading-6 text-slate-500">
+          <p className="ps-note">
             Counter Scanner Mode is available now. NFC tap-to-stamp support can
             be added later when Apple approval and compatible hardware are
             available.
@@ -1716,125 +1731,111 @@ function MarketingHomepage() {
         </div>
       </section>
 
-      <section className="bg-[#fbfaf7] py-20 lg:py-28">
-        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
-          <div>
-            <p className="ps-eyebrow">Counter Scanner Mode</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
-              Built for the café counter.
-            </h2>
-            <p className="mt-7 text-lg leading-8 text-slate-700">
-              Customers scan their Apple Wallet pass at the till. PocketStamp
-              adds the stamp automatically, with backup tools for busy service.
-            </p>
-            <SimpleBullets items={scannerModeBullets} />
+      <section id="system" className="ps-section ps-system">
+        <div className="ps-section-shell">
+          <p className="ps-eyebrow">One connected system</p>
+          <h2 className="ps-display ps-section-title">Made for customers. Built for the counter. Clear for you.</h2>
+          <div className="ps-system-intro">
+            <p>Three simple parts replace the paper card and give your café a clearer view of loyalty.</p>
+            <div className="ps-system-key" aria-label="The three parts of PocketStamp">
+              <span>01 Wallet card</span><span>02 Counter scanner</span><span>03 Dashboard</span>
+            </div>
           </div>
-          <ScannerProductVisual />
+
+          <article className="ps-product-row ps-wallet-row">
+            <div className="ps-product-copy">
+              <p className="ps-product-number">01 / Customer</p>
+              <h3>Your café, inside your customer’s Wallet.</h3>
+              <p>No loose paper. No app fatigue. Just a polished branded Wallet pass customers can scan at the till and keep on their phone.</p>
+              <SimpleBullets items={walletBullets} />
+            </div>
+            <div className="ps-wallet-product-visual" aria-label="Branded Apple Wallet loyalty card">
+              <img src="/hero-wallet-cards/yeems-wallet-card.png" alt="Yeems Coffee branded Apple Wallet loyalty card" loading="lazy" decoding="async" />
+              <span>Branded to your café</span>
+            </div>
+          </article>
+
+          <article className="ps-product-row">
+            <div className="ps-product-copy">
+              <p className="ps-product-number">02 / Counter</p>
+              <h3>Built for the café counter.</h3>
+              <p>Customers scan their Apple Wallet pass at the till. PocketStamp adds the stamp automatically, with backup tools for busy service.</p>
+              <SimpleBullets items={scannerModeBullets} />
+            </div>
+            <ScannerProductVisual />
+          </article>
+
+          <article className="ps-product-row ps-dashboard-row">
+            <div className="ps-product-copy">
+              <p className="ps-product-number">03 / Merchant</p>
+              <h3>See what paper cards never showed you.</h3>
+              <p>Your dashboard shows today’s joins, stamps, rewards, customer progress and scanner activity. Schedule Wallet updates, review campaign history and see successful delivery counts.</p>
+              <SimpleBullets items={dashboardBullets} />
+            </div>
+            <DashboardMockup />
+          </article>
         </div>
       </section>
 
-      <section className="ps-glow-band py-20 lg:py-28">
-        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
-          <div className="max-w-5xl">
-            <p className="ps-eyebrow">Branded Wallet cards</p>
-            <h2 className="ps-display mt-4 max-w-4xl text-[clamp(2.5rem,5vw,5rem)] leading-[0.98]">
-              Your café, inside your customer’s Wallet.
-            </h2>
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-700">
-              No loose paper. No app fatigue. Just a polished branded Wallet
-              pass customers can scan at the till and keep on their phone.
-            </p>
-            <SimpleBullets items={walletBullets} />
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#fbfaf7] py-20 lg:py-28">
-        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8">
-          <DashboardMockup />
-          <div>
-            <p className="ps-eyebrow">Dashboard and customer list</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.7rem)] leading-[0.98]">
-              See what paper cards never showed you.
-            </h2>
-            <p className="mt-7 text-lg leading-8 text-slate-700">
-              Your dashboard shows today’s joins, stamps, rewards, customer
-              progress and scanner activity. It also lets you schedule Wallet
-              updates, review campaign history and see successful delivery counts.
-            </p>
-            <SimpleBullets items={dashboardBullets} />
-          </div>
-        </div>
-      </section>
-
-      <section className="ps-engagement bg-white py-20 lg:py-28">
-        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+      <section id="retention" className="ps-section ps-retention">
+        <div className="ps-section-shell">
           <p className="ps-eyebrow">Bring customers back</p>
-          <h2 className="ps-display mt-4 max-w-5xl text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
-            Your loyalty card keeps the conversation going.
-          </h2>
-          <p className="mt-7 max-w-3xl text-lg leading-8 text-slate-700">
-            PocketStamp helps bring your café back to mind with automatic loyalty
-            reminders and promotional updates you schedule yourself, delivered
-            through Apple Wallet. Customers do not need to download an app.
-          </p>
+          <h2 className="ps-display ps-section-title">Your loyalty card keeps the conversation going.</h2>
+          <p className="ps-section-lede">PocketStamp helps bring your café back to mind through Apple Wallet—with automatic loyalty reminders and promotional updates you schedule yourself.</p>
 
-          <div className="ps-engagement-grid mt-14">
-            <div className="ps-engagement-campaign-visual">
-              <CampaignUpdateMockup />
-            </div>
+          <div className="ps-retention-tabs" role="tablist" aria-label="Retention tools">
+            <button type="button" role="tab" aria-selected={retentionView === "automatic"} aria-controls="automatic-panel" id="automatic-tab" onClick={() => setRetentionView("automatic")}>Automatic by PocketStamp</button>
+            <button type="button" role="tab" aria-selected={retentionView === "scheduled"} aria-controls="scheduled-panel" id="scheduled-tab" onClick={() => setRetentionView("scheduled")}>Scheduled by your café</button>
+          </div>
 
-            <div className="ps-engagement-scheduled">
-              <p className="ps-engagement-label">Scheduled by you</p>
-              <h3>Send the right update at the right time.</h3>
-              <p>
-                Write a short message and choose when it should go out. Share offers,
-                events, new products, launches or timely announcements with your
-                loyal customers through Apple Wallet.
-              </p>
-            </div>
-
-            <div className="ps-engagement-reminder-visual">
+          {retentionView === "automatic" ? (
+            <div id="automatic-panel" role="tabpanel" aria-labelledby="automatic-tab" className="ps-retention-panel">
+              <div className="ps-retention-copy">
+                <p className="ps-product-number">Works in the background</p>
+                <h3>Timely loyalty nudges, handled for you.</h3>
+                <p>PocketStamp responds to customer activity with reminders about progress, ready rewards, birthdays and reasons to return after time away.</p>
+                <FeatureBullets items={reminderBullets} />
+              </div>
               <ReminderMockup compact />
             </div>
-
-            <div className="ps-engagement-automatic">
-              <p className="ps-engagement-label">Automatic by PocketStamp</p>
-              <h3>Timely loyalty nudges, handled for you.</h3>
-              <p>
-                PocketStamp responds to customer activity with reminders about
-                progress, ready rewards, birthdays and reasons to return after time away.
-              </p>
-              <FeatureBullets items={reminderBullets} />
+          ) : (
+            <div id="scheduled-panel" role="tabpanel" aria-labelledby="scheduled-tab" className="ps-retention-panel">
+              <div className="ps-retention-copy">
+                <p className="ps-product-number">You stay in control</p>
+                <h3>Send the right update at the right time.</h3>
+                <p>Write a short message and choose when it should go out. Share offers, events, new products, launches or timely announcements with loyal customers through Apple Wallet.</p>
+                <ul className="ps-inline-list">
+                  <li>Offers</li><li>Events</li><li>Launches</li><li>Announcements</li>
+                </ul>
+              </div>
+              <CampaignUpdateMockup />
             </div>
-          </div>
+          )}
         </div>
       </section>
 
-      <section className="bg-[#fbfaf7] py-20 lg:py-28">
-        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-6 lg:grid-cols-[1fr_1fr] lg:items-center lg:px-8">
-          <div>
+      <section id="pilot" className="ps-section ps-pilot">
+        <div className="ps-section-shell ps-pilot-grid">
+          <div className="ps-pilot-copy">
             <p className="ps-eyebrow">Early café offer</p>
-            <h2 className="ps-display mt-4 text-[clamp(2.35rem,5vw,4.8rem)] leading-[0.98]">
-              Setup in days. Ready this week.
-            </h2>
-            <p className="mt-7 text-lg leading-8 text-slate-700">
+            <h2 className="ps-display ps-section-title">Setup in days. Ready this week.</h2>
+            <p className="ps-section-lede">
               Pilot spaces are open for independent cafés. We build a simple
               loyalty system around your café brand, from its Wallet card and
               Join QR to the dashboard and counter scanner setup.
             </p>
-            <p className="mt-5 text-base leading-7 text-slate-600">
+            <p className="ps-supporting-copy">
               Built for cafés that want to replace paper stamp cards without
               asking customers to download another app.
             </p>
           </div>
           <div className="ps-pricing">
-            <p className="text-sm font-bold uppercase text-slate-500">Pilot package</p>
-            <div className="mt-8 border-y border-slate-950/15 py-7">
-              <p className="ps-display text-5xl leading-none">Setup fee + monthly plan</p>
-              <p className="mt-3 text-slate-600">A clear pilot offer before anything goes live.</p>
+            <p className="ps-product-number">Pilot package</p>
+            <div className="ps-pricing-heading">
+              <p className="ps-display">Setup fee + monthly plan</p>
+              <p>A clear pilot offer before anything goes live.</p>
             </div>
-            <ul className="mt-7 space-y-4 text-slate-700">
+            <ul className="ps-setup-list">
               {setupSteps.map((step) => (
                 <li key={step} className="flex gap-3">
                   <CheckMark className="mt-0" />
@@ -1842,46 +1843,37 @@ function MarketingHomepage() {
                 </li>
               ))}
             </ul>
-            <a href={pilotHref} className="ps-pill ps-pill-dark mt-8">
-              Start with your café
-            </a>
+            <a href={pilotHref} className="ps-pill ps-pill-dark">Start with your café</a>
           </div>
         </div>
       </section>
 
-      <section className="px-5 py-20 sm:px-6 lg:px-8 lg:py-28">
-        <div className="mx-auto max-w-7xl border-t border-slate-950/15 pt-14">
-          <p className="ps-display max-w-5xl text-[clamp(2.6rem,6vw,5.6rem)] leading-[0.96]">
-            Start bringing loyal customers back this week.
-          </p>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-700">
-            Give customers a loyalty card they keep, a simple way to collect
-            stamps, and timely reasons to return through Apple Wallet.
-          </p>
-          <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-            <a href={demoHref} className="ps-pill ps-pill-dark">
-              Book a demo
-            </a>
-            <a href={pilotHref} className="ps-text-link">
-              Start a café pilot
-            </a>
+      <section className="ps-final-cta">
+        <div className="ps-section-shell">
+          <p className="ps-eyebrow">Ready when you are</p>
+          <h2 className="ps-display">Start bringing loyal customers back this week.</h2>
+          <p>Give customers a loyalty card they keep, a simple way to collect stamps, and timely reasons to return through Apple Wallet.</p>
+          <div className="ps-final-actions">
+            <a href={demoHref} className="ps-pill ps-pill-dark">Book a demo</a>
+            <a href={pilotHref} className="ps-pill ps-pill-outline">Start a café pilot</a>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-slate-200 px-6 py-8 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <footer className="ps-footer">
+        <div className="ps-section-shell">
           <p>© {new Date().getFullYear()} PocketStamp.</p>
-          <div className="flex flex-wrap gap-4">
-            <a href={`mailto:${SALES_EMAIL}`} className="hover:text-slate-950">
-              {SALES_EMAIL}
-            </a>
-            <a href={demoJoinUrl} className="hover:text-slate-950">
-              Try the PocketStamp demo card
-            </a>
+          <div>
+            <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a>
+            <a href={demoJoinUrl}>Try the PocketStamp demo card</a>
           </div>
         </div>
       </footer>
+
+      <div className="ps-mobile-sticky-cta">
+        <span>Apple Wallet loyalty for cafés</span>
+        <a href={demoHref}>Book a demo</a>
+      </div>
     </main>
   );
 }
