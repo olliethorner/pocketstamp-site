@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   canManageCampaigns,
   formatCampaignDateTime,
+  getCampaignStatusPresentation,
   isFutureLocalDateTime,
   toScheduledAtIso,
 } from "../../merchantCampaigns.js";
@@ -155,7 +156,9 @@ function PromotionalCampaigns({
           {!isLoading && campaigns.length === 0 && !error ? <p className="mt-4 text-sm text-[var(--ps-muted)]">No updates scheduled yet.</p> : null}
           {campaigns.length ? (
             <div className="mt-4 divide-y divide-[var(--ps-border)] rounded-xl ring-1 ring-[var(--ps-border)]">
-              {campaigns.map((campaign) => (
+              {campaigns.map((campaign) => {
+                const statusPresentation = getCampaignStatusPresentation(campaign);
+                return (
                 <div key={campaign.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="font-semibold">{campaign.message}</p>
@@ -163,7 +166,7 @@ function PromotionalCampaigns({
                     {campaign.deliveredText ? <p className="mt-1 text-sm text-[var(--ps-muted)]">{campaign.deliveredText}</p> : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <span className="rounded-full bg-[var(--ps-blue-soft)] px-3 py-1 text-xs font-semibold text-[var(--ps-blue)]">{campaign.statusLabel}</span>
+                    <span className="rounded-full bg-[var(--ps-blue-soft)] px-3 py-1 text-xs font-semibold text-[var(--ps-blue)]">{statusPresentation.label}</span>
                     {canCancelCampaign(campaign, canManage) ? (
                       <button className="ps-button-secondary" type="button" disabled={cancellingId === campaign.id} onClick={() => handleCancel(campaign.id)}>
                         {cancellingId === campaign.id ? "Cancelling..." : "Cancel"}
@@ -171,7 +174,8 @@ function PromotionalCampaigns({
                     ) : null}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : null}
         </div>
