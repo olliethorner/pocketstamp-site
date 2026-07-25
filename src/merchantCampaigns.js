@@ -9,9 +9,7 @@ const STATUS_PRESENTATION = {
   cancelled: { label: "Cancelled", tone: "muted" },
   canceled: { label: "Cancelled", tone: "muted" },
   completed_with_failures: { label: "Completed with issues", tone: "warning" },
-  failed: { label: "Completed with issues", tone: "warning" },
-  // Legacy terminal status used by the campaign API.
-  partially_failed: { label: "Completed with issues", tone: "warning" },
+  not_delivered: { label: "Not delivered", tone: "warning" },
 };
 
 const UNKNOWN_STATUS_PRESENTATION = { label: "Sending", tone: "progress" };
@@ -20,29 +18,41 @@ function isNonNegativeCount(value) {
   return Number.isFinite(value) && value >= 0;
 }
 
-function hasFinishedPartialDelivery(campaign) {
-  if (!campaign || campaign.status !== "partially_sent") return false;
-
-  // Normalized rows retain the presentation result while intentionally dropping
-  // backend delivery metadata before they reach the merchant page.
-  if (campaign.statusTone === "warning") return true;
-
-  const processingFinished = Boolean(
+function hasCompletionMarker(campaign) {
+  return Boolean(
     campaign.completedAt ||
     campaign.completed_at ||
     campaign.processingCompletedAt ||
-    campaign.processing_completed_at,
+    campaign.processing_completed_at
   );
-  const failedCount = campaign.failedCount ?? campaign.failed_count;
-  const recipientCount = campaign.recipientCount ?? campaign.recipient_count;
-  const deliveredCount = campaign.deliveredCount ?? campaign.delivered_count;
-  const hasReliableFailures =
-    (isNonNegativeCount(failedCount) && failedCount > 0) ||
-    (isNonNegativeCount(recipientCount) &&
-      isNonNegativeCount(deliveredCount) &&
-      deliveredCount < recipientCount);
+}
 
-  return processingFinished && hasReliableFailures;
+function isFinishedCampaign(campaign) {
+  return ["sent", "completed", "partially_failed", "failed", "completed_with_failures"].includes(campaign?.status) ||
+    hasCompletionMarker(campaign);
+}
+
+function getNormalizedPresentation(campaign) {
+  const presentations = Object.values(STATUS_PRESENTATION);
+  return presentations.find(({ label, tone }) =>
+    campaign?.statusLabel === label && campaign?.statusTone === tone
+  );
+}
+
+function getDeliveryOutcomePresentation(campaign) {
+  const deliveredCount = campaign?.deliveredCount ?? campaign?.delivered_count;
+  const failedCount = campaign?.failedCount ?? campaign?.failed_count;
+
+  if (deliveredCount === 0) return STATUS_PRESENTATION.not_delivered;
+  if (isNonNegativeCount(deliveredCount) && deliveredCount > 0) {
+    if (isNonNegativeCount(failedCount) && failedCount > 0) {
+      return STATUS_PRESENTATION.completed_with_failures;
+    }
+    return STATUS_PRESENTATION.completed;
+  }
+
+  // Legacy terminal status names are not reliable evidence of delivery failure.
+  return STATUS_PRESENTATION.completed;
 }
 
 export function getCampaignStatusPresentation(campaignOrStatus) {
@@ -50,11 +60,14 @@ export function getCampaignStatusPresentation(campaignOrStatus) {
     ? { status: campaignOrStatus }
     : campaignOrStatus;
 
-  if (hasFinishedPartialDelivery(campaign)) {
-    return STATUS_PRESENTATION.completed_with_failures;
-  }
+  const normalizedPresentation = getNormalizedPresentation(campaign);
+  if (normalizedPresentation) return normalizedPresentation;
 
-  return STATUS_PRESENTATION[campaign?.status] || UNKNOWN_STATUS_PRESENTATION;
+  if (["scheduled", "pending"].includes(campaign?.status)) return STATUS_PRESENTATION.scheduled;
+  if (["cancelled", "canceled"].includes(campaign?.status)) return STATUS_PRESENTATION.cancelled;
+  if (isFinishedCampaign(campaign)) return getDeliveryOutcomePresentation(campaign);
+
+  return UNKNOWN_STATUS_PRESENTATION;
 }
 
 export function canManageCampaigns(merchantContext) {
@@ -74,7 +87,7 @@ export function getCampaignDeliveredText(campaignOrStatus, deliveredCount) {
   if (lifecycleLabel === "Sending" && (!isNonNegativeCount(deliveredCount) || deliveredCount === 0)) {
     return "Sending to customers…";
   }
-  if (!["Sending", "Complete", "Completed with issues"].includes(lifecycleLabel)) {
+  if (!["Sending", "Complete", "Not delivered", "Completed with issues"].includes(lifecycleLabel)) {
     return "";
   }
   if (!isNonNegativeCount(deliveredCount)) return "";

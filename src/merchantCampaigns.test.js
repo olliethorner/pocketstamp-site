@@ -33,9 +33,9 @@ test("maps campaign statuses to merchant lifecycle labels", () => {
     completed: "Complete",
     cancelled: "Cancelled",
     canceled: "Cancelled",
-    completed_with_failures: "Completed with issues",
-    failed: "Completed with issues",
-    partially_failed: "Completed with issues",
+    completed_with_failures: "Complete",
+    failed: "Complete",
+    partially_failed: "Complete",
   };
 
   for (const [status, label] of Object.entries(statuses)) {
@@ -43,18 +43,25 @@ test("maps campaign statuses to merchant lifecycle labels", () => {
   }
 });
 
-test("a finished partial campaign requires both a completion marker and real failures", () => {
+test("finished delivery outcome requires explicit successful and failed counts for issues", () => {
   assert.equal(getCampaignStatusLabel({
     status: "partially_sent", completedAt: "2030-01-02T12:00:00.000Z",
     deliveredCount: 7, recipientCount: 10,
-  }), "Completed with issues");
+  }), "Complete");
   assert.equal(getCampaignStatusLabel({
-    status: "partially_sent", processingCompletedAt: "2030-01-02T12:00:00.000Z",
-    deliveredCount: 7, recipientCount: 7,
-  }), "Sending");
+    status: "partially_sent", completedAt: "2030-01-02T12:00:00.000Z",
+    deliveredCount: 7, failedCount: 2,
+  }), "Completed with issues");
   assert.equal(getCampaignStatusLabel({
     status: "partially_sent", deliveredCount: 7, recipientCount: 10,
   }), "Sending");
+});
+
+test("legacy warning statuses prioritize successful delivery outcomes", () => {
+  assert.equal(getCampaignStatusLabel({ status: "partially_failed", deliveredCount: 4 }), "Complete");
+  assert.equal(getCampaignStatusLabel({ status: "partially_failed", deliveredCount: 1 }), "Complete");
+  assert.equal(getCampaignStatusLabel({ status: "failed", deliveredCount: 1 }), "Complete");
+  assert.equal(getCampaignStatusLabel({ status: "completed", deliveredCount: 0 }), "Not delivered");
 });
 
 test("unknown statuses use an allowlisted presentation and never leak raw text", () => {
@@ -62,6 +69,12 @@ test("unknown statuses use an allowlisted presentation and never leak raw text",
     label: "Sending", tone: "progress",
   });
   assert.equal(getCampaignStatusLabel("queued_by_worker_v2"), "Sending");
+  assert.equal(getCampaignStatusLabel({
+    status: "queued_by_worker_v2", completedAt: "2030-01-02T12:00:00.000Z", deliveredCount: 3,
+  }), "Complete");
+  assert.equal(getCampaignStatusLabel({
+    status: "queued_by_worker_v2", completedAt: "2030-01-02T12:00:00.000Z", deliveredCount: 0,
+  }), "Not delivered");
 });
 
 test("MerchantMarketing renders only centralized merchant badge labels", async () => {
@@ -69,7 +82,7 @@ test("MerchantMarketing renders only centralized merchant badge labels", async (
   try {
     const { default: MerchantMarketing } = await vite.ssrLoadModule("/src/merchant/pages/MerchantMarketing.jsx");
     const campaigns = [
-      { id: "1", message: "One", scheduledAt: "2030-01-01T12:00:00.000Z", status: "partially_sent", statusTone: "warning", statusLabel: "raw_leak", deliveredText: "Delivered to 1 customer" },
+      { id: "1", message: "One", scheduledAt: "2030-01-01T12:00:00.000Z", status: "partially_failed", deliveredCount: 1, statusLabel: "raw_leak", deliveredText: "Delivered to 1 customer" },
       { id: "2", message: "Two", scheduledAt: "2030-01-01T12:00:00.000Z", status: "backend_worker_v2", statusLabel: "raw_leak", deliveredText: "Sending to customers…" },
     ];
     const html = renderToStaticMarkup(MerchantMarketing({
@@ -78,7 +91,7 @@ test("MerchantMarketing renders only centralized merchant badge labels", async (
       reminderSummary: {}, isReminderSummaryLoading: false, reminderError: null,
       birthdayRewardsEnabled: false,
     }));
-    assert.match(html, />Completed with issues<\/span>/);
+    assert.match(html, />Complete<\/span>/);
     assert.match(html, />Sending<\/span>/);
     assert.match(html, /Delivered to 1 customer/);
     assert.match(html, /Sending to customers…/);
@@ -92,6 +105,7 @@ test("uses lifecycle delivery copy with singular and plural recipients", () => {
   assert.equal(getCampaignDeliveredText("sent", 1), "Delivered to 1 customer");
   assert.equal(getCampaignDeliveredText("completed", 12), "Delivered to 12 customers");
   assert.equal(getCampaignDeliveredText("completed_with_failures", 7), "Delivered to 7 customers");
+  assert.equal(getCampaignDeliveredText({ status: "completed", deliveredCount: 0 }, 0), "Delivered to 0 customers");
   assert.equal(getCampaignDeliveredText("processing", 4), "Delivered to 4 customers");
   assert.equal(getCampaignDeliveredText("sending", 0), "Sending to customers…");
   assert.equal(getCampaignDeliveredText("processing", undefined), "Sending to customers…");
@@ -114,13 +128,26 @@ test("normalization retains only allowlisted presentation fields", () => {
   assert.equal("apnsError" in row, false);
 });
 
-test("normalization marks a genuinely finished partial campaign as issues", () => {
+test("normalization marks a genuinely finished partial campaign as issues only with explicit failures", () => {
   const [row] = normalizeCampaignRows([{ status: "partially_sent", deliveredCount: 4,
     failedCount: 2, completedAt: "2030-01-02T12:00:00.000Z" }]);
   assert.equal(row.statusLabel, "Completed with issues");
   assert.equal(row.statusTone, "warning");
   assert.equal(row.deliveredText, "Delivered to 4 customers");
   assert.equal(getCampaignStatusLabel(row), "Completed with issues");
+});
+
+test("normalization does not infer failures from recipient estimates or legacy statuses", () => {
+  const rows = normalizeCampaignRows([
+    { status: "partially_failed", deliveredCount: 4, recipientCount: 10 },
+    { status: "partially_failed", deliveredCount: 1 },
+    { status: "completed", deliveredCount: 0 },
+  ]);
+  assert.deepEqual(rows.map(({ statusLabel, deliveredText }) => ({ statusLabel, deliveredText })), [
+    { statusLabel: "Complete", deliveredText: "Delivered to 4 customers" },
+    { statusLabel: "Complete", deliveredText: "Delivered to 1 customer" },
+    { statusLabel: "Not delivered", deliveredText: "Delivered to 0 customers" },
+  ]);
 });
 
 test("validates future local datetime values", () => {
