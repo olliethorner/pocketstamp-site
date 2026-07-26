@@ -1854,6 +1854,7 @@
 }
 
 .ps-dashboard-preview-image {
+  aspect-ratio: var(--ps-preview-aspect);
   display: block;
   overflow: hidden;
 }
@@ -1928,7 +1929,7 @@
   max-width: 100%;
   overflow: hidden;
   position: relative;
-  width: min(94vw, 1536px);
+  width: min(94vw, var(--ps-preview-native-width));
 }
 
 .ps-dashboard-lightbox-image {
@@ -1940,7 +1941,6 @@
 }
 
 .ps-dashboard-lightbox-image img {
-  aspect-ratio: 3 / 2;
   display: block;
   height: auto;
   max-height: calc(88dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));

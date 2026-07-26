@@ -1,6 +1,5 @@
 import { Component, useEffect, useEffectEvent, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import AdminPortal from "./AdminPortal.jsx";
 import MerchantPortalShell from "./merchant/MerchantPortal.jsx";
 import MerchantSetup from "./merchant/MerchantSetup.jsx";
@@ -11,6 +10,7 @@ import {
   resolveMerchantManagementPage,
 } from "./merchant/merchantRoutes.js";
 import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
+import ExpandableImagePreview from "./ExpandableImagePreview.jsx";
 import "./App.css";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
@@ -601,8 +601,10 @@ function ReminderMockup({ compact = false }) {
     <div className="mx-auto w-full max-w-xl">
       <div className="overflow-hidden rounded-3xl bg-[#fffdf8] p-3 shadow-2xl shadow-stone-900/10 ring-1 ring-stone-200">
         <img
-          src="/pocketstamp-notifications-phone.png"
-          alt="iPhone lock screen showing PocketStamp Wallet reminder notifications"
+          src="/automated-loyalty-notifications.png"
+          alt="Yeems Coffee Apple Wallet loyalty notifications on a phone lock screen"
+          width="1144"
+          height="1375"
           className="block w-full rounded-[22px]"
           loading="lazy"
           decoding="async"
@@ -625,188 +627,25 @@ function ReminderMockup({ compact = false }) {
 
 function CampaignUpdateMockup() {
   return (
-    <div className="ps-campaign-story" aria-label="A merchant schedules a promotional Wallet update">
-      <div className="ps-campaign-composer">
-        <div>
-          <p className="text-xl font-semibold text-[#26211d]">Send an Update</p>
-          <p className="mt-1 text-sm leading-6 text-stone-500">
-            Schedule a short Apple Wallet update for your loyalty customers.
-          </p>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_0.72fr]">
-          <div className="ps-campaign-field">
-            <span>Message</span>
-            <strong>2-for-1 coffees this Friday ☕️</strong>
-            <small>31/90</small>
-          </div>
-          <div className="ps-campaign-field">
-            <span>Schedule time</span>
-            <strong>Friday, 10:00 AM</strong>
-          </div>
-        </div>
-
-        <button type="button" className="ps-button-primary mt-3" tabIndex={-1}>
-          Schedule Update
-        </button>
-
-        <div className="mt-6 border-t border-stone-200 pt-5">
-          <p className="text-sm font-semibold text-[#26211d]">Campaign history</p>
-          <div className="mt-3 grid gap-2">
-            <div className="ps-campaign-row">
-              <div>
-                <strong>New summer menu now available 🌞</strong>
-                <span>Delivered to 126 customers</span>
-              </div>
-              <span className="ps-campaign-status">Delivered</span>
-            </div>
-            <div className="ps-campaign-row">
-              <div>
-                <strong>Late-night opening this Saturday 🌙</strong>
-                <span>Delivered to 98 customers</span>
-              </div>
-              <span className="ps-campaign-status">Delivered</span>
-            </div>
-            <div className="ps-campaign-row">
-              <div>
-                <strong>2-for-1 coffees this Friday ☕️</strong>
-                <span>Sent through Apple Wallet</span>
-              </div>
-              <span className="ps-campaign-status">Wallet notification</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ExpandableImagePreview
+      src="/merchant-marketing-campaigns.png"
+      alt="PocketStamp merchant dashboard for scheduling Wallet marketing campaigns and reviewing campaign history"
+      dialogLabel="PocketStamp merchant marketing campaigns preview"
+      width={1448}
+      height={1086}
+    />
   );
 }
 
 function DashboardMockup() {
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const dialogRef = useRef(null);
-  const previewButtonRef = useRef(null);
-
-  useEffect(() => {
-    if (!isPreviewOpen) return undefined;
-
-    const previousOverflow = document.body.style.overflow;
-    const previewButton = previewButtonRef.current;
-    document.body.style.overflow = "hidden";
-    dialogRef.current?.querySelector("button")?.focus();
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        setIsPreviewOpen(false);
-        return;
-      }
-
-      if (event.key !== "Tab") return;
-      const focusableElements = dialogRef.current?.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      if (!focusableElements?.length) return;
-
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-      if (event.shiftKey && document.activeElement === firstElement) {
-        event.preventDefault();
-        lastElement.focus();
-      } else if (!event.shiftKey && document.activeElement === lastElement) {
-        event.preventDefault();
-        firstElement.focus();
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
-      previewButton?.focus();
-    };
-  }, [isPreviewOpen]);
-
   return (
-    <div className="ps-dashboard-preview-wrap">
-      <button
-        ref={previewButtonRef}
-        type="button"
-        className="ps-dashboard-preview"
-        aria-label="Open full-screen merchant dashboard preview"
-        aria-haspopup="dialog"
-        aria-controls="merchant-dashboard-lightbox"
-        onClick={() => setIsPreviewOpen(true)}
-      >
-        <span className="ps-dashboard-browser-bar" aria-hidden="true">
-          <span /><span /><span />
-        </span>
-        <span className="ps-dashboard-preview-image">
-          <img
-            src="/merchant-dashboard-preview.png"
-            alt="PocketStamp merchant dashboard showing wallet cards, stamps, rewards and recent customer activity"
-            width="1536"
-            height="1024"
-            loading="lazy"
-            decoding="async"
-          />
-        </span>
-        <span className="ps-dashboard-expand-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 16v5h-5" />
-          </svg>
-        </span>
-      </button>
-
-      {typeof document !== "undefined" ? createPortal(
-        <AnimatePresence>
-          {isPreviewOpen ? (
-            <motion.div
-              className="ps-dashboard-lightbox"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setIsPreviewOpen(false);
-              }}
-            >
-              <motion.div
-                id="merchant-dashboard-lightbox"
-                ref={dialogRef}
-                role="dialog"
-                aria-modal="true"
-                aria-label="PocketStamp merchant dashboard preview"
-                className="ps-dashboard-lightbox-dialog"
-                initial={{ opacity: 0, scale: 0.965, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.975, y: 8 }}
-                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <button
-                  type="button"
-                  className="ps-dashboard-lightbox-close"
-                  aria-label="Close dashboard preview"
-                  onClick={() => setIsPreviewOpen(false)}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="m6 6 12 12M18 6 6 18" />
-                  </svg>
-                </button>
-                <div className="ps-dashboard-lightbox-image">
-                  <img
-                    src="/merchant-dashboard-preview.png"
-                    alt="PocketStamp merchant dashboard showing wallet cards, stamps, rewards and recent customer activity"
-                    width="1536"
-                    height="1024"
-                    decoding="async"
-                  />
-                </div>
-              </motion.div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>,
-        document.body,
-      ) : null}
-    </div>
+    <ExpandableImagePreview
+      src="/merchant-dashboard-preview.png"
+      alt="PocketStamp merchant dashboard showing wallet cards, stamps, rewards and recent customer activity"
+      dialogLabel="PocketStamp merchant dashboard preview"
+      width={1536}
+      height={1024}
+    />
   );
 }
 
