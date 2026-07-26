@@ -1147,8 +1147,8 @@ function ScannerProductVisual() {
   return (
     <div className="ps-scanner-visual">
       <img
-        src="/webzebra.png"
-        alt="Counter scanner for PocketStamp Scanner Mode"
+        src="/built-for-the-counter.png"
+        alt="PocketStamp tablet and scanner setup on a café counter"
         className="ps-scanner-image"
         loading="lazy"
         decoding="async"

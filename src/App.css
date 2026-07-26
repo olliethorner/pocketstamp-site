@@ -1781,12 +1781,27 @@
 }
 
 .ps-product-row .ps-scanner-visual {
+  border-radius: var(--ps-radius-md);
   min-height: 17rem;
-  padding: 0.5rem;
+  overflow: hidden;
+  padding: 0;
 }
 
 .ps-product-row .ps-scanner-image {
-  max-width: 22rem;
+  filter: none;
+  height: 100%;
+  inset: 0;
+  max-width: none;
+  object-fit: cover;
+  object-position: center;
+  position: absolute;
+  transform: none;
+  width: 100%;
+}
+
+.ps-product-row .ps-scanner-visual::before,
+.ps-product-row .ps-scanner-visual::after {
+  display: none;
 }
 
 .ps-dashboard-row > :last-child {
