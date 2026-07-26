@@ -725,15 +725,6 @@ function DashboardMockup() {
     };
   }, [isPreviewOpen]);
 
-  const dashboardImage = (
-    <img
-      src="/merchant-dashboard-preview.png"
-      alt="PocketStamp merchant dashboard showing wallet cards, stamps, rewards and recent customer activity"
-      loading="lazy"
-      decoding="async"
-    />
-  );
-
   return (
     <div className="ps-dashboard-preview-wrap">
       <button
@@ -749,7 +740,14 @@ function DashboardMockup() {
           <span /><span /><span />
         </span>
         <span className="ps-dashboard-preview-image">
-          {dashboardImage}
+          <img
+            src="/merchant-dashboard-preview.png"
+            alt="PocketStamp merchant dashboard showing wallet cards, stamps, rewards and recent customer activity"
+            width="1536"
+            height="1024"
+            loading="lazy"
+            decoding="async"
+          />
         </span>
         <span className="ps-dashboard-expand-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
@@ -794,7 +792,13 @@ function DashboardMockup() {
                   </svg>
                 </button>
                 <div className="ps-dashboard-lightbox-image">
-                  {dashboardImage}
+                  <img
+                    src="/merchant-dashboard-preview.png"
+                    alt="PocketStamp merchant dashboard showing wallet cards, stamps, rewards and recent customer activity"
+                    width="1536"
+                    height="1024"
+                    decoding="async"
+                  />
                 </div>
               </motion.div>
             </motion.div>

@@ -1858,8 +1858,7 @@
   overflow: hidden;
 }
 
-.ps-dashboard-preview img,
-.ps-dashboard-lightbox-image img {
+.ps-dashboard-preview img {
   display: block;
   height: auto;
   width: 100%;
@@ -1911,7 +1910,11 @@
   display: flex;
   inset: 0;
   justify-content: center;
-  padding: clamp(1rem, 3vw, 2.5rem);
+  overflow: auto;
+  padding-bottom: max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-bottom));
+  padding-left: clamp(1rem, 3vw, 2.5rem);
+  padding-right: clamp(1rem, 3vw, 2.5rem);
+  padding-top: max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-top));
   position: fixed;
   z-index: 1000;
 }
@@ -1921,20 +1924,29 @@
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: clamp(1rem, 2vw, 1.5rem);
   box-shadow: 0 35px 100px rgba(0, 0, 0, 0.38);
-  max-height: calc(100dvh - clamp(2rem, 6vw, 5rem));
-  max-width: min(96rem, 100%);
+  max-height: calc(88dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-width: 100%;
   overflow: hidden;
   position: relative;
-  width: min(100%, calc((100dvh - clamp(2rem, 6vw, 5rem)) * 1.5));
+  width: min(94vw, 1536px);
 }
 
 .ps-dashboard-lightbox-image {
-  overflow: auto;
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  max-height: calc(88dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  width: 100%;
 }
 
 .ps-dashboard-lightbox-image img {
-  max-height: calc(100dvh - clamp(2rem, 6vw, 5rem));
+  aspect-ratio: 3 / 2;
+  display: block;
+  height: auto;
+  max-height: calc(88dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-width: 100%;
   object-fit: contain;
+  width: auto;
 }
 
 .ps-dashboard-lightbox-close {
@@ -1949,8 +1961,8 @@
   height: 2.65rem;
   justify-content: center;
   position: absolute;
-  right: 0.85rem;
-  top: 0.85rem;
+  right: max(0.85rem, env(safe-area-inset-right));
+  top: max(0.85rem, env(safe-area-inset-top));
   transition:
     background-color 160ms ease,
     transform 160ms ease;
