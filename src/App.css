@@ -1806,7 +1806,173 @@
 
 .ps-dashboard-row > :last-child {
   min-width: 0;
+}
+
+.ps-dashboard-preview-wrap {
+  align-self: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.ps-dashboard-preview {
+  background: #fffdf8;
+  border: 1px solid rgba(80, 71, 61, 0.15);
+  border-radius: var(--ps-radius-md);
+  box-shadow: 0 20px 48px rgba(38, 33, 29, 0.12);
+  cursor: zoom-in;
+  display: block;
   overflow: hidden;
+  padding: 0;
+  position: relative;
+  text-align: left;
+  transition:
+    box-shadow 220ms ease,
+    transform 220ms ease;
+  width: 100%;
+}
+
+.ps-dashboard-preview:hover {
+  box-shadow: 0 26px 60px rgba(38, 33, 29, 0.17);
+  transform: translateY(-3px) scale(1.005);
+}
+
+.ps-dashboard-browser-bar {
+  align-items: center;
+  background: rgba(255, 253, 248, 0.96);
+  border-bottom: 1px solid rgba(80, 71, 61, 0.11);
+  display: flex;
+  gap: 0.35rem;
+  height: 1.7rem;
+  padding: 0 0.75rem;
+}
+
+.ps-dashboard-browser-bar span {
+  background: rgba(111, 104, 96, 0.28);
+  border-radius: 50%;
+  height: 0.38rem;
+  width: 0.38rem;
+}
+
+.ps-dashboard-preview-image {
+  display: block;
+  overflow: hidden;
+}
+
+.ps-dashboard-preview img,
+.ps-dashboard-lightbox-image img {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.ps-dashboard-expand-icon {
+  align-items: center;
+  backdrop-filter: blur(12px);
+  background: rgba(255, 253, 248, 0.88);
+  border: 1px solid rgba(80, 71, 61, 0.13);
+  border-radius: 999px;
+  bottom: 0.75rem;
+  box-shadow: 0 8px 20px rgba(38, 33, 29, 0.12);
+  color: var(--ps-ink);
+  display: flex;
+  height: 2.35rem;
+  justify-content: center;
+  opacity: 0.86;
+  position: absolute;
+  right: 0.75rem;
+  transform: translateY(2px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  width: 2.35rem;
+}
+
+.ps-dashboard-expand-icon svg,
+.ps-dashboard-lightbox-close svg {
+  fill: none;
+  height: 1.1rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 1.1rem;
+}
+
+.ps-dashboard-preview:hover .ps-dashboard-expand-icon,
+.ps-dashboard-preview:focus-visible .ps-dashboard-expand-icon {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ps-dashboard-lightbox {
+  align-items: center;
+  backdrop-filter: blur(12px);
+  background: rgba(20, 18, 16, 0.72);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  position: fixed;
+  z-index: 1000;
+}
+
+.ps-dashboard-lightbox-dialog {
+  background: #fffdf8;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: clamp(1rem, 2vw, 1.5rem);
+  box-shadow: 0 35px 100px rgba(0, 0, 0, 0.38);
+  max-height: calc(100dvh - clamp(2rem, 6vw, 5rem));
+  max-width: min(96rem, 100%);
+  overflow: hidden;
+  position: relative;
+  width: min(100%, calc((100dvh - clamp(2rem, 6vw, 5rem)) * 1.5));
+}
+
+.ps-dashboard-lightbox-image {
+  overflow: auto;
+}
+
+.ps-dashboard-lightbox-image img {
+  max-height: calc(100dvh - clamp(2rem, 6vw, 5rem));
+  object-fit: contain;
+}
+
+.ps-dashboard-lightbox-close {
+  align-items: center;
+  backdrop-filter: blur(12px);
+  background: rgba(38, 33, 29, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  height: 2.65rem;
+  justify-content: center;
+  position: absolute;
+  right: 0.85rem;
+  top: 0.85rem;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+  width: 2.65rem;
+  z-index: 1;
+}
+
+.ps-dashboard-lightbox-close:hover {
+  background: rgba(38, 33, 29, 1);
+  transform: scale(1.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-dashboard-preview,
+  .ps-dashboard-expand-icon,
+  .ps-dashboard-lightbox-close {
+    transition: none;
+  }
+
+  .ps-dashboard-preview:hover {
+    transform: none;
+  }
 }
 
 .ps-retention {
