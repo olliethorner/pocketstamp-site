@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   filterActivityRows,
   formatActivityBadge,
@@ -33,14 +33,16 @@ export default function MerchantActivity({
   preview = false,
 }) {
   const [filter, setFilter] = useState("all");
-  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ activityRows, page: 1 });
+  if (pagination.activityRows !== activityRows) {
+    setPagination({ activityRows, page: 1 });
+  }
+  const page = pagination.page;
   const pageSize = 10;
   const rows = preview ? activityRows.slice(0, 5) : filterActivityRows(activityRows, filter);
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const visibleRows = preview ? rows : rows.slice((safePage - 1) * pageSize, safePage * pageSize);
-
-  useEffect(() => setPage(1), [filter, activityRows]);
 
   if (isLoading) return <div className="rounded-2xl bg-white p-5 text-slate-600 ring-1 ring-slate-200">Loading recent activity...</div>;
   if (error) return <div className="rounded-2xl bg-white p-5 text-red-700 ring-1 ring-red-100">{error}</div>;
@@ -53,7 +55,7 @@ export default function MerchantActivity({
           <p className="mb-4 text-sm text-[var(--ps-muted)]">Showing filters across the latest activity returned by PocketStamp.</p>
           <div className="mb-4 flex flex-wrap gap-2" aria-label="Activity date filters">
             {filters.map(([value, label]) => (
-              <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-full px-3 py-2 text-sm font-semibold ${filter === value ? "bg-[#143d3b] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"}`}>
+              <button key={value} type="button" aria-pressed={filter === value} onClick={() => { setFilter(value); setPagination({ activityRows, page: 1 }); }} className={`rounded-full px-3 py-2 text-sm font-semibold ${filter === value ? "bg-[#143d3b] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"}`}>
                 {label}
               </button>
             ))}
@@ -69,8 +71,8 @@ export default function MerchantActivity({
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-slate-500">Page {safePage} of {pageCount}</p>
           <div className="flex gap-2">
-            <button type="button" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)} className="min-h-11 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold disabled:opacity-45">Previous</button>
-            <button type="button" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)} className="min-h-11 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold disabled:opacity-45">Next</button>
+            <button type="button" disabled={safePage <= 1} onClick={() => setPagination({ activityRows, page: safePage - 1 })} className="min-h-11 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold disabled:opacity-45">Previous</button>
+            <button type="button" disabled={safePage >= pageCount} onClick={() => setPagination({ activityRows, page: safePage + 1 })} className="min-h-11 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold disabled:opacity-45">Next</button>
           </div>
         </div>
       ) : null}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   CUSTOMER_PAGE_SIZE,
   formatCustomerShortDate,
@@ -44,7 +44,9 @@ export default function MerchantCustomers({
   onExpandedCustomerChange,
   birthdayRewardsEnabled = false,
 }) {
-  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, search, status });
+  const paginationContextChanged = pagination.search !== search || pagination.status !== status;
+  const page = paginationContextChanged ? 1 : pagination.page;
   const scannedTodaySupported = supportsScannedTodayFilter(customers);
   const filters = [
     ...baseFilters.filter(([value]) => birthdayRewardsEnabled || value !== "birthday_saved"),
@@ -53,13 +55,11 @@ export default function MerchantCustomers({
   const visibleCustomers = getVisibleCustomers(customers, status);
   const pageCount = Math.max(1, Math.ceil(visibleCustomers.length / CUSTOMER_PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
+  if (paginationContextChanged || pagination.page !== safePage) {
+    setPagination({ page: safePage, search, status });
+  }
   const pageStart = (safePage - 1) * CUSTOMER_PAGE_SIZE;
   const pagedCustomers = visibleCustomers.slice(pageStart, pageStart + CUSTOMER_PAGE_SIZE);
-
-  useEffect(() => setPage(1), [search, status]);
-  useEffect(() => {
-    if (page > pageCount) setPage(pageCount);
-  }, [page, pageCount]);
 
   const countText = isLoading
     ? "Loading customers"
@@ -137,7 +137,11 @@ export default function MerchantCustomers({
                 })}
               </div>}
       </div>
-      <Pagination page={safePage} pageCount={pageCount} onPageChange={setPage} />
+      <Pagination
+        page={safePage}
+        pageCount={pageCount}
+        onPageChange={(nextPage) => setPagination({ page: nextPage, search, status })}
+      />
     </section>
   );
 }

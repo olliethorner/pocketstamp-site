@@ -109,7 +109,7 @@ function adminFetch(path, options = {}, accessToken = "") {
     },
   }).then(async (response) => {
     const text = await response.text();
-    let payload = null;
+    let payload;
 
     try {
       payload = text ? JSON.parse(text) : null;
@@ -2175,18 +2175,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   const [resolvedPreviewTheme, setResolvedPreviewTheme] = useState(null);
   const [previewResolutionStatus, setPreviewResolutionStatus] = useState("idle");
   const previewResolutionRequestRef = useRef(0);
-  const resolverPayload = useMemo(() => buildPassThemeResolverPayload(form), [
-    form.passThemeMode,
-    form.passAccentColor,
-    form.backgroundColor,
-    form.foregroundColor,
-    form.labelColor,
-    form.passStampEmptyColor,
-    form.passStampFilledColor,
-    form.passLogoTileEnabled,
-    form.passLogoTileColor,
-    form.passLogoFit,
-  ]);
+  const resolverPayload = useMemo(() => buildPassThemeResolverPayload(form), [form]);
   const resolverPayloadKey = JSON.stringify(resolverPayload);
 
   useEffect(() => {
@@ -2222,14 +2211,11 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   useEffect(() => {
     if (!isEditing) {
       previewResolutionRequestRef.current += 1;
-      setPreviewResolutionStatus("idle");
       return undefined;
     }
 
     const requestId = previewResolutionRequestRef.current + 1;
     previewResolutionRequestRef.current = requestId;
-    setPreviewResolutionStatus("updating");
-
     const timeoutId = window.setTimeout(async () => {
       try {
         const nextResolvedTheme = await requestPassThemeResolution(
@@ -2381,6 +2367,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   function applyDetailColorSuggestions() {
     const suggestions = form.colorSuggestions;
     if (!suggestions) return;
+    setPreviewResolutionStatus("updating");
     setForm((current) => applyWalletColorSuggestions(current, suggestions));
   }
 
@@ -2545,6 +2532,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
       type: "resolved",
       theme: extractResolvedPassTheme(form),
     }));
+    setPreviewResolutionStatus("updating");
     setIsEditing(true);
   }
 
@@ -3463,6 +3451,7 @@ function AccountPage({ adminContext, onLogout }) {
 
 export default function AdminPortal({ path }) {
   const [session, setSession] = useState(() => getStoredAdminSession());
+  const initialSessionRef = useRef(session);
   const [adminContext, setAdminContext] = useState(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [authError, setAuthError] = useState("");
@@ -3501,15 +3490,16 @@ export default function AdminPortal({ path }) {
     let isMounted = true;
 
     async function bootstrap() {
-      if (!session?.accessToken) {
+      const initialSession = initialSessionRef.current;
+      if (!initialSession?.accessToken) {
         setIsBootstrapping(false);
         return;
       }
 
       try {
-        let nextSession = session;
-        if (session.refreshToken && session.expiresAt && session.expiresAt < Date.now() + 60000) {
-          nextSession = await refreshAdminSession(session.refreshToken);
+        let nextSession = initialSession;
+        if (initialSession.refreshToken && initialSession.expiresAt && initialSession.expiresAt < Date.now() + 60000) {
+          nextSession = await refreshAdminSession(initialSession.refreshToken);
           storeAdminSession(nextSession);
           if (isMounted) setSession(nextSession);
         }

@@ -1,4 +1,4 @@
-import { Component, useEffect, useRef, useState } from "react";
+import { Component, useEffect, useEffectEvent, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import AdminPortal from "./AdminPortal.jsx";
 import MerchantPortalShell from "./merchant/MerchantPortal.jsx";
@@ -13,10 +13,8 @@ import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
 import "./App.css";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
-const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
 const MERCHANT_DATA_CHANGED_EVENT = "pocketstamp:merchant-data-changed";
-const MERCHANT_DASHBOARD_REFRESH_INTERVAL_MS = 20000;
 const MERCHANT_DATA_CHANGED_STORAGE_KEY = "pocketstampMerchantDataChangedAt";
 
 const demoHref =
@@ -25,7 +23,6 @@ const pilotHref =
   `mailto:${SALES_EMAIL}?subject=PocketStamp café pilot`;
 const demoJoinUrl = "/join/pocket-stamp-demo";
 const demoSuccessUrl = "/join/pocket-stamp-demo/success";
-const demoJoinAbsoluteUrl = `${PUBLIC_SITE_BASE_URL}/join/pocket-stamp-demo`;
 const demoCreateCardUrl = "/demo/pocket-stamp-demo/create";
 const demoPassStorageKey = "pocketstampDemoPassUrl";
 const demoMerchantName = "PocketStamp Demo";
@@ -222,7 +219,7 @@ async function fetchScannerDevice(deviceToken) {
   });
 
   const text = await response.text();
-  let payload = null;
+  let payload;
 
   try {
     payload = text ? JSON.parse(text) : null;
@@ -318,50 +315,8 @@ function toTitle(value) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function safeSlug(value) {
-  return String(value || "merchant")
-    .toLowerCase()
-    .trim()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-function toPublicDashboardUrl(pathOrUrl) {
-  if (!pathOrUrl) return pathOrUrl;
-
-  try {
-    const url = new URL(pathOrUrl, PUBLIC_SITE_BASE_URL);
-    const isDashboardRoute =
-      url.pathname.startsWith("/join/") ||
-      url.pathname.startsWith("/pass/") ||
-      url.pathname.startsWith("/merchant/");
-
-    if (!isDashboardRoute) return pathOrUrl;
-
-    return new URL(`${url.pathname}${url.search}${url.hash}`, PUBLIC_SITE_BASE_URL).toString();
-  } catch {
-    return pathOrUrl;
-  }
-}
-
 function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
-}
-
-function getBirthdayRewardsSetting(source = {}) {
-  return pickFirst(
-    source.birthdayRewardsEnabled,
-    source.birthday_rewards_enabled,
-    source.loyalty?.birthdayRewardsEnabled,
-    source.loyalty?.birthday_rewards_enabled,
-  );
-}
-
-function getBirthdayRewardsEnabled(source = {}) {
-  return getBirthdayRewardsSetting(source) === true;
 }
 
 function buildScannerPassBody(scanResult = {}) {
@@ -441,361 +396,6 @@ function buildScannerActionBody(deviceToken, scanResult = {}) {
   };
 }
 
-function getActivityTimestamp(item) {
-  return pickFirst(
-    item.timestamp,
-    item.createdAt,
-    item.created_at,
-    item.occurredAt,
-    item.scannedAt,
-    item.updatedAt,
-    item.date,
-  );
-}
-
-function getActivityType(item) {
-  return pickFirst(item.type, item.eventType, item.action, item.event, item.kind);
-}
-
-function getActivityText(item) {
-  return [
-    item.type,
-    item.eventType,
-    item.action,
-    item.event,
-    item.kind,
-    item.result,
-    item.status,
-    item.rewardType,
-    item.reward_type,
-    item.rewardName,
-    item.reward_name,
-    item.title,
-    item.description,
-    item.message,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function getActivityCustomerName(item) {
-  return pickFirst(
-    item.customerName,
-    item.customer_name,
-    item.name,
-    item.customer?.name,
-    item.customer?.fullName,
-    item.customer?.firstName && item.customer?.lastName
-      ? `${item.customer.firstName} ${item.customer.lastName}`
-      : null,
-    item.customer?.firstName,
-    item.email,
-  );
-}
-
-function looksLikeStamp(item) {
-  const haystack = getActivityText(item);
-  return haystack.includes("stamp") || haystack.includes("+1");
-}
-
-function looksLikeReward(item) {
-  const haystack = getActivityText(item);
-  return haystack.includes("reward") || haystack.includes("redeem");
-}
-
-function looksLikeBirthdayReward(item) {
-  const haystack = getActivityText(item);
-  return looksLikeReward(item) && haystack.includes("birthday");
-}
-
-function looksLikeJoin(item) {
-  const haystack = getActivityText(item);
-  return (
-    haystack.includes("join") ||
-    haystack.includes("signup") ||
-    haystack.includes("sign up") ||
-    haystack.includes("customer_created") ||
-    haystack.includes("customer created")
-  );
-}
-
-function looksLikeWalletPass(item) {
-  const haystack = getActivityText(item);
-  return haystack.includes("pass") || haystack.includes("wallet");
-}
-
-function looksLikeReminder(item) {
-  const haystack = getActivityText(item);
-  return haystack.includes("reminder") || haystack.includes("notification");
-}
-
-function formatActivityTime(timestamp, { sentence = false } = {}) {
-  if (!timestamp) return "Recent";
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return "Recent";
-
-  if (sentence) {
-    const datePart = new Intl.DateTimeFormat(undefined, {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }).format(date);
-    const timePart = new Intl.DateTimeFormat(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
-
-    return `${datePart} at ${timePart}`;
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
-function formatActivityTitle(item, birthdayRewardsEnabled = false) {
-  const haystack = getActivityText(item);
-  const backendTitle = pickFirst(item.title, item.description, item.message);
-
-  if (birthdayRewardsEnabled && looksLikeBirthdayReward(item) && haystack.includes("activat")) {
-    return "Birthday reward activated";
-  }
-
-  if (birthdayRewardsEnabled && looksLikeBirthdayReward(item)) return "Birthday reward redeemed";
-
-  if (looksLikeReward(item) && haystack.includes("redeem")) {
-    return "Reward redeemed";
-  }
-
-  if (looksLikeStamp(item)) return "Stamp added";
-  if (looksLikeReward(item)) return "Reward earned";
-  if (looksLikeReminder(item) && haystack.includes("sent")) return "Reminder sent";
-  if (looksLikeReminder(item)) return "Wallet reminder";
-  if (looksLikeJoin(item)) return "Customer joined";
-  if (looksLikeWalletPass(item) && haystack.includes("creat")) {
-    return "Apple Wallet card created";
-  }
-  if (looksLikeWalletPass(item)) return "Apple Wallet card updated";
-
-  return pickFirst(
-    backendTitle && backendTitle.length > 8 ? backendTitle : null,
-    toTitle(getActivityType(item)),
-  );
-}
-
-function formatActivityMeta(item) {
-  return pickFirst(
-    getActivityCustomerName(item),
-    item.readerName,
-    item.locationName,
-    item.passSerialNumber,
-    item.passId,
-    item.readerId,
-  );
-}
-
-function formatActivitySource(item) {
-  const directSource = pickFirst(
-    item.source,
-    item.channel,
-    item.origin,
-    item.entryMethod,
-    item.createdBy,
-    item.deviceType,
-    item.device?.type,
-  );
-  const sourceText = [
-    directSource,
-    item.scannerDeviceName,
-    item.scannerDeviceId,
-    item.readerName,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  if (sourceText.includes("scanner") || sourceText.includes("scan")) return "Via Scanner Mode";
-  if (sourceText.includes("dashboard")) return "Via dashboard";
-  if (sourceText.includes("manual") || sourceText.includes("staff")) return "Manual";
-  if (directSource) return `Via ${toTitle(directSource).toLowerCase()}`;
-  return "";
-}
-
-function getActivityStampProgress(item) {
-  const current = pickFirst(
-    item.currentStamps,
-    item.stamps,
-    item.stampCount,
-    item.current_stamps,
-    item.customer?.currentStamps,
-    item.result?.currentStamps,
-    item.result?.stamps,
-  );
-  const threshold = pickFirst(
-    item.rewardThreshold,
-    item.threshold,
-    item.reward_threshold,
-    item.customer?.rewardThreshold,
-    item.result?.rewardThreshold,
-    item.result?.threshold,
-  );
-  const currentNumber = Number(current);
-  const thresholdNumber = Number(threshold);
-
-  if (Number.isFinite(currentNumber) && Number.isFinite(thresholdNumber) && thresholdNumber > 0) {
-    return `${currentNumber}/${thresholdNumber} stamps`;
-  }
-  if (Number.isFinite(currentNumber)) return `${currentNumber} stamps`;
-  return "";
-}
-
-function formatActivityDetailParts(item) {
-  const customerName = getActivityCustomerName(item);
-  const source = formatActivitySource(item);
-  const parts = [];
-
-  if (customerName) parts.push(customerName);
-
-  if (looksLikeStamp(item)) {
-    if (!customerName) parts.push("Customer");
-    parts.push(pickFirst(getActivityStampProgress(item), "Stamp"));
-  } else if (looksLikeReward(item)) {
-    if (!customerName) parts.push("Customer");
-    parts.push("Reward claimed");
-  } else if (looksLikeJoin(item)) {
-    if (!customerName) parts.push("Customer");
-    parts.push("Added Apple Wallet pass");
-  } else if (looksLikeReminder(item)) {
-    parts.push("Wallet reminder");
-  }
-
-  if (source) parts.push(source);
-
-  return parts.length ? parts : [customerName || toTitle(getActivityType(item)) || "Activity"];
-}
-
-function formatActivityDetail(item) {
-  return formatActivityDetailParts(item).filter(Boolean).join(" · ");
-}
-
-function formatActivityBadge(item, birthdayRewardsEnabled = false) {
-  if (birthdayRewardsEnabled && looksLikeBirthdayReward(item)) return "Birthday";
-  if (looksLikeStamp(item)) return "Stamp";
-  if (looksLikeReward(item)) return "Redeemed";
-  if (looksLikeReminder(item)) return "Reminder";
-  if (looksLikeJoin(item)) return "Joined";
-  if (looksLikeWalletPass(item)) return "Wallet";
-  return toTitle(getActivityType(item));
-}
-
-function formatScannerMode(value) {
-  const mode = String(value || "").toLowerCase();
-  if (mode.includes("confirm")) return "Confirm stamp";
-  if (mode.includes("auto")) return "Auto-stamp";
-  return value ? toTitle(value) : "Auto-stamp";
-}
-
-function formatScannerBoolean(value) {
-  if (value === undefined || value === null || value === "") return null;
-  return value ? "On" : "Off";
-}
-
-function formatScannerCooldown(value) {
-  const seconds = Number(value);
-  if (!Number.isFinite(seconds) || seconds <= 0) return null;
-  return `${seconds}s`;
-}
-
-function getScannerDashboardData(summary = {}) {
-  const candidates = [
-    summary?.scanner,
-    summary?.scannerMode,
-    summary?.scannerStatus,
-    summary?.scannerDevice,
-    summary?.device,
-    summary?.devices?.[0],
-    summary?.scannerDevices?.[0],
-    summary?.counterScanner,
-  ].filter(Boolean);
-  const scanner = candidates[0] || null;
-  const deviceList = [summary?.scannerDevices, summary?.devices, scanner?.devices].find(Array.isArray);
-  const device = deviceList?.[0] || scanner;
-  const scannerUrl = toPublicDashboardUrl(pickFirst(
-    scanner?.scannerUrl,
-    scanner?.scannerURL,
-    scanner?.kioskUrl,
-    scanner?.kioskURL,
-    scanner?.url,
-    device?.scannerUrl,
-    device?.kioskUrl,
-  ));
-  const hasExplicitReady = [
-    summary?.hasScannerDevices,
-    summary?.scannerDevicesCount > 0,
-    scanner?.ready,
-    scanner?.isReady,
-    scanner?.enabled,
-    scanner?.isEnabled,
-    scanner?.configured,
-    scanner?.isConfigured,
-    device?.ready,
-    device?.enabled,
-  ].some(Boolean);
-  const hasExplicitNotReady = [
-    summary?.hasScannerDevices === false,
-    scanner?.ready === false,
-    scanner?.isReady === false,
-    scanner?.enabled === false,
-    scanner?.isEnabled === false,
-    scanner?.configured === false,
-    scanner?.isConfigured === false,
-  ].some(Boolean);
-  const hasScannerData = Boolean(scanner || deviceList || scannerUrl);
-  const isReady = hasExplicitReady || Boolean(scannerUrl) || (hasScannerData && !hasExplicitNotReady);
-  const rawMode = pickFirst(device?.mode, device?.scannerMode, scanner?.mode, scanner?.scannerMode);
-
-  return {
-    hasScannerData,
-    isReady,
-    isFallback: !hasScannerData,
-    scannerUrl,
-    deviceName: pickFirst(device?.deviceName, device?.name, device?.label, scanner?.deviceName),
-    mode: rawMode ? formatScannerMode(rawMode) : null,
-    cooldown: formatScannerCooldown(
-      pickFirst(
-        device?.cooldownSeconds,
-        device?.stampCooldownSeconds,
-        scanner?.cooldownSeconds,
-        scanner?.stampCooldownSeconds,
-      ),
-    ),
-    rewardConfirmation: formatScannerBoolean(
-      pickFirst(
-        device?.rewardConfirmationRequired,
-        device?.requiresRewardConfirmation,
-        scanner?.rewardConfirmationRequired,
-        scanner?.requiresRewardConfirmation,
-      ),
-    ),
-    lastScan: formatActivityTime(
-      pickFirst(device?.lastScanAt, scanner?.lastScanAt, scanner?.lastScan?.createdAt),
-    ),
-  };
-}
-
-function IconMark({ label, className = "" }) {
-  return (
-    <span
-      className={`inline-flex items-center justify-center rounded-xl text-xs font-bold ${className}`}
-      aria-hidden="true"
-    >
-      {label}
-    </span>
-  );
-}
-
 function CheckMark({ className = "" }) {
   return (
     <span
@@ -807,17 +407,15 @@ function CheckMark({ className = "" }) {
   );
 }
 
-function LoadingText({ label = "Loading..." }) {
-  return <span>{label}</span>;
-}
-
 function HeroWalletPassShowcase() {
   const introDurationMs = 1450;
   const wheelCooldownMs = 620;
   const wheelThreshold = 44;
   const swipeThreshold = 40;
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isIntroComplete, setIsIntroComplete] = useState(false);
+  const [isIntroComplete, setIsIntroComplete] = useState(() => (
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ));
   const lastWheelAtRef = useRef(0);
   const touchStartRef = useRef(null);
   const walletPasses = [
@@ -858,10 +456,7 @@ function HeroWalletPassShowcase() {
   useEffect(() => {
     const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-    if (reduceMotionQuery.matches) {
-      setIsIntroComplete(true);
-      return undefined;
-    }
+    if (reduceMotionQuery.matches) return undefined;
 
     const introTimer = window.setTimeout(() => {
       setIsIntroComplete(true);
@@ -2267,9 +1862,6 @@ function CameraScannerModal({ isOpen, isProcessing, onClose, onDetected }) {
     if (!isOpen) return undefined;
 
     closingRef.current = false;
-    setCameraStatus("starting");
-    setCameraError("");
-
     function handleDetected(qrValue) {
       if (!qrValue || closingRef.current) return;
       setCameraStatus("detected");
@@ -2644,8 +2236,10 @@ function ScannerKioskPage() {
     }
   }
 
+  const onLoadDevice = useEffectEvent(loadDevice);
+
   useEffect(() => {
-    loadDevice();
+    onLoadDevice();
     return () => {
       window.clearTimeout(readyTimerRef.current);
       window.clearTimeout(bufferTimerRef.current);
@@ -2740,6 +2334,8 @@ function ScannerKioskPage() {
     }
   }
 
+  const onBufferedScanSubmit = useEffectEvent(handleScanSubmit);
+
   useEffect(() => {
     const minScanLength = 8;
     const scannerKeyGapMs = 120;
@@ -2761,7 +2357,7 @@ function ScannerKioskPage() {
       }
       if (scanSubmitLockRef.current || isProcessing || deviceLoadStatus !== "ready") return;
 
-      handleScanSubmit(bufferedValue);
+      onBufferedScanSubmit(bufferedValue);
     }
 
     function handleGlobalScannerKeyDown(event) {
@@ -3116,12 +2712,14 @@ function ScannerKioskPage() {
         className="fixed left-0 top-0 h-px w-px opacity-0"
       />
 
-      <CameraScannerModal
-        isOpen={isCameraOpen}
-        isProcessing={isProcessing}
-        onClose={closeCamera}
-        onDetected={handleCameraDetected}
-      />
+      {isCameraOpen ? (
+        <CameraScannerModal
+          isOpen
+          isProcessing={isProcessing}
+          onClose={closeCamera}
+          onDetected={handleCameraDetected}
+        />
+      ) : null}
 
       <CustomerAdjustmentModal
         isOpen={adjustment.isOpen}

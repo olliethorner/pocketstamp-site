@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import MerchantLayout from "./MerchantLayout.jsx";
 import MerchantOverview from "./pages/MerchantOverview.jsx";
 import MerchantCustomers from "./pages/MerchantCustomers.jsx";
@@ -243,9 +243,12 @@ export default function MerchantDashboard({
     );
   }
 
+  const onRefreshCurrentPageData = useEffectEvent(refreshCurrentPageData);
+  const onRefreshCustomers = useEffectEvent(refreshCustomers);
+
   useEffect(() => {
     isMountedRef.current = true;
-    refreshCurrentPageData({ showLoading: true });
+    onRefreshCurrentPageData({ showLoading: true });
     return () => {
       isMountedRef.current = false;
     };
@@ -253,32 +256,38 @@ export default function MerchantDashboard({
 
   useEffect(() => {
     if (page !== "customers") return;
-    refreshCustomers({ showLoading: true });
+    let isCancelled = false;
+    Promise.resolve().then(() => {
+      if (!isCancelled) onRefreshCustomers({ showLoading: true });
+    });
+    return () => {
+      isCancelled = true;
+    };
   }, [accessToken, customerSearch, effectiveCustomerStatus, page]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === "hidden") return;
-      refreshCurrentPageData({ showLoading: false });
+      onRefreshCurrentPageData({ showLoading: false });
     }, REFRESH_INTERVAL_MS);
 
     function handleFocus() {
-      refreshCurrentPageData({ showLoading: false });
+      onRefreshCurrentPageData({ showLoading: false });
     }
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
-        refreshCurrentPageData({ showLoading: false });
+        onRefreshCurrentPageData({ showLoading: false });
       }
     }
 
     function handleMerchantDataChanged() {
-      refreshCurrentPageData({ showLoading: false });
+      onRefreshCurrentPageData({ showLoading: false });
     }
 
     function handleStorage(event) {
       if (event.key === DATA_CHANGED_STORAGE_KEY) {
-        refreshCurrentPageData({ showLoading: false });
+        onRefreshCurrentPageData({ showLoading: false });
       }
     }
 
