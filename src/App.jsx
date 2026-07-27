@@ -12,6 +12,11 @@ import {
 import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
 import ExpandableImagePreview from "./ExpandableImagePreview.jsx";
 import "./App.css";
+import {
+  formatScannerActivityTime,
+  getScannerActivityLabel,
+  normalizeScannerActivities,
+} from "./scannerActivity";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
@@ -245,6 +250,10 @@ async function fetchScannerDevice(deviceToken) {
   }
 
   return payload;
+}
+
+function fetchScannerActivity(deviceToken) {
+  return requestJson(`/api/merchant/scanner/activity?deviceToken=${encodeURIComponent(deviceToken)}`);
 }
 
 function submitScannerScan({ deviceToken, scanValue }) {
@@ -1530,41 +1539,6 @@ function getScanStamps(result = {}) {
   return `${current ?? "?"}/${threshold ?? "?"}`;
 }
 
-function getScanPassId(result = {}) {
-  const scan = result || {};
-  return pickFirst(
-    scan.passSerial,
-    scan.pass_serial,
-    scan.passId,
-    scan.walletPassId,
-    scan.serialNumber,
-    scan.serial_number,
-    scan.passSerialNumber,
-    scan.pass?.id,
-    scan.pass?.serial_number,
-    scan.pass?.serialNumber,
-    scan.customer?.passSerial,
-    scan.customer?.pass_serial,
-    scan.customer?.passId,
-    scan.result?.passSerial,
-    scan.result?.pass_serial,
-    scan.result?.passId,
-    scan.result?.serialNumber,
-    scan.result?.serial_number,
-    scan.result?.pass?.id,
-    scan.result?.pass?.serial_number,
-    scan.result?.pass?.serialNumber,
-    scan.data?.passSerial,
-    scan.data?.pass_serial,
-    scan.data?.passId,
-    scan.data?.serialNumber,
-    scan.data?.serial_number,
-    scan.data?.pass?.id,
-    scan.data?.pass?.serial_number,
-    scan.data?.pass?.serialNumber,
-  );
-}
-
 function getScanPassSerial(result = {}) {
   const scan = result || {};
   return pickFirst(
@@ -2065,6 +2039,7 @@ function ScannerKioskPage() {
   const [scanResult, setScanResult] = useState(null);
   const [readyMessage, setReadyMessage] = useState("");
   const [recentActivity, setRecentActivity] = useState([]);
+  const [activityLoadStatus, setActivityLoadStatus] = useState("loading");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
@@ -2121,6 +2096,7 @@ function ScannerKioskPage() {
     }
 
     setDeviceLoadStatus("loading");
+    setActivityLoadStatus("loading");
     setScanStatus("idle");
     setDeviceError("");
 
@@ -2130,6 +2106,7 @@ function ScannerKioskPage() {
       setDeviceLoadStatus("ready");
       setScanStatus("idle");
       setReadyMessage("");
+      void loadRecentActivity();
     } catch (error) {
       const message = isProbablyNetworkError(error)
         ? "Could not connect to this scanner device."
@@ -2147,6 +2124,26 @@ function ScannerKioskPage() {
     }
   }
 
+  async function loadRecentActivity() {
+    if (!deviceToken) {
+      setRecentActivity([]);
+      setActivityLoadStatus("loaded");
+      return;
+    }
+
+    try {
+      const payload = await fetchScannerActivity(deviceToken);
+      setRecentActivity(normalizeScannerActivities(payload));
+      setActivityLoadStatus("loaded");
+    } catch (error) {
+      console.error("Scanner activity fetch failed", {
+        status: error?.status || "network",
+        endpoint: `${API_BASE_URL}/api/merchant/scanner/activity?deviceToken=[redacted]`,
+      });
+      setActivityLoadStatus("error");
+    }
+  }
+
   const onLoadDevice = useEffectEvent(loadDevice);
 
   useEffect(() => {
@@ -2160,39 +2157,6 @@ function ScannerKioskPage() {
   useEffect(() => {
     focusScannerInput();
   }, [deviceLoadStatus, scanStatus, isProcessing]);
-
-  function addActivity(nextStatus, result) {
-    const label =
-      nextStatus === "stamp_added"
-        ? "Stamp added"
-        : nextStatus === "already_stamped_recently"
-          ? "Already stamped recently"
-          : nextStatus === "reward_ready"
-            ? "Reward ready"
-            : nextStatus === "reward_redeemed"
-              ? "Reward redeemed"
-              : nextStatus === "undo_success"
-                ? "Stamp undone"
-                : nextStatus === "stamp_adjusted"
-                  ? "Stamp count updated"
-                  : "Could not process scan";
-
-    setRecentActivity((current) => [
-      {
-        id: `${Date.now()}-${Math.random()}`,
-        time: new Intl.DateTimeFormat(undefined, {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }).format(new Date()),
-        label,
-        customerName: getScanCustomerName(result),
-        stamps: getScanStamps(result),
-        result,
-      },
-      ...current,
-    ].slice(0, 5));
-  }
 
   async function handleScanSubmit(value = scanValue) {
     const trimmedValue = normalizeScannerScanValue(value);
@@ -2227,16 +2191,15 @@ function ScannerKioskPage() {
       const nextStatus = getScanStatus(payload);
       setScanResult(payload);
       setScanStatus(nextStatus);
-      addActivity(nextStatus, payload);
       if (nextStatus === "stamp_added" || nextStatus === "reward_ready") {
         notifyMerchantDataChanged({ source: "scanner", action: nextStatus });
       }
+      if (nextStatus === "stamp_added" || nextStatus === "reward_ready") void loadRecentActivity();
       if (nextStatus !== "reward_ready") scheduleReady(nextStatus === "stamp_added" ? 3200 : 5200);
     } catch (error) {
       const errorResult = { message: getScanMessage(error) };
       setScanResult(errorResult);
       setScanStatus("scan_error");
-      addActivity("scan_error", errorResult);
       scheduleReady(6200);
     } finally {
       scanSubmitLockRef.current = false;
@@ -2451,7 +2414,7 @@ function ScannerKioskPage() {
         isSaving: false,
         success: "Stamp count updated",
       }));
-      addActivity("stamp_adjusted", mergedResult);
+      await loadRecentActivity();
       notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
       scheduleReady(3600);
     } catch (error) {
@@ -2474,7 +2437,7 @@ function ScannerKioskPage() {
       const payload = await redeemScannerReward({ deviceToken, scanResult });
       setScanResult(payload);
       setScanStatus("reward_redeemed");
-      addActivity("reward_redeemed", payload);
+      await loadRecentActivity();
       notifyMerchantDataChanged({ source: "scanner", action: "reward_redeemed" });
       scheduleReady(3600);
     } catch (error) {
@@ -2495,7 +2458,7 @@ function ScannerKioskPage() {
       const payload = await undoScannerStamp({ deviceToken, scanResult });
       setScanResult(payload);
       setScanStatus("undo_success");
-      addActivity("undo_success", payload);
+      await loadRecentActivity();
       notifyMerchantDataChanged({ source: "scanner", action: "undo_success" });
       scheduleReady(3200);
     } catch (error) {
@@ -2784,26 +2747,35 @@ function ScannerKioskPage() {
             <div className="mt-3 grid gap-2">
               {recentActivity.length ? recentActivity.filter(Boolean).map((item, index) => (
                 <div key={item.id || `scan-activity-${index}`} className="grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_1fr_auto_auto] sm:items-center">
-                  <span className="font-semibold text-[var(--ps-muted)]">{item.time || "Recent"}</span>
-                  <span className="font-bold">{item.label || "Scan"}</span>
+                  <span className="font-semibold text-[var(--ps-muted)]">{formatScannerActivityTime(item.createdAt)}</span>
+                  <span className="font-bold">{getScannerActivityLabel(item.type)}</span>
                   <span className="font-semibold text-[var(--ps-muted)]">
-                    {[item.customerName, item.stamps].filter(Boolean).join(" · ") || "No details"}
+                    {[item.customerName, item.stampCount !== null && item.stampCount !== undefined ? `${item.stampCount} stamps` : null].filter(Boolean).join(" · ") || "No details"}
                   </span>
-                  {item.result && getScanPassId(item.result) ? (
+                  {item.passSerialNumber ? (
                     <button
                       type="button"
-                      onClick={() => openAdjustment(item.result)}
+                      onClick={() => openAdjustment({
+                        customerId: item.customerId,
+                        customerName: item.customerName,
+                        passSerialNumber: item.passSerialNumber,
+                        currentStamps: item.stampCount,
+                      })}
                       className="ps-button-secondary bg-white px-3 py-2 text-xs"
                     >
                       Adjust
                     </button>
                   ) : null}
                 </div>
-              )) : (
+              )) : activityLoadStatus === "loading" ? (
+                <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[var(--ps-muted)] ring-1 ring-[var(--ps-border)]">
+                  Loading activity...
+                </p>
+              ) : activityLoadStatus === "loaded" ? (
                 <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[var(--ps-muted)] ring-1 ring-[var(--ps-border)]">
                   No scans yet.
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
           <section className="rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">
