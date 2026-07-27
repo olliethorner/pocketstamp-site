@@ -2557,7 +2557,7 @@ function ScannerKioskPage() {
 
   return (
     <main
-      className="min-h-screen px-5 py-6 sm:px-8"
+      className="ps-scanner-kiosk min-h-screen px-5 py-6 sm:px-8"
       style={{
         backgroundColor: scannerBranding.backgroundColor,
         color: scannerBranding.foregroundColor,
@@ -2609,9 +2609,9 @@ function ScannerKioskPage() {
         onClose={closeAdjustment}
       />
 
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col gap-5">
-        <header className="flex flex-col gap-3 rounded-3xl bg-[#fffdf8]/90 p-5 text-[var(--ps-espresso)] ring-1 ring-[var(--ps-border)] sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
+      <div className="ps-scanner-shell mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col gap-5">
+        <header className="ps-scanner-header flex flex-col gap-3 rounded-3xl bg-[#fffdf8]/90 p-5 text-[var(--ps-espresso)] ring-1 ring-[var(--ps-border)] sm:flex-row sm:items-center sm:justify-between">
+          <div className="ps-scanner-identity flex min-w-0 items-center gap-4">
             {scannerBranding.logoPath ? (
               <img
                 src={scannerBranding.logoPath}
@@ -2623,17 +2623,17 @@ function ScannerKioskPage() {
                 PS
               </span>
             )}
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-bold uppercase" style={{ color: scannerBranding.labelColor }}>
                 PocketStamp Scanner Mode
               </p>
-              <h1 className="mt-1 text-2xl font-semibold">{merchantName}</h1>
+              <h1 className="mt-1 truncate text-2xl font-semibold">{merchantName}</h1>
               <p className="mt-1 text-sm font-semibold" style={{ color: scannerBranding.labelColor }}>
                 {deviceName}
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 text-sm font-semibold text-[var(--ps-muted)]">
+          <div className="ps-scanner-device-meta flex flex-wrap gap-2 text-sm font-semibold text-[var(--ps-muted)]">
             {scannerDeviceStatus ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(scannerDeviceStatus)}</span> : null}
             {mode ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(mode)}</span> : null}
             {cooldown ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{cooldown}s cooldown</span> : null}
@@ -2641,24 +2641,24 @@ function ScannerKioskPage() {
           </div>
         </header>
 
-        <section className={`grid flex-1 place-items-center rounded-[2rem] p-7 text-center shadow-[var(--ps-shadow)] ring-2 ${toneClass}`}>
-          <div className="mx-auto max-w-4xl">
-            <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-white/70 text-5xl font-black ring-1 ring-current/15">
+        <section className={`ps-scanner-primary grid flex-1 place-items-center rounded-[2rem] p-7 text-center shadow-[var(--ps-shadow)] ring-2 ${toneClass}`}>
+          <div className="ps-scanner-primary-inner mx-auto min-w-0 max-w-4xl">
+            <div className="ps-scanner-status-icon mx-auto grid h-24 w-24 place-items-center rounded-full bg-white/70 text-5xl font-black ring-1 ring-current/15">
               {statusContent.icon}
             </div>
-            <h2 className="mt-8 text-[clamp(3.2rem,9vw,7.4rem)] font-black leading-[0.92] tracking-normal">
+            <h2 className="ps-scanner-status-title mt-8 text-[clamp(3.2rem,9vw,7.4rem)] font-black leading-[0.92] tracking-normal">
               {statusContent.title}
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-[clamp(1.35rem,3vw,2.2rem)] font-semibold leading-tight">
+            <p className="ps-scanner-status-body mx-auto mt-6 max-w-2xl text-[clamp(1.35rem,3vw,2.2rem)] font-semibold leading-tight">
               {statusContent.body}
             </p>
 
-            <div className="mx-auto mt-8 grid max-w-3xl gap-3 sm:grid-cols-2">
+            <div className="ps-scanner-stats mx-auto mt-8 grid max-w-3xl gap-3 sm:grid-cols-2">
               <KioskStat label="Customer" value={getScanCustomerName(scanResult)} />
               <KioskStat label="Stamps" value={getScanStamps(scanResult)} />
             </div>
 
-            <div className="mt-9 flex flex-wrap justify-center gap-3">
+            <div className="ps-scanner-actions mt-9 flex flex-wrap justify-center gap-3">
               {deviceLoadStatus === "ready" ? (
                 <button
                   type="button"
@@ -2741,15 +2741,15 @@ function ScannerKioskPage() {
           </div>
         </section>
 
-        <footer className="grid gap-4 lg:grid-cols-[1fr_24rem]">
-          <div className="rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">
+        <footer className="ps-scanner-secondary grid gap-4 lg:grid-cols-[1fr_24rem]">
+          <div className="ps-scanner-activity rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">
             <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Recent activity</p>
-            <div className="mt-3 grid gap-2">
+            <div className="ps-scanner-activity-list mt-3 grid gap-2">
               {recentActivity.length ? recentActivity.filter(Boolean).map((item, index) => (
-                <div key={item.id || `scan-activity-${index}`} className="grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_1fr_auto_auto] sm:items-center">
+                <div key={item.id || `scan-activity-${index}`} className="ps-scanner-activity-row grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_1fr_auto_auto] sm:items-center">
                   <span className="font-semibold text-[var(--ps-muted)]">{formatScannerActivityTime(item.createdAt)}</span>
-                  <span className="font-bold">{getScannerActivityLabel(item.type)}</span>
-                  <span className="font-semibold text-[var(--ps-muted)]">
+                  <span className="truncate font-bold">{getScannerActivityLabel(item.type)}</span>
+                  <span className="truncate font-semibold text-[var(--ps-muted)]">
                     {[item.customerName, item.stampCount !== null && item.stampCount !== undefined ? `${item.stampCount} stamps` : null].filter(Boolean).join(" · ") || "No details"}
                   </span>
                   {item.passSerialNumber ? (
@@ -2778,7 +2778,7 @@ function ScannerKioskPage() {
               ) : null}
             </div>
           </div>
-          <section className="rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">
+          <section className="ps-scanner-utilities rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">
             <button
               type="button"
               onClick={toggleManualEntry}
