@@ -1,6 +1,42 @@
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 
-async function requestMerchantJson(path, options = {}) {
+let authenticationFailureHandler = null;
+let authenticationFailureNotified = false;
+
+export function isMerchantAuthenticationError(error) {
+  return error?.status === 401;
+}
+
+export function setMerchantAuthenticationFailureHandler(handler) {
+  authenticationFailureHandler = typeof handler === "function" ? handler : null;
+  authenticationFailureNotified = false;
+
+  return () => {
+    if (authenticationFailureHandler === handler) {
+      authenticationFailureHandler = null;
+      authenticationFailureNotified = false;
+    }
+  };
+}
+
+export function resetMerchantAuthenticationFailure() {
+  authenticationFailureNotified = false;
+}
+
+function notifyAuthenticationFailure(error) {
+  if (
+    !isMerchantAuthenticationError(error) ||
+    !authenticationFailureHandler ||
+    authenticationFailureNotified
+  ) {
+    return;
+  }
+
+  authenticationFailureNotified = true;
+  authenticationFailureHandler(error);
+}
+
+async function requestMerchantJson(path, options = {}, { authenticated = false } = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
@@ -17,6 +53,7 @@ async function requestMerchantJson(path, options = {}) {
   } catch (parseError) {
     parseError.status = response.status;
     parseError.responseText = text;
+    if (authenticated) notifyAuthenticationFailure(parseError);
     throw parseError;
   }
 
@@ -28,6 +65,7 @@ async function requestMerchantJson(path, options = {}) {
     const error = new Error(message);
     error.status = response.status;
     error.responseText = text;
+    if (authenticated) notifyAuthenticationFailure(error);
     throw error;
   }
 
@@ -36,6 +74,20 @@ async function requestMerchantJson(path, options = {}) {
 
 function withMerchantSession(accessToken) {
   return { Authorization: `Bearer ${accessToken}` };
+}
+
+function requestAuthenticatedMerchantJson(accessToken, path, options = {}) {
+  return requestMerchantJson(
+    path,
+    {
+      ...options,
+      headers: {
+        ...withMerchantSession(accessToken),
+        ...options.headers,
+      },
+    },
+    { authenticated: true },
+  );
 }
 
 export function loginMerchant(email, password) {
@@ -58,15 +110,11 @@ export function activateMerchantSetup({ token, name, password, confirmPassword }
 }
 
 export function fetchMerchantMe(accessToken) {
-  return requestMerchantJson("/api/auth/me", {
-    headers: withMerchantSession(accessToken),
-  });
+  return requestAuthenticatedMerchantJson(accessToken, "/api/auth/me");
 }
 
 export function fetchMerchantActivity(accessToken) {
-  return requestMerchantJson("/api/merchant/activity?limit=10", {
-    headers: withMerchantSession(accessToken),
-  });
+  return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/activity?limit=10");
 }
 
 export function fetchMerchantCustomers(
@@ -82,43 +130,37 @@ export function fetchMerchantCustomers(
     params.set("search", search.trim());
   }
 
-  return requestMerchantJson(`/api/merchant/customers?${params.toString()}`, {
-    headers: withMerchantSession(accessToken),
-  });
+  return requestAuthenticatedMerchantJson(
+    accessToken,
+    `/api/merchant/customers?${params.toString()}`,
+  );
 }
 
 export function fetchMerchantReminderSummary(accessToken) {
-  return requestMerchantJson("/api/merchant/reminders/summary", {
-    headers: withMerchantSession(accessToken),
-  });
+  return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/reminders/summary");
 }
 
 export function fetchMerchantDashboardSummary(accessToken) {
-  return requestMerchantJson("/api/merchant/dashboard/summary", {
-    headers: withMerchantSession(accessToken),
-  });
+  return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/dashboard/summary");
 }
 
 export function fetchMerchantCampaigns(accessToken) {
-  return requestMerchantJson("/api/merchant/campaigns", {
-    headers: withMerchantSession(accessToken),
-  });
+  return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/campaigns");
 }
 
 export function createMerchantCampaign(accessToken, { message, scheduledAt }) {
-  return requestMerchantJson("/api/merchant/campaigns", {
+  return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/campaigns", {
     method: "POST",
-    headers: withMerchantSession(accessToken),
     body: JSON.stringify({ message, scheduledAt }),
   });
 }
 
 export function cancelMerchantCampaign(accessToken, campaignId) {
-  return requestMerchantJson(
+  return requestAuthenticatedMerchantJson(
+    accessToken,
     `/api/merchant/campaigns/${encodeURIComponent(campaignId)}/cancel`,
     {
       method: "POST",
-      headers: withMerchantSession(accessToken),
     },
   );
 }

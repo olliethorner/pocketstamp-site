@@ -23,6 +23,13 @@ export function resolveMerchantManagementNavigation(href, origin) {
   }
 }
 
+export function resolveSafeMerchantReturnTo(value, origin) {
+  return resolveMerchantManagementNavigation(value, origin) || {
+    href: "/merchant",
+    page: "overview",
+  };
+}
+
 export function isMerchantSetupPath(pathname) {
   return pathname === "/merchant/setup";
 }

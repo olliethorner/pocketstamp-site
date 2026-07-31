@@ -5,6 +5,7 @@ import {
   isMerchantSetupPath,
   resolveMerchantManagementNavigation,
   resolveMerchantManagementPage,
+  resolveSafeMerchantReturnTo,
 } from "./merchant/merchantRoutes.js";
 
 test("resolves every supported merchant management route", () => {
@@ -69,5 +70,22 @@ test("leaves standalone, unsupported, and external links to the browser", () => 
       origin,
     ),
     null,
+  );
+});
+
+test("preserves only safe merchant return destinations", () => {
+  const origin = "https://getpocketstamp.com";
+
+  assert.deepEqual(
+    resolveSafeMerchantReturnTo("/merchant/marketing", origin),
+    { href: "/merchant/marketing", page: "marketing" },
+  );
+  assert.deepEqual(
+    resolveSafeMerchantReturnTo("https://example.com/merchant/marketing", origin),
+    { href: "/merchant", page: "overview" },
+  );
+  assert.deepEqual(
+    resolveSafeMerchantReturnTo("not a valid merchant destination", origin),
+    { href: "/merchant", page: "overview" },
   );
 });

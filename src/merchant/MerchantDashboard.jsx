@@ -143,10 +143,7 @@ export default function MerchantDashboard({
       if (activityResult.status === "fulfilled") {
         setActivityRows(extractRows(activityResult.value, ["activity", "activities", "events", "items"]));
       } else {
-        setActivityError(
-          activityResult.reason?.message ||
-            "Unable to load recent activity right now.",
-        );
+        setActivityError("We couldn’t load recent activity right now.");
       }
 
       if (dashboardResult.status === "fulfilled") {
@@ -158,19 +155,13 @@ export default function MerchantDashboard({
             dashboardResult.reason?.responseText?.slice(0, 500) || "",
           message: dashboardResult.reason?.message || "Unknown error",
         });
-        setDashboardSummaryError(
-          dashboardResult.reason?.message ||
-            "Unable to load dashboard totals right now.",
-        );
+        setDashboardSummaryError("We couldn’t load dashboard totals right now.");
       }
 
       if (reminderResult.status === "fulfilled") {
         setReminderSummary(reminderResult.value?.summary || null);
       } else {
-        setReminderError(
-          reminderResult.reason?.message ||
-            "Unable to load reminder stats right now.",
-        );
+        setReminderError("We couldn’t load reminder information right now.");
       }
     } finally {
       if (isMountedRef.current) {
@@ -200,12 +191,9 @@ export default function MerchantDashboard({
 
       if (!isMountedRef.current) return;
       setCustomerRows(extractRows(payload, ["customers", "items"]));
-    } catch (customerFetchError) {
+    } catch {
       if (!isMountedRef.current) return;
-      setCustomerError(
-        customerFetchError.message ||
-          "Unable to load loyalty customers right now.",
-      );
+      setCustomerError("We couldn’t load loyalty customers right now.");
     } finally {
       if (isMountedRef.current) {
         setIsCustomersLoading(false);
@@ -223,9 +211,9 @@ export default function MerchantDashboard({
       const payload = await fetchMerchantCampaigns(accessToken);
       if (!isMountedRef.current) return;
       setCampaignRows(normalizeCampaignRows(payload));
-    } catch (campaignFetchError) {
+    } catch {
       if (!isMountedRef.current) return;
-      setCampaignError(campaignFetchError.message || "Unable to load campaign history.");
+      setCampaignError("We couldn’t load campaign history right now.");
     } finally {
       if (isMountedRef.current) setIsCampaignsLoading(false);
       isCampaignRefreshInFlightRef.current = false;
@@ -306,6 +294,15 @@ export default function MerchantDashboard({
   }, [accessToken, customerSearch, effectiveCustomerStatus, page]);
 
   const scannerDashboard = getScannerDashboardData(dashboardSummary || {});
+  const currentPageHasError = page === "overview"
+    ? Boolean(activityError || dashboardSummaryError || reminderError)
+    : page === "customers"
+      ? Boolean(customerError)
+      : page === "activity"
+        ? Boolean(activityError)
+        : page === "marketing"
+          ? Boolean(campaignError || reminderError)
+          : false;
 
   async function handleCopyJoinUrl() {
     if (!joinUrl) return;
@@ -359,7 +356,13 @@ export default function MerchantDashboard({
       onLogout={onLogout}
       onNavigate={onNavigate}
       onRefresh={handleManualRefresh}
-      refreshLabel={manualRefreshState === "refreshing" ? "Refreshing..." : "Refresh"}
+      refreshLabel={
+        manualRefreshState === "refreshing"
+          ? "Refreshing..."
+          : currentPageHasError
+            ? "Retry"
+            : "Refresh"
+      }
     >
       {page === "overview" ? (
         <MerchantOverview

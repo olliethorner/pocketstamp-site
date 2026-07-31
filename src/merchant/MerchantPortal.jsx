@@ -1,7 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MerchantLogin from "./MerchantLogin.jsx";
-import { fetchMerchantMe } from "./api/merchantApi.js";
-import { resolveMerchantManagementPage } from "./merchantRoutes.js";
+import {
+  fetchMerchantMe,
+  isMerchantAuthenticationError,
+  resetMerchantAuthenticationFailure,
+  setMerchantAuthenticationFailureHandler,
+} from "./api/merchantApi.js";
+import {
+  resolveMerchantManagementPage,
+  resolveSafeMerchantReturnTo,
+} from "./merchantRoutes.js";
 import { normalizeMerchantContext } from "./utils/merchantData.js";
 
 export default function MerchantPortal({
@@ -13,42 +21,66 @@ export default function MerchantPortal({
     localStorage.getItem(tokenStorageKey),
   );
   const [merchantContext, setMerchantContext] = useState(null);
-  const [isCheckingSession, setIsCheckingSession] = useState(Boolean(accessToken));
-  const [activePage, setActivePage] = useState(page);
+  const [authState, setAuthState] = useState(() =>
+    localStorage.getItem(tokenStorageKey) ? "checking" : "unauthenticated",
+  );
+  const [authError, setAuthError] = useState("");
+  const [activePage, setActivePage] = useState(
+    () => resolveSafeMerchantReturnTo(
+      window.location.href,
+      window.location.origin,
+    ).page || page,
+  );
+  const hasHandledAuthenticationFailureRef = useRef(false);
+
+  const clearMerchantSession = useCallback(() => {
+    if (hasHandledAuthenticationFailureRef.current) return;
+    hasHandledAuthenticationFailureRef.current = true;
+    localStorage.removeItem(tokenStorageKey);
+    setAccessToken(null);
+    setMerchantContext(null);
+    setAuthError("");
+    setAuthState("unauthenticated");
+  }, [tokenStorageKey]);
+
+  useEffect(
+    () => setMerchantAuthenticationFailureHandler(clearMerchantSession),
+    [clearMerchantSession],
+  );
 
   useEffect(() => {
     let isMounted = true;
 
-    async function restoreSession() {
-      if (!accessToken) {
-        setIsCheckingSession(false);
-        return;
-      }
+    async function validateSession() {
+      if (!accessToken || authState !== "checking") return;
 
       try {
         const payload = await fetchMerchantMe(accessToken);
         if (isMounted) {
+          resetMerchantAuthenticationFailure();
+          hasHandledAuthenticationFailureRef.current = false;
           setMerchantContext(normalizeMerchantContext(payload));
+          setAuthError("");
+          setAuthState("authenticated");
         }
-      } catch {
-        localStorage.removeItem(tokenStorageKey);
-        if (isMounted) {
-          setAccessToken(null);
+      } catch (sessionError) {
+        if (!isMounted) return;
+        if (isMerchantAuthenticationError(sessionError)) {
+          clearMerchantSession();
+        } else {
           setMerchantContext(null);
-        }
-      } finally {
-        if (isMounted) {
-          setIsCheckingSession(false);
+          setAuthError("We couldn’t load your dashboard right now.");
+          setAuthState("error");
         }
       }
     }
 
-    restoreSession();
+    validateSession();
 
     return () => {
       isMounted = false;
     };
-  }, [accessToken, tokenStorageKey]);
+  }, [accessToken, authState, clearMerchantSession]);
 
   useEffect(() => {
     function handlePopState() {
@@ -60,22 +92,18 @@ export default function MerchantPortal({
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  async function handleLogin(token, initialContext) {
+  function handleLogin(token) {
+    hasHandledAuthenticationFailureRef.current = false;
+    resetMerchantAuthenticationFailure();
     setAccessToken(token);
-    setMerchantContext(initialContext);
-
-    try {
-      const payload = await fetchMerchantMe(token);
-      setMerchantContext(normalizeMerchantContext(payload));
-    } catch {
-      // Login context is enough for the MVP view; /me will refresh on next load.
-    }
+    setMerchantContext(null);
+    setAuthError("");
+    setAuthState("checking");
   }
 
   function handleLogout() {
-    localStorage.removeItem(tokenStorageKey);
-    setAccessToken(null);
-    setMerchantContext(null);
+    hasHandledAuthenticationFailureRef.current = false;
+    clearMerchantSession();
   }
 
   function handleNavigate(href, nextPage) {
@@ -83,17 +111,36 @@ export default function MerchantPortal({
     setActivePage(nextPage);
   }
 
-  if (isCheckingSession) {
+  function handleRetryAuthentication() {
+    setAuthError("");
+    setAuthState("checking");
+  }
+
+  if (authState === "checking") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#fbfaf7] text-slate-600">
-        <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200">
+      <main className="flex min-h-screen items-center justify-center bg-[#fbfaf7] px-6 text-slate-600">
+        <div role="status" className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200">
           Checking merchant session...
         </div>
       </main>
     );
   }
 
-  if (!accessToken || !merchantContext) {
+  if (authState === "error") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#fbfaf7] px-6 text-slate-950">
+        <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+          <h1 className="text-2xl font-semibold">Dashboard temporarily unavailable</h1>
+          <p className="mt-3 leading-7 text-slate-600">{authError}</p>
+          <button className="ps-button-primary mt-6" type="button" onClick={handleRetryAuthentication}>
+            Retry
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (authState === "unauthenticated" || !accessToken || !merchantContext) {
     return (
       <MerchantLogin
         onLogin={handleLogin}
