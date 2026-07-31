@@ -1,4 +1,4 @@
-import { Component, useEffect, useEffectEvent, useRef, useState } from "react";
+import { Component, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import AdminPortal from "./AdminPortal.jsx";
 import MerchantPortalShell from "./merchant/MerchantPortal.jsx";
@@ -30,6 +30,9 @@ const pilotHref =
 const demoJoinUrl = "/join/pocket-stamp-demo";
 const demoSuccessUrl = "/join/pocket-stamp-demo/success";
 const demoCreateCardUrl = "/demo/pocket-stamp-demo/create";
+const contactUrl = "/contact";
+const privacyPolicyUrl = "/legal/privacy";
+const loyaltyTermsUrl = "/legal/terms";
 const demoPassStorageKey = "pocketstampDemoPassUrl";
 const demoMerchantName = "PocketStamp Demo";
 const consentVersions = {
@@ -1090,6 +1093,154 @@ function DemoSuccessPage() {
   );
 }
 
+function SiteFooter() {
+  return (
+    <footer className="ps-footer">
+      <div className="ps-section-shell">
+        <p>© {new Date().getFullYear()} PocketStamp.</p>
+        <div>
+          <a href={contactUrl}>Contact</a>
+          <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a>
+          <a href={demoJoinUrl}>Try the PocketStamp demo card</a>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function usePageMetadata({ title, description, canonicalUrl }) {
+  useLayoutEffect(() => {
+    document.title = title;
+    document.querySelector('meta[name="description"]')?.setAttribute("content", description);
+    document.querySelector('link[rel="canonical"]')?.setAttribute("href", canonicalUrl);
+    document.querySelector('meta[property="og:url"]')?.setAttribute("content", canonicalUrl);
+    document.querySelector('meta[property="og:title"]')?.setAttribute("content", title);
+    document.querySelector('meta[property="og:description"]')?.setAttribute("content", description);
+    document.querySelector('meta[name="twitter:title"]')?.setAttribute("content", title);
+    document.querySelector('meta[name="twitter:description"]')?.setAttribute("content", description);
+  }, [canonicalUrl, description, title]);
+}
+
+function PublicLegalPage({ type }) {
+  const isTerms = type === "terms";
+  const title = isTerms ? "Loyalty Terms" : "Privacy Policy";
+  const description = isTerms
+    ? "Read the PocketStamp loyalty card terms."
+    : "Read the PocketStamp privacy policy for digital loyalty cards.";
+  const canonicalPath = isTerms ? loyaltyTermsUrl : privacyPolicyUrl;
+  const sections = isTerms
+    ? getLoyaltyTermsSections("your café")
+    : getPrivacyNoticeSections("your café");
+
+  usePageMetadata({
+    title: `${title} | PocketStamp`,
+    description,
+    canonicalUrl: `https://www.getpocketstamp.com${canonicalPath}`,
+  });
+
+  return (
+    <main className="ps-site ps-contact min-h-screen">
+      <header className="ps-site-header">
+        <nav className="ps-nav-shell" aria-label="Primary navigation">
+          <a href="/" className="ps-wordmark" aria-label="PocketStamp home">
+            <span className="ps-logo-mark" aria-hidden="true">P</span>
+            <span>PocketStamp</span>
+          </a>
+          <a href={contactUrl} className="ps-nav-link">Contact</a>
+        </nav>
+      </header>
+
+      <article className="ps-contact-shell ps-public-legal">
+        <p className="ps-eyebrow">Legal</p>
+        <h1 className="ps-display">{title}</h1>
+        <p className="ps-public-legal-version">
+          Version: {isTerms ? consentVersions.loyaltyTermsVersion : consentVersions.privacyNoticeVersion}
+        </p>
+        <div className="ps-public-legal-sections">
+          {sections.map((section) => (
+            <section key={section.title || section.body}>
+              {section.title ? <h2 className="ps-display">{section.title}</h2> : null}
+              <p>{section.body}</p>
+              {section.items ? (
+                <ul>
+                  {section.items.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              ) : null}
+            </section>
+          ))}
+        </div>
+      </article>
+
+      <SiteFooter />
+    </main>
+  );
+}
+
+function ContactPage() {
+  usePageMetadata({
+    title: "Contact PocketStamp | Customer Support",
+    description: "Contact PocketStamp for customer support, loyalty card help, or business enquiries.",
+    canonicalUrl: "https://www.getpocketstamp.com/contact",
+  });
+
+  return (
+    <main className="ps-site ps-contact min-h-screen">
+      <header className="ps-site-header">
+        <nav className="ps-nav-shell" aria-label="Primary navigation">
+          <a href="/" className="ps-wordmark" aria-label="PocketStamp home">
+            <span className="ps-logo-mark" aria-hidden="true">P</span>
+            <span>PocketStamp</span>
+          </a>
+          <a href="/" className="ps-nav-link">Home</a>
+        </nav>
+      </header>
+
+      <div className="ps-contact-shell">
+        <section className="ps-contact-intro" aria-labelledby="contact-title">
+          <p className="ps-eyebrow">Support</p>
+          <h1 id="contact-title" className="ps-display">Contact PocketStamp</h1>
+          <p>
+            Need help with PocketStamp, your loyalty card, or setting up PocketStamp for your business?
+            Get in touch and we’ll be happy to help.
+          </p>
+        </section>
+
+        <div className="ps-contact-grid">
+          <section className="ps-contact-card">
+            <h2 className="ps-display">Customer support</h2>
+            <p>
+              For questions about your PocketStamp loyalty card, account, or anything not working as
+              expected, email our support team.
+            </p>
+            <a href={`mailto:${SUPPORT_EMAIL}`}>Email customer support at {SUPPORT_EMAIL}</a>
+            <p className="ps-contact-note">We aim to respond within one business day.</p>
+          </section>
+
+          <section className="ps-contact-card">
+            <h2 className="ps-display">Business enquiries</h2>
+            <p>
+              Interested in offering PocketStamp at your café or business? Contact us to arrange a
+              demonstration or discuss how PocketStamp could work for you.
+            </p>
+            <a href={`mailto:${SUPPORT_EMAIL}`}>Email PocketStamp business enquiries at {SUPPORT_EMAIL}</a>
+          </section>
+        </div>
+
+        <nav className="ps-contact-links" aria-label="Useful links">
+          <h2 className="ps-display">Useful links</h2>
+          <div>
+            <a href={privacyPolicyUrl}>Privacy Policy</a>
+            <a href={loyaltyTermsUrl}>Loyalty Terms</a>
+            <a href="/">Home</a>
+          </div>
+        </nav>
+      </div>
+
+      <SiteFooter />
+    </main>
+  );
+}
+
 function MarketingHomepage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [retentionView, setRetentionView] = useState("automatic");
@@ -1375,15 +1526,7 @@ function MarketingHomepage() {
         </div>
       </section>
 
-      <footer className="ps-footer">
-        <div className="ps-section-shell">
-          <p>© {new Date().getFullYear()} PocketStamp.</p>
-          <div>
-            <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a>
-            <a href={demoJoinUrl}>Try the PocketStamp demo card</a>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
       <div className="ps-mobile-sticky-cta">
         <span>Apple Wallet loyalty for cafés</span>
@@ -2839,6 +2982,18 @@ export default function App() {
 
   if (pathname === demoSuccessUrl) {
     return <DemoSuccessPage />;
+  }
+
+  if (pathname === contactUrl || pathname === `${contactUrl}/`) {
+    return <ContactPage />;
+  }
+
+  if (pathname === privacyPolicyUrl || pathname === `${privacyPolicyUrl}/`) {
+    return <PublicLegalPage type="privacy" />;
+  }
+
+  if (pathname === loyaltyTermsUrl || pathname === `${loyaltyTermsUrl}/`) {
+    return <PublicLegalPage type="terms" />;
   }
 
   if (isMerchantSetupPath(pathname)) {

@@ -25,6 +25,18 @@
       "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/pass/:serial"
     },
     {
+      "source": "/legal/privacy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/legal/terms",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/index.html"
+    },
+    {
       "source": "/merchant",
       "destination": "/index.html"
     },
