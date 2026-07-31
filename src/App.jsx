@@ -17,6 +17,10 @@ import {
   getScannerActivityLabel,
   normalizeScannerActivities,
 } from "./scannerActivity";
+import {
+  getOrCreateActionRequest,
+  isAmbiguousMutationFailure,
+} from "./merchant/requestIds.js";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
@@ -259,10 +263,10 @@ function fetchScannerActivity(deviceToken) {
   return requestJson(`/api/merchant/scanner/activity?deviceToken=${encodeURIComponent(deviceToken)}`);
 }
 
-function submitScannerScan({ deviceToken, scanValue }) {
+function submitScannerScan({ deviceToken, scanValue, requestId }) {
   return requestJson("/api/merchant/scanner/scan", {
     method: "POST",
-    body: JSON.stringify({ deviceToken, scanValue }),
+    body: JSON.stringify({ deviceToken, scanValue, requestId }),
   });
 }
 
@@ -277,7 +281,7 @@ function lookupScannerPass({ deviceToken, scanValue, scanResult }) {
   });
 }
 
-function adjustScannerStamps({ deviceToken, scanResult, stamps, note }) {
+function adjustScannerStamps({ deviceToken, scanResult, stamps, note, requestId }) {
   return requestJson("/api/merchant/scanner/adjust-stamps", {
     method: "POST",
     body: JSON.stringify({
@@ -285,16 +289,17 @@ function adjustScannerStamps({ deviceToken, scanResult, stamps, note }) {
       stamps,
       stampCount: stamps,
       currentStamps: stamps,
+      requestId,
       ...(note ? { note, reason: note } : {}),
       ...buildScannerPassBody(scanResult),
     }),
   });
 }
 
-function redeemScannerReward({ deviceToken, scanResult }) {
+function redeemScannerReward({ deviceToken, scanResult, requestId }) {
   return requestJson("/api/merchant/scanner/redeem", {
     method: "POST",
-    body: JSON.stringify(buildScannerActionBody(deviceToken, scanResult)),
+    body: JSON.stringify({ ...buildScannerActionBody(deviceToken, scanResult), requestId }),
   });
 }
 
@@ -2174,6 +2179,9 @@ function ScannerKioskPage() {
   const lastKeyTimeRef = useRef(0);
   const bufferTimerRef = useRef(null);
   const scanSubmitLockRef = useRef(false);
+  const scanRequestRef = useRef(null);
+  const redemptionRequestRef = useRef(null);
+  const adjustmentRequestRef = useRef(null);
   const [device, setDevice] = useState(null);
   const [deviceError, setDeviceError] = useState("");
   const [scanValue, setScanValue] = useState("");
@@ -2225,7 +2233,14 @@ function ScannerKioskPage() {
     }, delay);
   }
 
+  function clearPendingActionRequests() {
+    scanRequestRef.current = null;
+    redemptionRequestRef.current = null;
+    adjustmentRequestRef.current = null;
+  }
+
   function closeCamera() {
+    scanRequestRef.current = null;
     setIsCameraOpen(false);
     focusScannerInput();
   }
@@ -2317,6 +2332,14 @@ function ScannerKioskPage() {
     }
 
     scanSubmitLockRef.current = true;
+    const scanRequest = getOrCreateActionRequest(
+      scanRequestRef.current,
+      "scanner.scan",
+      trimmedValue,
+    );
+    scanRequestRef.current = scanRequest;
+    redemptionRequestRef.current = null;
+    adjustmentRequestRef.current = null;
     window.clearTimeout(readyTimerRef.current);
     clearGlobalScannerBuffer();
     setIsProcessing(true);
@@ -2330,7 +2353,12 @@ function ScannerKioskPage() {
         scanValuePrefix: trimmedValue.slice(0, 8),
         tokenPresent: Boolean(deviceToken),
       });
-      const payload = await submitScannerScan({ deviceToken, scanValue: trimmedValue });
+      const payload = await submitScannerScan({
+        deviceToken,
+        scanValue: trimmedValue,
+        requestId: scanRequest.requestId,
+      });
+      scanRequestRef.current = null;
       const nextStatus = getScanStatus(payload);
       setScanResult(payload);
       setScanStatus(nextStatus);
@@ -2340,6 +2368,7 @@ function ScannerKioskPage() {
       if (nextStatus === "stamp_added" || nextStatus === "reward_ready") void loadRecentActivity();
       if (nextStatus !== "reward_ready") scheduleReady(nextStatus === "stamp_added" ? 3200 : 5200);
     } catch (error) {
+      if (!isAmbiguousMutationFailure(error)) scanRequestRef.current = null;
       const errorResult = { message: getScanMessage(error) };
       setScanResult(errorResult);
       setScanStatus("scan_error");
@@ -2434,6 +2463,7 @@ function ScannerKioskPage() {
     }
 
     window.clearTimeout(readyTimerRef.current);
+    adjustmentRequestRef.current = null;
     setAdjustment({
       isOpen: true,
       result: baseResult,
@@ -2477,6 +2507,7 @@ function ScannerKioskPage() {
   }
 
   function closeAdjustment() {
+    adjustmentRequestRef.current = null;
     setAdjustment((current) => ({ ...current, isOpen: false, error: "", success: "", note: "" }));
     focusScannerInput();
   }
@@ -2484,10 +2515,14 @@ function ScannerKioskPage() {
   function toggleManualEntry() {
     const wasOpen = isManualOpen;
     setIsManualOpen((current) => !current);
-    if (wasOpen) focusScannerInput();
+    if (wasOpen) {
+      scanRequestRef.current = null;
+      focusScannerInput();
+    }
   }
 
   function updateAdjustmentStamps(nextValue) {
+    adjustmentRequestRef.current = null;
     setAdjustment((current) => {
       const threshold = Number(getScanRewardThreshold(current.result) ?? rewardThreshold ?? 10);
       const maxStamps = Number.isFinite(threshold) && threshold >= 0 ? threshold : 10;
@@ -2532,6 +2567,18 @@ function ScannerKioskPage() {
       return;
     }
 
+    const adjustmentKey = JSON.stringify([
+      passBody.customerId || passBody.passSerial || passBody.passSerialNumber || passBody.serialNumber,
+      currentStamps,
+      adjustment.note,
+    ]);
+    const adjustmentRequest = getOrCreateActionRequest(
+      adjustmentRequestRef.current,
+      "scanner.adjust",
+      adjustmentKey,
+    );
+    adjustmentRequestRef.current = adjustmentRequest;
+
     setAdjustment((current) => ({ ...current, isSaving: true, error: "", success: "" }));
 
     try {
@@ -2540,7 +2587,9 @@ function ScannerKioskPage() {
         scanResult: adjustment.result,
         stamps: currentStamps,
         note: adjustment.note,
+        requestId: adjustmentRequest.requestId,
       });
+      adjustmentRequestRef.current = null;
       const mergedResult = {
         ...(adjustment.result || {}),
         ...(payload || {}),
@@ -2561,6 +2610,7 @@ function ScannerKioskPage() {
       notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
       scheduleReady(3600);
     } catch (error) {
+      if (!isAmbiguousMutationFailure(error)) adjustmentRequestRef.current = null;
       setAdjustment((current) => ({
         ...current,
         isSaving: false,
@@ -2574,16 +2624,29 @@ function ScannerKioskPage() {
 
   async function handleRedeemReward() {
     if (!scanResult || isProcessing) return;
+    const redemptionKey = JSON.stringify(buildScannerPassBody(scanResult));
+    const redemptionRequest = getOrCreateActionRequest(
+      redemptionRequestRef.current,
+      "scanner.redeem",
+      redemptionKey,
+    );
+    redemptionRequestRef.current = redemptionRequest;
     setIsProcessing(true);
 
     try {
-      const payload = await redeemScannerReward({ deviceToken, scanResult });
+      const payload = await redeemScannerReward({
+        deviceToken,
+        scanResult,
+        requestId: redemptionRequest.requestId,
+      });
+      redemptionRequestRef.current = null;
       setScanResult(payload);
       setScanStatus("reward_redeemed");
       await loadRecentActivity();
       notifyMerchantDataChanged({ source: "scanner", action: "reward_redeemed" });
       scheduleReady(3600);
     } catch (error) {
+      if (!isAmbiguousMutationFailure(error)) redemptionRequestRef.current = null;
       setScanResult({ message: getScanMessage(error) });
       setScanStatus("scan_error");
       scheduleReady(6200);
@@ -2747,7 +2810,10 @@ function ScannerKioskPage() {
         success={adjustment.success}
         fallbackThreshold={rewardThreshold}
         onChangeStamps={updateAdjustmentStamps}
-        onChangeNote={(note) => setAdjustment((current) => ({ ...current, note }))}
+        onChangeNote={(note) => {
+          adjustmentRequestRef.current = null;
+          setAdjustment((current) => ({ ...current, note }));
+        }}
         onSave={saveAdjustment}
         onClose={closeAdjustment}
       />
@@ -2807,6 +2873,7 @@ function ScannerKioskPage() {
                   type="button"
                   onClick={() => {
                     window.clearTimeout(readyTimerRef.current);
+                    scanRequestRef.current = null;
                     setIsCameraOpen(true);
                   }}
                   disabled={isProcessing}
@@ -2848,6 +2915,7 @@ function ScannerKioskPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      redemptionRequestRef.current = null;
                       setScanStatus("idle");
                       setScanResult(null);
                       focusScannerInput();
@@ -2866,6 +2934,7 @@ function ScannerKioskPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      clearPendingActionRequests();
                       if (deviceLoadStatus === "ready") {
                         setScanStatus("idle");
                       } else {
