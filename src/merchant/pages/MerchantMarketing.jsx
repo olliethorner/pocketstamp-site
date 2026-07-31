@@ -16,15 +16,14 @@ import {
   getReminderStats,
 } from "../utils/marketingPresentation.js";
 
-function AutomatedReminders({ summary, isLoading, error, birthdayRewardsEnabled }) {
+function NotificationOverview({ summary, isLoading, error }) {
   const stats = getReminderStats(summary);
-  const behaviours = getReminderBehaviours(birthdayRewardsEnabled);
 
   return (
     <section>
-      <h2 className="text-2xl font-semibold">Automated Loyalty Reminders</h2>
+      <h2 className="text-2xl font-semibold">Notification Overview</h2>
       <p className="mt-2 max-w-3xl leading-7 text-[var(--ps-muted)]">
-        PocketStamp can automatically help bring customers back at useful moments in their loyalty journey.
+        A combined overview of automated loyalty reminders and promotional campaign notifications.
       </p>
 
       <div className="mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 sm:p-6">
@@ -47,8 +46,23 @@ function AutomatedReminders({ summary, isLoading, error, birthdayRewardsEnabled 
             ))}
           </div>
         )}
+      </div>
+    </section>
+  );
+}
 
-        <div className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+function AutomatedReminders({ birthdayRewardsEnabled }) {
+  const behaviours = getReminderBehaviours(birthdayRewardsEnabled);
+
+  return (
+    <section>
+      <h2 className="text-2xl font-semibold">Automated Loyalty Reminders</h2>
+      <p className="mt-2 max-w-3xl leading-7 text-[var(--ps-muted)]">
+        PocketStamp can automatically help bring customers back at useful moments in their loyalty journey.
+      </p>
+
+      <div className="mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 sm:p-6">
+        <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
           {behaviours.map(([title, description]) => (
             <div key={title}>
               <h3 className="text-sm font-semibold">{title}</h3>
@@ -187,10 +201,12 @@ function PromotionalCampaigns({
 export default function MerchantMarketing(props) {
   return (
     <div className="space-y-9">
-      <AutomatedReminders
+      <NotificationOverview
         summary={props.reminderSummary}
         isLoading={props.isReminderSummaryLoading}
         error={props.reminderError}
+      />
+      <AutomatedReminders
         birthdayRewardsEnabled={props.birthdayRewardsEnabled}
       />
       <PromotionalCampaigns {...props} />
