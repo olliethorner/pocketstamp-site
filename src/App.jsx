@@ -1183,7 +1183,7 @@ function MarketingHomepage() {
           >
             <p className="ps-eyebrow">Apple Wallet loyalty for independent cafés</p>
             <h1 className="ps-display">
-              Paper stamp cards, rebuilt for Apple Wallet.
+              Digital loyalty that brings customers back.
             </h1>
             <p className="ps-hero-intro">
               PocketStamp gives cafés a branded Apple Wallet loyalty card,
