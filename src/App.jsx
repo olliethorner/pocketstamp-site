@@ -21,6 +21,13 @@ import {
   getOrCreateActionRequest,
   isAmbiguousMutationFailure,
 } from "./merchant/requestIds.js";
+import {
+  buildScannerAdjustmentRequest,
+  buildScannerLookupRequest,
+  buildScannerRedemptionRequest,
+  buildScannerScanRequest,
+  buildScannerUndoRequest,
+} from "./merchant/scannerRequests.js";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
@@ -266,47 +273,50 @@ function fetchScannerActivity(deviceToken) {
 function submitScannerScan({ deviceToken, scanValue, requestId }) {
   return requestJson("/api/merchant/scanner/scan", {
     method: "POST",
-    body: JSON.stringify({ deviceToken, scanValue, requestId }),
+    body: JSON.stringify(buildScannerScanRequest({ deviceToken, scanValue, requestId })),
   });
 }
 
 function lookupScannerPass({ deviceToken, scanValue, scanResult }) {
   return requestJson("/api/merchant/scanner/lookup-pass", {
     method: "POST",
-    body: JSON.stringify({
+    body: JSON.stringify(buildScannerLookupRequest({
       deviceToken,
-      ...(scanValue ? { scanValue } : {}),
-      ...buildScannerPassBody(scanResult),
-    }),
+      scanValue,
+      pass: buildScannerPassBody(scanResult),
+    })),
   });
 }
 
 function adjustScannerStamps({ deviceToken, scanResult, stamps, note, requestId }) {
   return requestJson("/api/merchant/scanner/adjust-stamps", {
     method: "POST",
-    body: JSON.stringify({
+    body: JSON.stringify(buildScannerAdjustmentRequest({
       deviceToken,
       stamps,
-      stampCount: stamps,
-      currentStamps: stamps,
+      note,
       requestId,
-      ...(note ? { note, reason: note } : {}),
-      ...buildScannerPassBody(scanResult),
-    }),
+      pass: buildScannerPassBody(scanResult),
+    })),
   });
 }
 
 function redeemScannerReward({ deviceToken, scanResult, requestId }) {
   return requestJson("/api/merchant/scanner/redeem", {
     method: "POST",
-    body: JSON.stringify({ ...buildScannerActionBody(deviceToken, scanResult), requestId }),
+    body: JSON.stringify(buildScannerRedemptionRequest({
+      action: buildScannerActionBody(deviceToken, scanResult),
+      requestId,
+    })),
   });
 }
 
 function undoScannerStamp({ deviceToken, scanResult }) {
   return requestJson("/api/merchant/scanner/undo", {
     method: "POST",
-    body: JSON.stringify(buildScannerActionBody(deviceToken, scanResult)),
+    body: JSON.stringify(buildScannerUndoRequest({
+      action: buildScannerActionBody(deviceToken, scanResult),
+    })),
   });
 }
 
