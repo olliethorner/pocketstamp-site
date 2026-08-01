@@ -28,6 +28,12 @@ import {
   buildScannerScanRequest,
   buildScannerUndoRequest,
 } from "./merchant/scannerRequests.js";
+import {
+  applyManualPaste,
+  getSuccessfulCustomerPass,
+  normalizeManualScanValue,
+  sanitizeScannerMessage,
+} from "./merchant/scannerManualEntry.js";
 
 const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
@@ -1606,15 +1612,7 @@ function getScanStatus(payload = {}) {
 }
 
 function normalizeScannerScanValue(value) {
-  const text = String(value || "")
-    .trim()
-    .replace(/[\r\n\t]/g, "");
-
-  if (/^[a-z0-9][a-z0-9_-]*(-[a-z0-9][a-z0-9_-]*)+$/i.test(text)) {
-    return text.toLowerCase();
-  }
-
-  return text;
+  return normalizeManualScanValue(value);
 }
 
 function getScanCustomerName(result = {}) {
@@ -1797,14 +1795,14 @@ function getCooldownText(result = {}) {
 }
 
 function getScanMessage(errorOrPayload) {
-  return pickFirst(
+  return sanitizeScannerMessage(pickFirst(
     errorOrPayload?.message,
     errorOrPayload?.error,
     errorOrPayload?.details,
     errorOrPayload?.payload?.message,
     errorOrPayload?.payload?.error,
     "Please try again.",
-  );
+  ));
 }
 
 function getScannerBranding(device = {}) {
@@ -2184,6 +2182,8 @@ function CustomerAdjustmentModal({
 function ScannerKioskPage() {
   const deviceToken = new URLSearchParams(window.location.search).get("deviceToken") || "";
   const inputRef = useRef(null);
+  const manualInputRef = useRef(null);
+  const manualCodeRef = useRef("");
   const readyTimerRef = useRef(null);
   const scannerBufferRef = useRef("");
   const lastKeyTimeRef = useRef(0);
@@ -2195,6 +2195,7 @@ function ScannerKioskPage() {
   const [device, setDevice] = useState(null);
   const [deviceError, setDeviceError] = useState("");
   const [scanValue, setScanValue] = useState("");
+  const [manualCode, setManualCode] = useState("");
   const [deviceLoadStatus, setDeviceLoadStatus] = useState("loading");
   const [scanStatus, setScanStatus] = useState("idle");
   const [scanResult, setScanResult] = useState(null);
@@ -2232,12 +2233,29 @@ function ScannerKioskPage() {
     window.clearTimeout(bufferTimerRef.current);
   }
 
+  function updateManualCode(value) {
+    manualCodeRef.current = value;
+    setManualCode(value);
+  }
+
+  function clearManualAndScannerState() {
+    updateManualCode("");
+    setScanValue("");
+    clearGlobalScannerBuffer();
+  }
+
+  function readCurrentManualValue() {
+    const currentValue = manualInputRef.current?.value ?? manualCodeRef.current;
+    updateManualCode(currentValue);
+    return normalizeScannerScanValue(currentValue);
+  }
+
   function scheduleReady(delay = 3600) {
     window.clearTimeout(readyTimerRef.current);
     readyTimerRef.current = window.setTimeout(() => {
       setScanStatus("idle");
       setScanResult(null);
-      setScanValue("");
+      clearManualAndScannerState();
       setReadyMessage("");
       focusScannerInput();
     }, delay);
@@ -2256,6 +2274,7 @@ function ScannerKioskPage() {
   }
 
   async function loadDevice() {
+    clearManualAndScannerState();
     if (!deviceToken) {
       setDeviceError("Missing scanner device token.");
       setDeviceLoadStatus("missing_token");
@@ -2354,15 +2373,11 @@ function ScannerKioskPage() {
     clearGlobalScannerBuffer();
     setIsProcessing(true);
     setScanValue("");
+    updateManualCode("");
     setReadyMessage("");
     setScanStatus("processing");
 
     try {
-      console.info("Scanner scan submit", {
-        scanValueLength: trimmedValue.length,
-        scanValuePrefix: trimmedValue.slice(0, 8),
-        tokenPresent: Boolean(deviceToken),
-      });
       const payload = await submitScannerScan({
         deviceToken,
         scanValue: trimmedValue,
@@ -2475,7 +2490,7 @@ function ScannerKioskPage() {
     window.clearTimeout(readyTimerRef.current);
     adjustmentRequestRef.current = null;
     setAdjustment({
-      isOpen: true,
+      isOpen: false,
       result: baseResult,
       isLoading: true,
       isSaving: false,
@@ -2486,39 +2501,57 @@ function ScannerKioskPage() {
 
     try {
       const payload = await lookupScannerPass({ deviceToken, scanValue: lookupValue, scanResult: baseResult });
-      setAdjustment((current) => ({
-        ...current,
-        result: payload || baseResult,
-        isLoading: false,
-        error: "",
-      }));
+      const customerPass = getSuccessfulCustomerPass(payload);
+      if (!customerPass) throw new Error("Customer lookup failed.");
+      setAdjustment((current) => ({ ...current, isOpen: true, result: customerPass, isLoading: false, error: "" }));
     } catch (error) {
-      setAdjustment((current) => ({
-        ...current,
-        isLoading: false,
-        error: getScanMessage(error) || "Customer lookup is not available. Using the latest scan details where possible.",
-      }));
+      setAdjustment((current) => ({ ...current, isOpen: false, result: null, isLoading: false, error: "" }));
+      setReadyMessage(getScanMessage(error) || "Customer lookup is not available.");
     } finally {
       focusScannerInput();
     }
   }
 
   async function handleManualLookup() {
-    const trimmedValue = normalizeScannerScanValue(scanValue);
+    const trimmedValue = readCurrentManualValue();
     if (!trimmedValue || isProcessing || deviceLoadStatus !== "ready") {
       setReadyMessage("Enter a pass code before looking up a customer.");
-      setScanValue("");
+      clearManualAndScannerState();
       focusScannerInput();
       return;
     }
 
-    setScanValue("");
+    clearManualAndScannerState();
     await openAdjustment({ scanValue: trimmedValue }, trimmedValue);
+  }
+
+  function handleManualSubmit() {
+    const currentValue = readCurrentManualValue();
+    clearManualAndScannerState();
+    handleScanSubmit(currentValue);
+  }
+
+  function handleManualInput(event) {
+    updateManualCode(event.currentTarget.value);
+  }
+
+  function handleManualPaste(event) {
+    event.preventDefault();
+    const input = event.currentTarget;
+    const nextValue = applyManualPaste(
+      input.value,
+      event.clipboardData.getData("text"),
+      input.selectionStart,
+      input.selectionEnd,
+    );
+    input.value = nextValue;
+    updateManualCode(nextValue);
   }
 
   function closeAdjustment() {
     adjustmentRequestRef.current = null;
     setAdjustment((current) => ({ ...current, isOpen: false, error: "", success: "", note: "" }));
+    clearManualAndScannerState();
     focusScannerInput();
   }
 
@@ -2527,6 +2560,7 @@ function ScannerKioskPage() {
     setIsManualOpen((current) => !current);
     if (wasOpen) {
       scanRequestRef.current = null;
+      clearManualAndScannerState();
       focusScannerInput();
     }
   }
@@ -2884,6 +2918,7 @@ function ScannerKioskPage() {
                   onClick={() => {
                     window.clearTimeout(readyTimerRef.current);
                     scanRequestRef.current = null;
+                    clearManualAndScannerState();
                     setIsCameraOpen(true);
                   }}
                   disabled={isProcessing}
@@ -2928,6 +2963,7 @@ function ScannerKioskPage() {
                       redemptionRequestRef.current = null;
                       setScanStatus("idle");
                       setScanResult(null);
+                      clearManualAndScannerState();
                       focusScannerInput();
                     }}
                     className="ps-button-secondary bg-white text-lg"
@@ -2951,6 +2987,7 @@ function ScannerKioskPage() {
                         loadDevice();
                       }
                       setScanResult(null);
+                      clearManualAndScannerState();
                       focusScannerInput();
                     }}
                     className="ps-button-secondary bg-white text-lg"
@@ -3014,14 +3051,16 @@ function ScannerKioskPage() {
                 className="mt-4"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  handleScanSubmit(scanValue);
+                  handleManualSubmit();
                 }}
               >
                 <label className="block">
                   <span className="sr-only">Manual pass code</span>
                   <input
-                    value={scanValue}
-                    onChange={(event) => setScanValue(event.target.value)}
+                    ref={manualInputRef}
+                    value={manualCode}
+                    onChange={handleManualInput}
+                    onPaste={handleManualPaste}
                     className="ps-input bg-white"
                     placeholder="Paste or type a pass code"
                     disabled={isProcessing}
