@@ -16,35 +16,39 @@ export function sanitizeScannerMessage(message) {
 }
 
 export function getSuccessfulCustomerPass(payload) {
-  if (payload?.ok !== true || !payload.customerPass || typeof payload.customerPass !== "object") {
+  if (payload?.ok !== true) return null;
+
+  const source = payload.customerPass && typeof payload.customerPass === "object"
+    ? payload.customerPass
+    : payload;
+  const customerName = source.customerName ?? source.customer?.name;
+  const customerId = source.customerId ?? source.customer?.id;
+  const serial = source.passSerial ?? source.passSerialNumber ?? source.serialNumber;
+  const hasText = (value) => typeof value === "string" && value.trim().length > 0;
+  const isFiniteValue = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+
+  if (
+    !hasText(customerName) ||
+    !hasText(customerId) ||
+    !hasText(serial) ||
+    !isFiniteValue(source.stamps) ||
+    !isFiniteValue(source.rewardThreshold)
+  ) {
     return null;
   }
 
-  const pass = payload.customerPass;
-  const hasIdentifier = Boolean(
-    pass.customerId ||
-      pass.customer?.id ||
-      pass.passSerial ||
-      pass.passSerialNumber ||
-      pass.serialNumber ||
-      pass.pass?.serialNumber ||
-      pass.pass?.serial_number,
-  );
-  const hasCustomer = Boolean(
-    pass.customerName || pass.customer?.name || pass.customer?.firstName,
-  );
-  const stamps =
-    pass.currentStamps ??
-    pass.stamps ??
-    pass.stampCount ??
-    pass.customer?.currentStamps ??
-    pass.customer?.stamps ??
-    pass.pass?.currentStamps ??
-    pass.pass?.stamps;
-
-  const hasStampCount = stamps !== null && stamps !== undefined && stamps !== "";
-
-  return hasIdentifier && hasCustomer && hasStampCount && Number.isFinite(Number(stamps))
-    ? pass
-    : null;
+  return {
+    customerName,
+    customerEmail: source.customerEmail,
+    customerId,
+    passSerial: source.passSerial ?? serial,
+    passSerialNumber: source.passSerialNumber ?? serial,
+    serialNumber: source.serialNumber ?? serial,
+    passId: source.passId,
+    stamps: source.stamps,
+    rewardThreshold: source.rewardThreshold,
+    rewardReady: source.rewardReady,
+    merchantId: source.merchantId,
+    lastActivityAt: source.lastActivityAt,
+  };
 }

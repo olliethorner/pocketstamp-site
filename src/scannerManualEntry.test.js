@@ -99,24 +99,65 @@ test("manual actions are isolated from scanner state and ready clears both paths
   assert.equal(scannerBuffer, "");
 });
 
+const COMPLETE_LOOKUP = {
+  customerName: "Synthetic Customer",
+  customerEmail: "synthetic@example.invalid",
+  customerId: "customer-synthetic",
+  passSerial: "serial-Synthetic",
+  passSerialNumber: "serial-Synthetic",
+  serialNumber: "serial-Synthetic",
+  passId: null,
+  stamps: 4,
+  rewardThreshold: 10,
+  rewardReady: false,
+  merchantId: "merchant-synthetic",
+  lastActivityAt: "2026-08-01T12:00:00.000Z",
+};
+
+test("flat production lookup response normalizes into a complete customer pass", () => {
+  assert.deepEqual(getSuccessfulCustomerPass({ ok: true, ...COMPLETE_LOOKUP }), COMPLETE_LOOKUP);
+});
+
+test("nested lookup response normalizes into the same customer pass", () => {
+  assert.deepEqual(
+    getSuccessfulCustomerPass({ ok: true, customerPass: { ...COMPLETE_LOOKUP } }),
+    COMPLETE_LOOKUP,
+  );
+});
+
+test("null passId is accepted when established serial aliases are present", () => {
+  const response = { ok: true, ...COMPLETE_LOOKUP, passId: null };
+  delete response.passSerial;
+  delete response.passSerialNumber;
+  const result = getSuccessfulCustomerPass(response);
+
+  assert.equal(result.passId, null);
+  assert.equal(result.passSerial, COMPLETE_LOOKUP.serialNumber);
+  assert.equal(result.passSerialNumber, COMPLETE_LOOKUP.serialNumber);
+  assert.equal(result.serialNumber, COMPLETE_LOOKUP.serialNumber);
+});
+
 test("failed or incomplete lookup cannot open the customer modal", () => {
   assert.equal(getSuccessfulCustomerPass({ ok: false }), null);
   assert.equal(getSuccessfulCustomerPass({ ok: true, customerPass: {} }), null);
-  assert.equal(getSuccessfulCustomerPass({ ok: true, customerPass: { customerName: "Synthetic" } }), null);
-  assert.equal(getSuccessfulCustomerPass({
-    ok: true,
-    customerPass: { customerId: "synthetic", customerName: "Synthetic", currentStamps: "" },
-  }), null);
+  for (const field of ["customerName", "customerId", "passSerial", "stamps", "rewardThreshold"]) {
+    const incomplete = { ...COMPLETE_LOOKUP };
+    delete incomplete[field];
+    if (field === "passSerial") {
+      delete incomplete.passSerialNumber;
+      delete incomplete.serialNumber;
+    }
+    assert.equal(getSuccessfulCustomerPass({ ok: true, ...incomplete }), null);
+  }
 });
 
-test("successful lookup returns complete real customer data", () => {
-  const customerPass = {
-    customerId: "customer-synthetic",
-    customerName: "Synthetic Customer",
-    currentStamps: 4,
-  };
+test("modal-ready lookup result contains real customer, stamp, serial, and activity data", () => {
+  const customerPass = getSuccessfulCustomerPass({ ok: true, ...COMPLETE_LOOKUP });
 
-  assert.strictEqual(getSuccessfulCustomerPass({ ok: true, customerPass }), customerPass);
+  assert.equal(customerPass.customerName, COMPLETE_LOOKUP.customerName);
+  assert.equal(customerPass.stamps, COMPLETE_LOOKUP.stamps);
+  assert.equal(customerPass.passSerial, COMPLETE_LOOKUP.passSerial);
+  assert.equal(customerPass.lastActivityAt, COMPLETE_LOOKUP.lastActivityAt);
 });
 
 test("scanner errors cannot render a raw pass identifier", () => {
@@ -137,6 +178,8 @@ test("App wires paste, lookup, submit, ready clearing, and modal gating to manua
   assert.match(source, /readCurrentManualValue/);
   assert.match(source, /clearManualAndScannerState/);
   assert.match(source, /getSuccessfulCustomerPass\(payload\)/);
+  assert.match(source, /if \(!customerPass\) throw new Error\("Customer lookup failed\."\)/);
+  assert.match(source, /isOpen: false, result: null/);
   assert.doesNotMatch(source, /scanValuePrefix/);
 });
 
