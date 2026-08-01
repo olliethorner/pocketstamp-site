@@ -1,13 +1,7 @@
 export function normalizeManualScanValue(value) {
-  const text = String(value || "")
+  return String(value || "")
     .trim()
     .replace(/[\r\n\t]/g, "");
-
-  if (/^[a-z0-9][a-z0-9_-]*(-[a-z0-9][a-z0-9_-]*)+$/i.test(text)) {
-    return text.toLowerCase();
-  }
-
-  return text;
 }
 
 export function applyManualPaste(currentValue, pastedValue, selectionStart, selectionEnd) {

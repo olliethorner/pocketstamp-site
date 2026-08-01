@@ -10,8 +10,12 @@ import {
 } from "./merchant/scannerManualEntry.js";
 import { buildScannerLookupRequest, buildScannerScanRequest } from "./merchant/scannerRequests.js";
 
-const FIRST_CODE = "psm_first-synthetic-code";
-const REPLACEMENT_CODE = "psm_replacement-code";
+const FIRST_CODE = "psm_First-Synthetic-Code";
+const REPLACEMENT_CODE = "psm_Replacement-MixedCase";
+
+test("mixed-case membership identifiers remain byte-for-byte unchanged", () => {
+  assert.equal(normalizeManualScanValue(REPLACEMENT_CODE), REPLACEMENT_CODE);
+});
 
 test("replacement paste becomes the visible and canonical manual value", () => {
   const visibleValue = applyManualPaste(FIRST_CODE, REPLACEMENT_CODE, 0, FIRST_CODE.length);
@@ -23,20 +27,22 @@ test("replacement paste becomes the visible and canonical manual value", () => {
 
 test("paste supports empty fields and selected replacement ranges", () => {
   assert.equal(applyManualPaste("", REPLACEMENT_CODE, 0, 0), REPLACEMENT_CODE);
-  assert.equal(applyManualPaste("psm_old-value", "new", 4, 7), "psm_new-value");
+  assert.equal(applyManualPaste("psm_Old-Value", "New", 4, 7), "psm_New-Value");
 });
 
-test("immediate paste then action uses the synchronously captured value", () => {
+test("immediate paste then lookup uses the synchronously captured exact-case value", () => {
   let visibleValue = FIRST_CODE;
   const pastedValue = applyManualPaste(visibleValue, REPLACEMENT_CODE, 0, visibleValue.length);
 
   visibleValue = pastedValue;
   const manualRef = pastedValue;
   const immediateActionSnapshot = normalizeManualScanValue(visibleValue);
+  const lookup = buildScannerLookupRequest({ deviceToken: "device", scanValue: immediateActionSnapshot });
 
   assert.equal(visibleValue, REPLACEMENT_CODE);
   assert.equal(manualRef, visibleValue);
   assert.equal(immediateActionSnapshot, visibleValue);
+  assert.equal(lookup.scanValue, visibleValue);
 });
 
 test("lookup and submit use the same replacement value", () => {
@@ -46,6 +52,37 @@ test("lookup and submit use the same replacement value", () => {
 
   assert.equal(buildScannerLookupRequest({ deviceToken: "device", scanValue }).scanValue, REPLACEMENT_CODE);
   assert.equal(buildScannerScanRequest({ deviceToken: "device", scanValue, requestId: "request" }).scanValue, REPLACEMENT_CODE);
+});
+
+test("visible mixed-case manual input equals lookup and scan request values", () => {
+  const visibleValue = REPLACEMENT_CODE;
+  const currentValue = normalizeManualScanValue(visibleValue);
+  const lookup = buildScannerLookupRequest({ deviceToken: "device", scanValue: currentValue });
+  const scan = buildScannerScanRequest({ deviceToken: "device", scanValue: currentValue, requestId: "request" });
+
+  assert.equal(lookup.scanValue, visibleValue);
+  assert.equal(scan.scanValue, visibleValue);
+});
+
+test("whitespace and control characters are removed without changing case", () => {
+  assert.equal(
+    normalizeManualScanValue(` \t${REPLACEMENT_CODE.slice(0, 8)}\r\n${REPLACEMENT_CODE.slice(8)} \n`),
+    REPLACEMENT_CODE,
+  );
+});
+
+test("camera and USB scanner values preserve exact case", () => {
+  const cameraDecodedValue = "psm_Camera-MixedCase";
+  const usbBufferedValue = "psm_USB-MixedCase";
+
+  assert.equal(normalizeManualScanValue(cameraDecodedValue), cameraDecodedValue);
+  assert.equal(normalizeManualScanValue(usbBufferedValue), usbBufferedValue);
+});
+
+test("legacy identifier shapes continue unchanged", () => {
+  for (const value of ["psm_legacy-value", "legacy-pass-123", "SERIAL_ABC_123", "plainvalue"]) {
+    assert.equal(normalizeManualScanValue(value), value);
+  }
 });
 
 test("manual actions are isolated from scanner state and ready clears both paths", () => {
@@ -112,4 +149,15 @@ test("manual actions are isolated while camera and USB paths retain scan submiss
   assert.doesNotMatch(manualSubmit, /handleScanSubmit\(scanValue\)|scannerBufferRef/);
   assert.match(source, /onBufferedScanSubmit\(bufferedValue\)/);
   assert.match(source, /handleScanSubmit\(decodedValue\)/);
+});
+
+test("scanner normalization and request builders contain no case conversion", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const normalizationSource = fs.readFileSync(new URL("./merchant/scannerManualEntry.js", import.meta.url), "utf8");
+  const requestSource = fs.readFileSync(new URL("./merchant/scannerRequests.js", import.meta.url), "utf8");
+  const scannerNormalization = appSource.match(/function normalizeScannerScanValue\(value\) \{([\s\S]*?)\n\}/)?.[1] || "";
+
+  assert.doesNotMatch(normalizationSource, /toLowerCase|toLocaleLowerCase/);
+  assert.doesNotMatch(scannerNormalization, /toLowerCase|toLocaleLowerCase/);
+  assert.doesNotMatch(requestSource, /toLowerCase|toLocaleLowerCase/);
 });
