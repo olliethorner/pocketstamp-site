@@ -38,3 +38,43 @@ export function getOrCreateActionRequest(current, namespace, actionKey, cryptoOb
 export function isAmbiguousMutationFailure(error) {
   return !Number.isInteger(error?.status);
 }
+
+export function createScannerMutationActionController({ namespace, createId } = {}) {
+  const nextId = createId || (() => createRequestId(namespace));
+  let action = null;
+  let pending = false;
+
+  return Object.freeze({
+    async submit(actionKey, send) {
+      if (pending) return Object.freeze({ accepted: false });
+      pending = true;
+
+      try {
+        if (action?.unresolved && action.actionKey !== actionKey) {
+          throw new Error("A previous scanner request is still unresolved. Clear it before starting another action.");
+        }
+        action = action?.unresolved
+          ? action
+          : { actionKey, requestId: nextId(), unresolved: false };
+        const value = await send(action.requestId);
+        action = null;
+        return Object.freeze({ accepted: true, value });
+      } catch (error) {
+        if (action) {
+          action = isAmbiguousMutationFailure(error)
+            ? { ...action, unresolved: true }
+            : null;
+        }
+        throw error;
+      } finally {
+        pending = false;
+      }
+    },
+    clear() {
+      if (!pending) action = null;
+    },
+    state() {
+      return Object.freeze({ pending, unresolved: action?.unresolved === true });
+    },
+  });
+}

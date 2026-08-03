@@ -11,6 +11,14 @@
 - The production build and development transforms are required release
   checks.
 
+## Scanner mutation request identity
+
+Scanner Mode creates a secure, client-owned durable request ID once for each
+stamp, adjustment, or redemption action. An ambiguous transport failure keeps
+that ID in memory for a deliberate retry; a definite response clears it. IDs
+are not persisted or displayed, and Scanner Mode has no automatic or offline
+retry. Any future retry mechanism must reuse the action's existing request ID.
+
 ## Manual checks requiring real accounts or hardware
 
 - Successful login against production authentication.
