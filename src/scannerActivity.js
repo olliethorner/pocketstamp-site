@@ -8,6 +8,23 @@ export function normalizeScannerActivities(payload) {
     .slice(0, 5);
 }
 
+export function createOptimisticScannerActivity(type, activity, createdAt = new Date().toISOString()) {
+  const stableSubject = activity?.passSerialNumber || activity?.customerId || "customer";
+  return {
+    id: `optimistic:${type}:${stableSubject}:${createdAt}`,
+    type,
+    createdAt,
+    customerId: activity?.customerId || null,
+    customerName: activity?.customerName || null,
+    passSerialNumber: activity?.passSerialNumber || null,
+    stampCount: activity?.stampCount ?? null,
+  };
+}
+
+export function prependScannerActivity(current, activity) {
+  return normalizeScannerActivities({ activities: [activity, ...(Array.isArray(current) ? current : [])] });
+}
+
 export function getScannerActivityLabel(type) {
   return {
     stamp_added: "Stamp added",

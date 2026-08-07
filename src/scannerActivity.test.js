@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getScannerActivityLabel, normalizeScannerActivities } from "./scannerActivity.js";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  createOptimisticScannerActivity,
+  getScannerActivityLabel,
+  normalizeScannerActivities,
+  prependScannerActivity,
+} from "./scannerActivity.js";
 
 test("normalizes persisted scanner activity newest first and limits it to five", () => {
   const activities = Array.from({ length: 7 }, (_, index) => ({
@@ -28,4 +36,43 @@ test("supports persisted activity labels", () => {
   assert.equal(getScannerActivityLabel("stamp_added"), "Stamp added");
   assert.equal(getScannerActivityLabel("reward_redeemed"), "Reward redeemed");
   assert.equal(getScannerActivityLabel("stamps_adjusted"), "Stamp count updated");
+});
+
+test("server activity replaces optimistic state and remains newest-five without duplicates", () => {
+  const optimistic = createOptimisticScannerActivity("stamp_added", {
+    customerName: "Jamie",
+    passSerialNumber: "pass-1",
+    stampCount: 3,
+  }, "2026-08-07T12:01:00.000Z");
+  const fallback = prependScannerActivity([], optimistic);
+  assert.equal(fallback.length, 1);
+  assert.equal(fallback[0].customerName, "Jamie");
+
+  const persisted = Array.from({ length: 7 }, (_, index) => ({
+    id: index < 2 ? "persisted-duplicate" : `persisted-${index}`,
+    type: "stamp_added",
+    createdAt: `2026-08-07T12:0${index}:00.000Z`,
+  }));
+  const authoritative = normalizeScannerActivities({ activities: persisted });
+  assert.deepEqual(
+    authoritative.map((activity) => activity.id),
+    ["persisted-6", "persisted-5", "persisted-4", "persisted-3", "persisted-2"],
+  );
+  assert.equal(authoritative.some((activity) => activity.id === optimistic.id), false);
+});
+
+test("Scanner Mode hydrates and refetches provider-neutral persisted activity after every successful mutation", () => {
+  const source = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "App.jsx"),
+    "utf8",
+  );
+
+  assert.match(source, /fetchScannerActivity\(deviceToken\)/);
+  assert.match(source, /setDeviceLoadStatus\("ready"\);[\s\S]{0,160}void loadRecentActivity\(\)/);
+  assert.equal((source.match(/if \(!await loadRecentActivity\(\)\) addFallbackActivity\(/g) || []).length, 4);
+  assert.match(source, /addFallbackActivity\("stamp_added", payload\)/);
+  assert.match(source, /addFallbackActivity\("stamps_adjusted", mergedResult\)/);
+  assert.match(source, /addFallbackActivity\("reward_redeemed", payload\)/);
+  assert.match(source, /addFallbackActivity\("stamp_undone", payload\)/);
+  assert.doesNotMatch(source, /apple[\s\S]{0,80}loadRecentActivity|google[\s\S]{0,80}loadRecentActivity/i);
 });

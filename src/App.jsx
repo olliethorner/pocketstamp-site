@@ -13,9 +13,11 @@ import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
 import ExpandableImagePreview from "./ExpandableImagePreview.jsx";
 import "./App.css";
 import {
+  createOptimisticScannerActivity,
   formatScannerActivityTime,
   getScannerActivityLabel,
   normalizeScannerActivities,
+  prependScannerActivity,
 } from "./scannerActivity";
 import {
   createScannerMutationActionController,
@@ -2329,13 +2331,25 @@ function ScannerKioskPage() {
       const payload = await fetchScannerActivity(deviceToken);
       setRecentActivity(normalizeScannerActivities(payload));
       setActivityLoadStatus("loaded");
+      return true;
     } catch (error) {
       console.error("Scanner activity fetch failed", {
         status: error?.status || "network",
         endpoint: `${API_BASE_URL}/api/merchant/scanner/activity?deviceToken=[redacted]`,
       });
       setActivityLoadStatus("error");
+      return false;
     }
+  }
+
+  function addFallbackActivity(type, result) {
+    const fallback = createOptimisticScannerActivity(type, {
+      customerId: pickFirst(result?.customerId, result?.customer?.id),
+      customerName: getScanCustomerName(result),
+      passSerialNumber: pickFirst(result?.passSerialNumber, result?.passSerial, result?.serialNumber),
+      stampCount: getScanCurrentStamps(result),
+    });
+    setRecentActivity((current) => prependScannerActivity(current, fallback));
   }
 
   const onLoadDevice = useEffectEvent(loadDevice);
@@ -2388,7 +2402,9 @@ function ScannerKioskPage() {
       if (nextStatus === "stamp_added" || nextStatus === "reward_ready") {
         notifyMerchantDataChanged({ source: "scanner", action: nextStatus });
       }
-      if (nextStatus === "stamp_added" || nextStatus === "reward_ready") void loadRecentActivity();
+      if (nextStatus === "stamp_added" || nextStatus === "reward_ready") {
+        if (!await loadRecentActivity()) addFallbackActivity("stamp_added", payload);
+      }
       if (nextStatus !== "reward_ready") scheduleReady(nextStatus === "stamp_added" ? 3200 : 5200);
     } catch (error) {
       const errorResult = { message: getScanMessage(error) };
@@ -2642,7 +2658,7 @@ function ScannerKioskPage() {
         isSaving: false,
         success: "Stamp count updated",
       }));
-      await loadRecentActivity();
+      if (!await loadRecentActivity()) addFallbackActivity("stamps_adjusted", mergedResult);
       notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
       scheduleReady(3600);
     } catch (error) {
@@ -2669,7 +2685,7 @@ function ScannerKioskPage() {
       const payload = execution.value;
       setScanResult(payload);
       setScanStatus("reward_redeemed");
-      await loadRecentActivity();
+      if (!await loadRecentActivity()) addFallbackActivity("reward_redeemed", payload);
       notifyMerchantDataChanged({ source: "scanner", action: "reward_redeemed" });
       scheduleReady(3600);
     } catch (error) {
@@ -2690,7 +2706,7 @@ function ScannerKioskPage() {
       const payload = await undoScannerStamp({ deviceToken, scanResult });
       setScanResult(payload);
       setScanStatus("undo_success");
-      await loadRecentActivity();
+      if (!await loadRecentActivity()) addFallbackActivity("stamp_undone", payload);
       notifyMerchantDataChanged({ source: "scanner", action: "undo_success" });
       scheduleReady(3200);
     } catch (error) {
