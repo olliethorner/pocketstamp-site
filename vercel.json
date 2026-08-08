@@ -13,6 +13,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)/google-save-link",
+      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug/google-save-link"
+    },
+    {
       "source": "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)/success",
       "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/join/:merchantSlug/success"
     },
