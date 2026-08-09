@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import process from "node:process";
 import test from "node:test";
+
+import middleware, { config as middlewareConfig } from "../middleware.js";
 
 const configuration = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
 const rewrites = configuration.rewrites;
@@ -45,4 +48,41 @@ test("all unrelated current-main rewrites remain unchanged", () => {
     { source: "/admin/:path*", destination: "/index.html" },
   ]);
   assert.deepEqual(Object.keys(configuration), ["rewrites"]);
+});
+
+test("production join middleware overwrites the authenticated public-origin boundary", () => {
+  const previous = process.env.POCKETSTAMP_VERCEL_PROXY_TOKEN;
+  process.env.POCKETSTAMP_VERCEL_PROXY_TOKEN = "A".repeat(43);
+  try {
+    const response = middleware(new Request("https://www.getpocketstamp.com/join/yeems-coffee", {
+      headers: {
+        "x-pocketstamp-public-origin": "https://attacker.example",
+        "x-pocketstamp-proxy-token": "B".repeat(43),
+      },
+    }));
+    assert.equal(response.headers.get("x-middleware-request-x-pocketstamp-public-origin"), "https://www.getpocketstamp.com");
+    assert.equal(response.headers.get("x-middleware-request-x-pocketstamp-proxy-token"), "A".repeat(43));
+    assert.equal(response.headers.get("x-pocketstamp-proxy-token"), null);
+    assert.deepEqual(middlewareConfig.matcher, [
+      "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)",
+      "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)/success",
+      "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)/google-save-link",
+    ]);
+  } finally {
+    if (previous === undefined) delete process.env.POCKETSTAMP_VERCEL_PROXY_TOKEN;
+    else process.env.POCKETSTAMP_VERCEL_PROXY_TOKEN = previous;
+  }
+});
+
+test("preview and missing-secret middleware cannot assert the production public origin", () => {
+  const previous = process.env.POCKETSTAMP_VERCEL_PROXY_TOKEN;
+  delete process.env.POCKETSTAMP_VERCEL_PROXY_TOKEN;
+  try {
+    for (const url of ["https://preview.vercel.app/join/yeems-coffee", "https://www.getpocketstamp.com/join/yeems-coffee"]) {
+      const response = middleware(new Request(url, { headers: { "x-pocketstamp-public-origin": "https://attacker.example" } }));
+      assert.notEqual(response.headers.get("x-middleware-request-x-pocketstamp-public-origin"), "https://www.getpocketstamp.com");
+    }
+  } finally {
+    if (previous !== undefined) process.env.POCKETSTAMP_VERCEL_PROXY_TOKEN = previous;
+  }
 });
