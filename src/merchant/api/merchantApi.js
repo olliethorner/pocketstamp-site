@@ -144,6 +144,17 @@ export function fetchMerchantDashboardSummary(accessToken) {
   return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/dashboard/summary");
 }
 
+export function fetchMerchantScannerLaunchOptions(accessToken) {
+  return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/scanner/launch-options");
+}
+
+export function createMerchantScannerLaunch(accessToken, deviceId) {
+  return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/scanner/launch-sessions", {
+    method: "POST",
+    body: JSON.stringify({ deviceId }),
+  });
+}
+
 export function fetchMerchantCampaigns(accessToken) {
   return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/campaigns");
 }

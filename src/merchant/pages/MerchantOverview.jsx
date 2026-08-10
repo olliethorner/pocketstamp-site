@@ -20,7 +20,6 @@ export default function MerchantOverview({
   dashboardSummaryError,
   isDashboardSummaryLoading,
   activityContent,
-  scanner,
   reminderSummary,
   reminderError,
   isReminderSummaryLoading,
@@ -77,11 +76,6 @@ export default function MerchantOverview({
         <aside className="ps-dashboard-card rounded-2xl p-5">
           <h2 className="text-xl font-semibold">Quick actions</h2>
           <div className="mt-4 grid gap-2">
-            {scanner.scannerUrl ? (
-              <a href={scanner.scannerUrl} target="_blank" rel="noreferrer" className="rounded-xl bg-[var(--ps-blue)] px-4 py-3 text-center text-sm font-semibold text-white">
-                Open Scanner Mode
-              </a>
-            ) : null}
             <a href="/merchant/customers" className="rounded-xl border border-[var(--ps-border)] bg-white px-4 py-3 text-center text-sm font-semibold">View Customers</a>
             <a href="/merchant/get-customers" className="rounded-xl border border-[var(--ps-border)] bg-white px-4 py-3 text-center text-sm font-semibold">View Join QR</a>
             {joinUrl ? (
@@ -93,7 +87,7 @@ export default function MerchantOverview({
         </aside>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div>
         <section className="ps-dashboard-card rounded-2xl p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -113,21 +107,6 @@ export default function MerchantOverview({
           </p>
         </section>
 
-        <section className="ps-dashboard-card rounded-2xl p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Scanner</h2>
-              <p className="mt-1 text-sm text-[var(--ps-muted)]">
-                {scanner.scannerUrl
-                  ? `Ready${scanner.lastScan ? ` · Last scan ${scanner.lastScan}` : ""}`
-                  : "Launch unavailable"}
-              </p>
-            </div>
-            {scanner.scannerUrl ? (
-              <a href={scanner.scannerUrl} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-semibold text-[var(--ps-blue)]">Open</a>
-            ) : null}
-          </div>
-        </section>
       </div>
     </div>
   );

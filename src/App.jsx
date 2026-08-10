@@ -36,7 +36,6 @@ import {
   sanitizeScannerMessage,
 } from "./merchant/scannerManualEntry.js";
 
-const API_BASE_URL = "https://pocketstamp-wallet-backend-production.up.railway.app";
 const TOKEN_STORAGE_KEY = "pocketstampMerchantAccessToken";
 const MERCHANT_DATA_CHANGED_EVENT = "pocketstamp:merchant-data-changed";
 const MERCHANT_DATA_CHANGED_STORAGE_KEY = "pocketstampMerchantDataChangedAt";
@@ -206,44 +205,41 @@ const scannerModeBullets = [
   "Activity is logged",
 ];
 
-async function requestJson(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+const SCANNER_API_BASE_URL = "";
+
+async function scannerRequestJson(path, options = {}) {
+  const response = await fetch(`${SCANNER_API_BASE_URL}${path}`, {
+    credentials: "include",
     ...options,
     headers: {
       "Content-Type": "application/json",
       ...options.headers,
     },
   });
-
   const text = await response.text();
-  let payload;
-
-  try {
-    payload = text ? JSON.parse(text) : null;
-  } catch (parseError) {
-    parseError.status = response.status;
-    parseError.responseText = text;
-    throw parseError;
-  }
-
+  const payload = text ? JSON.parse(text) : null;
   if (!response.ok) {
-    const message =
-      payload?.error ||
-      payload?.message ||
-      "Something went wrong. Please try again.";
-    const error = new Error(message);
+    const error = new Error(payload?.message || "Could not connect to this scanner device.");
     error.status = response.status;
-    error.responseText = text;
+    error.payload = payload;
     throw error;
   }
-
   return payload;
 }
 
+function exchangeScannerLaunch(launchCredential) {
+  return scannerRequestJson("/api/merchant/scanner/launch-sessions/exchange", {
+    method: "POST",
+    body: JSON.stringify({ launchCredential }),
+  });
+}
+
 async function fetchScannerDevice(deviceToken) {
-  const requestUrl = `${API_BASE_URL}/api/merchant/scanner/device?deviceToken=${encodeURIComponent(deviceToken)}`;
+  const tokenQuery = deviceToken ? `?deviceToken=${encodeURIComponent(deviceToken)}` : "";
+  const requestUrl = `${SCANNER_API_BASE_URL}/api/merchant/scanner/device${tokenQuery}`;
   const response = await fetch(requestUrl, {
     method: "GET",
+    credentials: "include",
   });
 
   const text = await response.text();
@@ -275,18 +271,19 @@ async function fetchScannerDevice(deviceToken) {
 }
 
 function fetchScannerActivity(deviceToken) {
-  return requestJson(`/api/merchant/scanner/activity?deviceToken=${encodeURIComponent(deviceToken)}`);
+  const tokenQuery = deviceToken ? `?deviceToken=${encodeURIComponent(deviceToken)}` : "";
+  return scannerRequestJson(`/api/merchant/scanner/activity${tokenQuery}`);
 }
 
 function submitScannerScan({ deviceToken, scanValue, requestId }) {
-  return requestJson("/api/merchant/scanner/scan", {
+  return scannerRequestJson("/api/merchant/scanner/scan", {
     method: "POST",
     body: JSON.stringify(buildScannerScanRequest({ deviceToken, scanValue, requestId })),
   });
 }
 
 function lookupScannerPass({ deviceToken, scanValue, scanResult }) {
-  return requestJson("/api/merchant/scanner/lookup-pass", {
+  return scannerRequestJson("/api/merchant/scanner/lookup-pass", {
     method: "POST",
     body: JSON.stringify(buildScannerLookupRequest({
       deviceToken,
@@ -297,7 +294,7 @@ function lookupScannerPass({ deviceToken, scanValue, scanResult }) {
 }
 
 function adjustScannerStamps({ deviceToken, scanResult, stamps, note, requestId }) {
-  return requestJson("/api/merchant/scanner/adjust-stamps", {
+  return scannerRequestJson("/api/merchant/scanner/adjust-stamps", {
     method: "POST",
     body: JSON.stringify(buildScannerAdjustmentRequest({
       deviceToken,
@@ -310,7 +307,7 @@ function adjustScannerStamps({ deviceToken, scanResult, stamps, note, requestId 
 }
 
 function redeemScannerReward({ deviceToken, scanResult, requestId }) {
-  return requestJson("/api/merchant/scanner/redeem", {
+  return scannerRequestJson("/api/merchant/scanner/redeem", {
     method: "POST",
     body: JSON.stringify(buildScannerRedemptionRequest({
       action: buildScannerActionBody(deviceToken, scanResult),
@@ -320,7 +317,7 @@ function redeemScannerReward({ deviceToken, scanResult, requestId }) {
 }
 
 function undoScannerStamp({ deviceToken, scanResult }) {
-  return requestJson("/api/merchant/scanner/undo", {
+  return scannerRequestJson("/api/merchant/scanner/undo", {
     method: "POST",
     body: JSON.stringify(buildScannerUndoRequest({
       action: buildScannerActionBody(deviceToken, scanResult),
@@ -2195,6 +2192,11 @@ function CustomerAdjustmentModal({
 
 function ScannerKioskPage() {
   const deviceToken = new URLSearchParams(window.location.search).get("deviceToken") || "";
+  const [launchCredential] = useState(() => {
+    const credential = new URLSearchParams(window.location.hash.slice(1)).get("launch") || "";
+    if (credential) window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
+    return credential;
+  });
   const inputRef = useRef(null);
   const manualInputRef = useRef(null);
   const manualCodeRef = useRef("");
@@ -2297,19 +2299,13 @@ function ScannerKioskPage() {
 
   async function loadDevice() {
     clearManualAndScannerState();
-    if (!deviceToken) {
-      setDeviceError("Missing scanner device token.");
-      setDeviceLoadStatus("missing_token");
-      setScanStatus("idle");
-      return;
-    }
-
     setDeviceLoadStatus("loading");
     setActivityLoadStatus("loading");
     setScanStatus("idle");
     setDeviceError("");
 
     try {
+      if (launchCredential) await exchangeScannerLaunch(launchCredential);
       const payload = await fetchScannerDevice(deviceToken);
       setDevice(extractScannerDevice(payload));
       setDeviceLoadStatus("ready");
@@ -2317,13 +2313,15 @@ function ScannerKioskPage() {
       setReadyMessage("");
       void loadRecentActivity();
     } catch (error) {
-      const message = isProbablyNetworkError(error)
+      const message = !deviceToken && (error?.status === 403 || error?.status === 410)
+        ? "This Scanner Mode launch link has expired. Return to the merchant dashboard to open Scanner Mode again."
+        : isProbablyNetworkError(error)
         ? "Could not connect to this scanner device."
         : getScanMessage(error);
       console.error("Scanner device fetch failed", {
         status: error?.status || "network",
         message,
-        endpoint: `${API_BASE_URL}/api/merchant/scanner/device?deviceToken=[redacted]`,
+        endpoint: "/api/merchant/scanner/device?credential=[redacted]",
       });
       setDeviceError(message);
       setDeviceLoadStatus("error");
@@ -2334,12 +2332,6 @@ function ScannerKioskPage() {
   }
 
   async function loadRecentActivity() {
-    if (!deviceToken) {
-      setRecentActivity([]);
-      setActivityLoadStatus("loaded");
-      return;
-    }
-
     try {
       const payload = await fetchScannerActivity(deviceToken);
       setRecentActivity(normalizeScannerActivities(payload));
@@ -2348,7 +2340,7 @@ function ScannerKioskPage() {
     } catch (error) {
       console.error("Scanner activity fetch failed", {
         status: error?.status || "network",
-        endpoint: `${API_BASE_URL}/api/merchant/scanner/activity?deviceToken=[redacted]`,
+        endpoint: "/api/merchant/scanner/activity?credential=[redacted]",
       });
       setActivityLoadStatus("error");
       return false;
@@ -2373,7 +2365,7 @@ function ScannerKioskPage() {
       window.clearTimeout(readyTimerRef.current);
       window.clearTimeout(bufferTimerRef.current);
     };
-  }, [deviceToken]);
+  }, [deviceToken, launchCredential]);
 
   useEffect(() => {
     focusScannerInput();

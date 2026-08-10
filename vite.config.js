@@ -85,4 +85,9 @@ function demoCreateMiddleware() {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), demoCreateMiddleware()],
+  server: {
+    proxy: {
+      '/api/merchant/scanner': API_BASE_URL,
+    },
+  },
 })

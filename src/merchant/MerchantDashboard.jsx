@@ -13,14 +13,15 @@ import {
   fetchMerchantCampaigns,
   fetchMerchantCustomers,
   fetchMerchantDashboardSummary,
+  fetchMerchantScannerLaunchOptions,
   fetchMerchantReminderSummary,
+  createMerchantScannerLaunch,
 } from "./api/merchantApi.js";
 import { normalizeCampaignRows } from "../merchantCampaigns.js";
 
 const DATA_CHANGED_EVENT = "pocketstamp:merchant-data-changed";
 const DATA_CHANGED_STORAGE_KEY = "pocketstampMerchantDataChangedAt";
 const REFRESH_INTERVAL_MS = 20000;
-const PUBLIC_SITE_URL = "https://getpocketstamp.com";
 
 function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
@@ -29,50 +30,6 @@ function pickFirst(...values) {
 function extractRows(payload, keys) {
   const candidates = [payload, ...keys.map((key) => payload?.[key]), payload?.data];
   return candidates.find(Array.isArray) || [];
-}
-
-function toPublicScannerUrl(value) {
-  if (!value) return "";
-  try {
-    const url = new URL(value, PUBLIC_SITE_URL);
-    return new URL(`${url.pathname}${url.search}${url.hash}`, PUBLIC_SITE_URL).toString();
-  } catch {
-    return value;
-  }
-}
-
-function formatLastScan(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
-}
-
-function getScannerDashboardData(summary = {}) {
-  const scanner = [
-    summary.scanner,
-    summary.scannerMode,
-    summary.scannerStatus,
-    summary.scannerDevice,
-    summary.device,
-    summary.devices?.[0],
-    summary.scannerDevices?.[0],
-    summary.counterScanner,
-  ].find(Boolean);
-  const device = summary.scannerDevices?.[0] || summary.devices?.[0] || scanner;
-  const scannerUrl = toPublicScannerUrl(pickFirst(
-    scanner?.scannerUrl,
-    scanner?.scannerURL,
-    scanner?.kioskUrl,
-    scanner?.kioskURL,
-    scanner?.url,
-    device?.scannerUrl,
-    device?.kioskUrl,
-  ));
-  return {
-    scannerUrl,
-    lastScan: formatLastScan(pickFirst(device?.lastScanAt, scanner?.lastScanAt, scanner?.lastScan?.createdAt)),
-  };
 }
 
 export default function MerchantDashboard({
@@ -106,6 +63,9 @@ export default function MerchantDashboard({
   const [campaignRows, setCampaignRows] = useState([]);
   const [campaignError, setCampaignError] = useState("");
   const [isCampaignsLoading, setIsCampaignsLoading] = useState(true);
+  const [scannerDevices, setScannerDevices] = useState([]);
+  const [isScannerLoading, setIsScannerLoading] = useState(true);
+  const [scannerError, setScannerError] = useState("");
 
   const merchantSlug = merchantContext.merchantSlug || "";
   const joinUrl = buildMerchantJoinUrl(merchantSlug);
@@ -220,6 +180,21 @@ export default function MerchantDashboard({
     }
   }
 
+  async function refreshScannerOptions({ showLoading = false } = {}) {
+    if (showLoading) setIsScannerLoading(true);
+    setScannerError("");
+    try {
+      const payload = await fetchMerchantScannerLaunchOptions(accessToken);
+      if (!isMountedRef.current) return;
+      setScannerDevices(Array.isArray(payload?.devices) ? payload.devices : []);
+    } catch {
+      if (!isMountedRef.current) return;
+      setScannerError("We couldn’t check Scanner Mode right now.");
+    } finally {
+      if (isMountedRef.current) setIsScannerLoading(false);
+    }
+  }
+
   function refreshCurrentPageData({ showLoading = false } = {}) {
     const refreshers = {
       dashboard: refreshDashboardData,
@@ -233,6 +208,7 @@ export default function MerchantDashboard({
 
   const onRefreshCurrentPageData = useEffectEvent(refreshCurrentPageData);
   const onRefreshCustomers = useEffectEvent(refreshCustomers);
+  const onRefreshScannerOptions = useEffectEvent(refreshScannerOptions);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -241,6 +217,14 @@ export default function MerchantDashboard({
       isMountedRef.current = false;
     };
   }, [accessToken, page]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    Promise.resolve().then(() => {
+      if (!isCancelled) onRefreshScannerOptions({ showLoading: true });
+    });
+    return () => { isCancelled = true; };
+  }, [accessToken]);
 
   useEffect(() => {
     if (page !== "customers") return;
@@ -293,7 +277,6 @@ export default function MerchantDashboard({
     };
   }, [accessToken, customerSearch, effectiveCustomerStatus, page]);
 
-  const scannerDashboard = getScannerDashboardData(dashboardSummary || {});
   const currentPageHasError = page === "overview"
     ? Boolean(activityError || dashboardSummaryError || reminderError)
     : page === "customers"
@@ -320,13 +303,31 @@ export default function MerchantDashboard({
     setManualRefreshState("refreshing");
 
     try {
-      await refreshCurrentPageData({ showLoading: false });
+      await Promise.all([
+        refreshCurrentPageData({ showLoading: false }),
+        refreshScannerOptions({ showLoading: false }),
+      ]);
       setManualRefreshState("done");
     } catch {
       setManualRefreshState("failed");
     }
 
     window.setTimeout(() => setManualRefreshState("idle"), 1600);
+  }
+
+  async function handleLaunchScanner(deviceId) {
+    const scannerWindow = window.open("about:blank", "_blank");
+    if (scannerWindow) scannerWindow.opener = null;
+    setScannerError("");
+    try {
+      const payload = await createMerchantScannerLaunch(accessToken, deviceId);
+      if (!payload?.launchUrl) throw new Error("Scanner launch URL missing");
+      if (scannerWindow) scannerWindow.location.replace(payload.launchUrl);
+      else window.location.assign(payload.launchUrl);
+    } catch {
+      if (scannerWindow) scannerWindow.close();
+      setScannerError("Scanner Mode couldn’t be opened. Please try again.");
+    }
   }
 
   function handleCustomerSearchChange(nextSearch) {
@@ -352,7 +353,10 @@ export default function MerchantDashboard({
       merchantContext={merchantContext}
       page={page}
       pageTitle={pageTitles[page]}
-      scannerUrl={scannerDashboard.scannerUrl || ""}
+      scannerDevices={scannerDevices}
+      isScannerLoading={isScannerLoading}
+      scannerError={scannerError}
+      onLaunchScanner={handleLaunchScanner}
       onLogout={onLogout}
       onNavigate={onNavigate}
       onRefresh={handleManualRefresh}
@@ -378,7 +382,6 @@ export default function MerchantDashboard({
               preview
             />
           )}
-          scanner={scannerDashboard}
           reminderSummary={reminderSummary}
           reminderError={reminderError}
           isReminderSummaryLoading={isReminderSummaryLoading}

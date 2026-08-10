@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { resolveMerchantManagementNavigation } from "./merchantRoutes.js";
+import ScannerLaunchAction from "./ScannerLaunchAction.jsx";
 
 const navigation = [
   ["/merchant", "Overview", "overview"],
@@ -30,32 +31,15 @@ function NavigationLinks({ page }) {
   );
 }
 
-function ScannerAction({ scannerUrl }) {
-  return scannerUrl ? (
-    <a
-      href={scannerUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex w-full items-center justify-center rounded-xl bg-[var(--ps-blue)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#255ddd]"
-    >
-      Open Scanner Mode
-    </a>
-  ) : (
-    <div className="rounded-xl border border-[var(--ps-border)] bg-white/60 px-4 py-3">
-      <p className="text-sm font-semibold text-[var(--ps-espresso)]">Scanner Mode</p>
-      <p className="mt-1 text-xs leading-5 text-[var(--ps-muted)]">
-        No scanner launch link is available.
-      </p>
-    </div>
-  );
-}
-
 export default function MerchantLayout({
   children,
   merchantContext,
   page,
   pageTitle,
-  scannerUrl,
+  scannerDevices,
+  isScannerLoading,
+  scannerError,
+  onLaunchScanner,
   onLogout,
   onNavigate,
   onRefresh,
@@ -114,7 +98,7 @@ export default function MerchantLayout({
             </p>
           </div>
           <div className="mt-6"><NavigationLinks page={page} /></div>
-          <div className="mt-6 border-t border-[var(--ps-border)] pt-5"><ScannerAction scannerUrl={scannerUrl} /></div>
+          <div className="mt-6 border-t border-[var(--ps-border)] pt-5"><ScannerLaunchAction devices={scannerDevices} isLoading={isScannerLoading} error={scannerError} onLaunch={onLaunchScanner} /></div>
           <div className="mt-auto border-t border-[var(--ps-border)] pt-5">
             <p className="truncate text-xs font-semibold uppercase text-[var(--ps-muted)]">{merchantContext.role}</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -151,7 +135,7 @@ export default function MerchantLayout({
             {isMenuOpen ? (
               <div id="merchant-mobile-menu" className="border-t border-[var(--ps-border)] px-5 py-4">
                 <NavigationLinks page={page} />
-                <div className="mt-4 border-t border-[var(--ps-border)] pt-4"><ScannerAction scannerUrl={scannerUrl} /></div>
+                <div className="mt-4 border-t border-[var(--ps-border)] pt-4"><ScannerLaunchAction devices={scannerDevices} isLoading={isScannerLoading} error={scannerError} onLaunch={onLaunchScanner} /></div>
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <button type="button" onClick={onRefresh} className="rounded-xl border border-[var(--ps-border)] bg-white px-3 py-2 text-sm font-semibold">{refreshLabel}</button>
                   <button type="button" onClick={onLogout} className="rounded-xl border border-[var(--ps-border)] bg-white px-3 py-2 text-sm font-semibold">Logout</button>

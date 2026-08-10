@@ -35,8 +35,16 @@ test("existing public join rewrites remain exact", () => {
   ]);
 });
 
+test("Scanner Mode APIs use the same-origin backend proxy required for HttpOnly sessions", () => {
+  assert.deepEqual(rewrites.filter(({ source }) => source.startsWith("/api/merchant/scanner/")), [{
+    source: "/api/merchant/scanner/:path*",
+    destination: `${backend}/api/merchant/scanner/:path*`,
+  }]);
+});
+
 test("all unrelated current-main rewrites remain unchanged", () => {
-  assert.deepEqual(rewrites.filter(({ source }) => !source.startsWith("/join/")), [
+  assert.deepEqual(rewrites.filter(({ source }) =>
+    !source.startsWith("/join/") && !source.startsWith("/api/merchant/scanner/")), [
     { source: "/demo/pocket-stamp-demo/create", destination: "/api/demo-pocket-stamp-demo-create" },
     { source: "/pass/:serial", destination: `${backend}/pass/:serial` },
     { source: "/legal/privacy", destination: "/index.html" },

@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/merchant/scanner/:path*",
+      "destination": "https://pocketstamp-wallet-backend-production.up.railway.app/api/merchant/scanner/:path*"
+    },
+    {
       "source": "/demo/pocket-stamp-demo/create",
       "destination": "/api/demo-pocket-stamp-demo-create"
     },
