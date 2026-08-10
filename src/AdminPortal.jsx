@@ -796,6 +796,14 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
     links.merchantSetupUrl,
     merchant.merchantSetupUrl,
   ));
+  const onboardingSummary = pickFirst(
+    response.onboardingSummary,
+    data.onboardingSummary,
+    result.onboardingSummary,
+    data.result?.onboardingSummary,
+    welcomePack.onboardingSummary,
+    merchant.onboardingSummary,
+  );
 
   return {
     merchantId,
@@ -817,6 +825,7 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
     ),
     staffDashboardUrl,
     demoPassUrl,
+    onboardingSummary,
     welcomeEmailSubject: pickFirst(
       response.welcomeEmailSubject,
       data.welcomeEmailSubject,
@@ -848,6 +857,56 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
       welcomePack.html,
     ), merchantSlug)),
   };
+}
+
+function WalletReadiness({ summary }) {
+  if (!summary || typeof summary !== "object") return null;
+
+  const wallets = summary.wallets && typeof summary.wallets === "object"
+    ? summary.wallets
+    : {};
+  const walletRows = [
+    ["Apple Wallet", wallets.apple],
+    ["Google Wallet", wallets.google],
+  ].filter(([, wallet]) => wallet && typeof wallet === "object");
+
+  if (!summary.heading && !summary.merchant && !walletRows.length) return null;
+
+  const toneClasses = {
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    amber: "bg-amber-50 text-amber-800 ring-amber-100",
+    red: "bg-red-50 text-red-700 ring-red-100",
+  };
+
+  return (
+    <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+      <p className="ps-eyebrow">Wallet readiness</p>
+      {summary.heading ? <h2 className="mt-2 text-xl font-semibold">{summary.heading}</h2> : null}
+      {summary.merchant ? <p className="mt-1 text-sm text-[var(--ps-muted)]">{summary.merchant}</p> : null}
+
+      {walletRows.length ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {walletRows.map(([label, wallet]) => (
+            <div
+              key={label}
+              className={`rounded-xl p-4 ring-1 ${toneClasses[wallet.tone] || "bg-slate-50 text-slate-700 ring-slate-200"}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-semibold">{label}</h3>
+                {wallet.status ? (
+                  <span className="rounded-full bg-white/70 px-2.5 py-1 text-xs font-bold ring-1 ring-current/10">
+                    {wallet.status}
+                  </span>
+                ) : null}
+              </div>
+              {wallet.message ? <p className="mt-3 text-sm font-semibold leading-5">{wallet.message}</p> : null}
+              {wallet.reason ? <p className="mt-2 text-sm leading-5">{wallet.reason}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function buildWelcomeEmail(form, links) {
@@ -1687,6 +1746,8 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
               </Alert>
             </div>
           ) : null}
+
+          <WalletReadiness summary={normalizedCreated.onboardingSummary} />
 
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <Detail label="Merchant ID" value={normalizedCreated.merchantId} />
