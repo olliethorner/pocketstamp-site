@@ -149,16 +149,17 @@ function getPrivacyNoticeSections(cafeName = "this café") {
 
 const steps = [
   ["Scan QR", "Customer scans your café’s Join QR.", "QR"],
-  ["Add to Wallet", "They create a branded loyalty card in Apple Wallet.", "Wallet"],
+  ["Enter details", "They enter their details in a few seconds — no app download needed.", "Join"],
+  ["Add to Wallet", "They add the loyalty card to Apple Wallet or Google Wallet.", "Wallet"],
   [
     "Scan at the till",
-    "They show their Wallet pass QR. Your counter scanner or tablet reads it and PocketStamp adds the stamp.",
+    "They show their Wallet card QR. Your counter scanner or tablet reads it and PocketStamp adds the stamp.",
     "Scan",
   ],
   [
-    "Track and bring them back",
-    "See loyalty activity, while automatic reminders and updates you schedule give customers a reason to return.",
-    "Data",
+    "Wallet updates automatically",
+    "Stamps, rewards, reminders and updates stay current in the Wallet already on their phone.",
+    "Update",
   ],
 ];
 
@@ -611,7 +612,7 @@ function HeroWalletPassShowcase() {
             );
           })}
         </div>
-        <div className="hero-pass-label">Lives in Apple Wallet</div>
+        <div className="hero-pass-label">Apple Wallet + Google Wallet</div>
       </div>
       <div className="hero-pass-controls" aria-label="Choose featured Wallet card">
         {walletPasses.map((pass, index) => (
@@ -1354,14 +1355,13 @@ function MarketingHomepage() {
             transition={{ duration: 0.45 }}
             className="ps-hero-copy"
           >
-            <p className="ps-eyebrow">Apple Wallet loyalty for independent cafés</p>
+            <p className="ps-eyebrow">Digital loyalty cards for Apple Wallet and Google Wallet</p>
             <h1 className="ps-display">
               Digital loyalty that brings customers back.
             </h1>
             <p className="ps-hero-intro">
-              PocketStamp gives cafés a branded Apple Wallet loyalty card,
-              counter scanner workflow, automatic loyalty reminders and promotional
-              updates you schedule — with no customer app required.
+              Customers scan your QR code, join in seconds and add a branded loyalty
+              card to Apple Wallet or Google Wallet — no app required.
             </p>
             <div className="ps-hero-actions">
               <a href={demoHref} className="ps-pill ps-pill-dark">Book a demo</a>
@@ -1369,7 +1369,7 @@ function MarketingHomepage() {
             </div>
             <div className="ps-badges">
               <span>No customer app</span>
-              <span>Apple Wallet</span>
+              <span>iPhone + Android</span>
               <span>Counter Scanner Mode</span>
             </div>
           </motion.div>
@@ -1397,7 +1397,7 @@ function MarketingHomepage() {
           <p className="ps-eyebrow">How it works</p>
           <h2 className="ps-display ps-section-title">From a quick scan to a customer who comes back.</h2>
           <p className="ps-section-lede">
-            A simple QR starts the flow. The card lives in Apple Wallet, the dashboard tracks activity, and timely reminders and updates give customers a reason to return.
+            A simple QR starts the flow. The card lives in the Wallet already on their phone, the dashboard tracks activity, and timely reminders and updates give customers a reason to return.
           </p>
           <div className="ps-stepper">
             {steps.map(([title, body, label], index) => (
@@ -1437,7 +1437,7 @@ function MarketingHomepage() {
               <p>No loose paper. No app fatigue. Just a polished branded Wallet pass customers can scan at the till and keep on their phone.</p>
               <SimpleBullets items={walletBullets} />
             </div>
-            <div className="ps-wallet-product-visual" aria-label="Branded Apple Wallet loyalty card">
+            <div className="ps-wallet-product-visual" aria-label="Example branded Wallet loyalty card">
               <img src="/hero-wallet-cards/yeems-wallet-card.png" alt="Yeems Coffee branded Apple Wallet loyalty card" loading="lazy" decoding="async" />
               <span>Branded to your café</span>
             </div>
@@ -1447,7 +1447,7 @@ function MarketingHomepage() {
             <div className="ps-product-copy">
               <p className="ps-product-number">02 / Counter</p>
               <h3>Built for the café counter.</h3>
-              <p>Customers scan their Apple Wallet pass at the till. PocketStamp adds the stamp automatically, with backup tools for busy service.</p>
+              <p>Apple Wallet and Google Wallet customers scan the same loyalty card at the till. PocketStamp adds the stamp automatically, with backup tools for busy service.</p>
               <SimpleBullets items={scannerModeBullets} />
             </div>
             <ScannerProductVisual />
@@ -1469,7 +1469,7 @@ function MarketingHomepage() {
         <div className="ps-section-shell">
           <p className="ps-eyebrow">Bring customers back</p>
           <h2 className="ps-display ps-section-title">Your loyalty card keeps the conversation going.</h2>
-          <p className="ps-section-lede">PocketStamp helps bring your café back to mind through Apple Wallet—with automatic loyalty reminders and promotional updates you schedule yourself.</p>
+          <p className="ps-section-lede">PocketStamp helps bring your café back to mind through Apple Wallet and Google Wallet—with automatic loyalty reminders and promotional updates you schedule yourself.</p>
 
           <div className="ps-retention-tabs" role="tablist" aria-label="Retention tools">
             <button type="button" role="tab" aria-selected={retentionView === "automatic"} aria-controls="automatic-panel" id="automatic-tab" onClick={() => setRetentionView("automatic")}>Automatic by PocketStamp</button>
@@ -1491,7 +1491,7 @@ function MarketingHomepage() {
               <div className="ps-retention-copy">
                 <p className="ps-product-number">You stay in control</p>
                 <h3>Send the right update at the right time.</h3>
-                <p>Write a short message and choose when it should go out. Share offers, events, new products, launches or timely announcements with loyal customers through Apple Wallet.</p>
+                <p>Write a short message and choose when it should go out. Share offers, events, new products, launches or timely announcements with loyal customers through their Wallet.</p>
                 <ul className="ps-inline-list">
                   <li>Offers</li><li>Events</li><li>Launches</li><li>Announcements</li>
                 </ul>
@@ -1499,6 +1499,19 @@ function MarketingHomepage() {
               <CampaignUpdateMockup />
             </div>
           )}
+        </div>
+      </section>
+
+      <section className="ps-section ps-journey" aria-labelledby="android-faq-title">
+        <div className="ps-section-shell">
+          <p className="ps-eyebrow">Frequently asked questions</p>
+          <h2 className="ps-display ps-section-title">Simple for every customer.</h2>
+          <div className="mt-10 max-w-3xl rounded-3xl bg-[#fbf7ef] p-6 ring-1 ring-stone-200 sm:p-8">
+            <h3 id="android-faq-title" className="text-xl font-semibold text-[var(--ps-ink)]">Does PocketStamp work on Android?</h3>
+            <p className="mt-3 leading-7 text-[var(--ps-muted)]">
+              Yes. PocketStamp supports Google Wallet on Android and Apple Wallet on iPhone. Customers do not need to download a separate PocketStamp app.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -1540,7 +1553,7 @@ function MarketingHomepage() {
         <div className="ps-section-shell">
           <p className="ps-eyebrow">Ready when you are</p>
           <h2 className="ps-display">Start bringing loyal customers back this week.</h2>
-          <p>Give customers a loyalty card they keep, a simple way to collect stamps, and timely reasons to return through Apple Wallet.</p>
+          <p>Give customers a loyalty card they keep, a simple way to collect stamps, and timely reasons to return through Apple Wallet and Google Wallet.</p>
           <div className="ps-final-actions">
             <a href={demoHref} className="ps-pill ps-pill-dark">Book a demo</a>
             <a href={pilotHref} className="ps-pill ps-pill-outline">Start a café pilot</a>
@@ -1551,7 +1564,7 @@ function MarketingHomepage() {
       <SiteFooter />
 
       <div className="ps-mobile-sticky-cta">
-        <span>Apple Wallet loyalty for cafés</span>
+        <span>Apple Wallet + Google Wallet loyalty for cafés</span>
         <a href={demoHref}>Book a demo</a>
       </div>
     </main>
