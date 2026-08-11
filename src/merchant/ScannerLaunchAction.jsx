@@ -47,7 +47,7 @@ export default function ScannerLaunchAction({ devices = [], isLoading, error, on
         type="button"
         disabled={!selectedId}
         onClick={() => onLaunch(selectedId)}
-        className="inline-flex w-full items-center justify-center rounded-xl bg-[var(--ps-blue)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#255ddd] disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-[rgba(47,109,246,0.24)] bg-[var(--ps-blue-soft)] px-4 py-2 text-sm font-semibold text-[#1f54cc] transition-colors hover:border-[rgba(47,109,246,0.36)] hover:bg-[#dce8ff] active:bg-[#cfdeff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ps-blue)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         Open Scanner Mode
       </button>
