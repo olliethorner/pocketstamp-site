@@ -157,7 +157,7 @@ function PromotionalCampaigns({
           </form>
         ) : (
           <p className="rounded-xl bg-[#fbfaf7] p-4 text-sm text-[var(--ps-muted)]">
-            Campaign history is available below. Campaign management is restricted for this account or location.
+            Message history is available below. Campaign management is restricted for this account or location.
           </p>
         )}
 
