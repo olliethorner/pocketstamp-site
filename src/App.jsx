@@ -3114,7 +3114,7 @@ function ScannerKioskPage() {
                     <span className="ps-scanner-activity-main min-w-0">
                       <span className="block font-semibold text-[var(--ps-muted)]">{formatScannerActivityTime(item.createdAt)}</span>
                       <span className="mt-0.5 block leading-snug">
-                        <strong className="font-bold">{getScannerActivityFirstName(item.customerName)}</strong>
+                        <strong className="font-bold text-[var(--ps-espresso)]">{getScannerActivityFirstName(item.customerName)}</strong>
                         <span className="font-semibold text-[var(--ps-muted)]"> · {getScannerActivitySummary(item.type, item.stampCount)}</span>
                       </span>
                     </span>
