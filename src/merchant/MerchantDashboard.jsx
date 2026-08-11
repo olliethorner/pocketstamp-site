@@ -42,11 +42,17 @@ export default function MerchantDashboard({
 }) {
   const isMountedRef = useRef(false);
   const isDashboardRefreshInFlightRef = useRef(false);
+  const activityRequestGenerationRef = useRef(0);
   const customerRequestGenerationRef = useRef(0);
   const isCampaignRefreshInFlightRef = useRef(false);
   const [activityRows, setActivityRows] = useState([]);
   const [activityError, setActivityError] = useState("");
   const [isActivityLoading, setIsActivityLoading] = useState(true);
+  const [activityHistoryRows, setActivityHistoryRows] = useState([]);
+  const [activityHistoryError, setActivityHistoryError] = useState("");
+  const [isActivityHistoryLoading, setIsActivityHistoryLoading] = useState(true);
+  const [activityPeriod, setActivityPeriod] = useState("all");
+  const [activityPagination, setActivityPagination] = useState({ page: 1, pageSize: 25, total: 0, totalPages: 0 });
   const [dashboardSummary, setDashboardSummary] = useState(null);
   const [dashboardSummaryError, setDashboardSummaryError] = useState("");
   const [isDashboardSummaryLoading, setIsDashboardSummaryLoading] = useState(true);
@@ -165,6 +171,23 @@ export default function MerchantDashboard({
     }
   }
 
+  async function refreshActivityHistory({ showLoading = false } = {}) {
+    const requestGeneration = ++activityRequestGenerationRef.current;
+    if (showLoading) setIsActivityHistoryLoading(true);
+    setActivityHistoryError("");
+    try {
+      const payload = await fetchMerchantActivity(accessToken, { page: activityPagination.page, pageSize: 25, period: activityPeriod });
+      if (!isMountedRef.current || requestGeneration !== activityRequestGenerationRef.current) return;
+      setActivityHistoryRows(extractRows(payload, ["activity", "activities", "events", "items"]));
+      setActivityPagination(payload?.pagination || { page: 1, pageSize: 25, total: 0, totalPages: 0 });
+    } catch {
+      if (!isMountedRef.current || requestGeneration !== activityRequestGenerationRef.current) return;
+      setActivityHistoryError("We couldn’t load activity history right now.");
+    } finally {
+      if (isMountedRef.current && requestGeneration === activityRequestGenerationRef.current) setIsActivityHistoryLoading(false);
+    }
+  }
+
   async function refreshCampaigns({ showLoading = false } = {}) {
     if (isCampaignRefreshInFlightRef.current) return;
     isCampaignRefreshInFlightRef.current = true;
@@ -201,6 +224,7 @@ export default function MerchantDashboard({
   function refreshCurrentPageData({ showLoading = false } = {}) {
     const refreshers = {
       dashboard: refreshDashboardData,
+      activity: refreshActivityHistory,
       customers: refreshCustomers,
       campaigns: refreshCampaigns,
     };
@@ -211,6 +235,7 @@ export default function MerchantDashboard({
 
   const onRefreshCurrentPageData = useEffectEvent(refreshCurrentPageData);
   const onRefreshCustomers = useEffectEvent(refreshCustomers);
+  const onRefreshActivityHistory = useEffectEvent(refreshActivityHistory);
   const onRefreshScannerOptions = useEffectEvent(refreshScannerOptions);
 
   useEffect(() => {
@@ -244,6 +269,15 @@ export default function MerchantDashboard({
       isCancelled = true;
     };
   }, [accessToken, debouncedCustomerSearch, effectiveCustomerStatus, customerPagination.page, page]);
+
+  useEffect(() => {
+    if (page !== "activity") return;
+    let isCancelled = false;
+    Promise.resolve().then(() => {
+      if (!isCancelled) onRefreshActivityHistory({ showLoading: true });
+    });
+    return () => { isCancelled = true; };
+  }, [accessToken, activityPeriod, activityPagination.page, page]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -290,7 +324,7 @@ export default function MerchantDashboard({
     : page === "customers"
       ? Boolean(customerError)
       : page === "activity"
-        ? Boolean(activityError)
+        ? Boolean(activityHistoryError)
         : page === "marketing"
           ? Boolean(campaignError || reminderError)
           : false;
@@ -423,10 +457,17 @@ export default function MerchantDashboard({
 
       {page === "activity" ? (
           <MerchantActivity
-            activityRows={activityRows}
-            isLoading={isActivityLoading}
-            error={activityError}
+            activityRows={activityHistoryRows}
+            isLoading={isActivityHistoryLoading}
+            error={activityHistoryError}
             birthdayRewardsEnabled={birthdayRewardsEnabled}
+            period={activityPeriod}
+            onPeriodChange={(nextPeriod) => {
+              setActivityPeriod(nextPeriod);
+              setActivityPagination((current) => ({ ...current, page: 1 }));
+            }}
+            pagination={activityPagination}
+            onPageChange={(nextPage) => setActivityPagination((current) => ({ ...current, page: nextPage }))}
           />
       ) : null}
 

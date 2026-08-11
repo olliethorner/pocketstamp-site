@@ -113,8 +113,13 @@ export function fetchMerchantMe(accessToken) {
   return requestAuthenticatedMerchantJson(accessToken, "/api/auth/me");
 }
 
-export function fetchMerchantActivity(accessToken) {
-  return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/activity?limit=10");
+export function fetchMerchantActivity(accessToken, { limit = 10, page = null, pageSize = null, period = null } = {}) {
+  const params = new URLSearchParams();
+  if (page !== null) params.set("page", String(page));
+  if (pageSize !== null) params.set("pageSize", String(pageSize));
+  else params.set("limit", String(limit));
+  if (period) params.set("period", period);
+  return requestAuthenticatedMerchantJson(accessToken, `/api/merchant/activity?${params.toString()}`);
 }
 
 export function fetchMerchantCustomers(

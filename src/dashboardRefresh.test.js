@@ -4,7 +4,7 @@ import { getMerchantPageDatasets } from "./merchant/utils/dashboardRefresh.js";
 
 test("selects only datasets required by each merchant page", () => {
   assert.deepEqual(getMerchantPageDatasets("overview"), ["dashboard"]);
-  assert.deepEqual(getMerchantPageDatasets("activity"), ["dashboard"]);
+  assert.deepEqual(getMerchantPageDatasets("activity"), ["activity"]);
   assert.deepEqual(getMerchantPageDatasets("customers"), ["customers"]);
   assert.deepEqual(getMerchantPageDatasets("marketing"), ["dashboard", "campaigns"]);
   assert.deepEqual(getMerchantPageDatasets("get-customers"), []);

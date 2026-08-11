@@ -73,6 +73,9 @@ export function formatActivityDetail(item) {
   const customer = getActivityCustomerName(item);
   const type = classifyActivity(item);
   if (customer && type === "stamp") {
+    const before = Number(first(item.balanceBefore, item.balance_before));
+    const after = Number(first(item.balanceAfter, item.balance_after));
+    if (Number.isFinite(before) && Number.isFinite(after)) return `${customer} · ${before} → ${after} stamps`;
     const current = Number(first(item.currentStamps, item.stamps, item.stampCount, item.customer?.currentStamps, item.result?.currentStamps));
     const threshold = Number(first(item.rewardThreshold, item.threshold, item.customer?.rewardThreshold, item.result?.rewardThreshold));
     const progress = Number.isFinite(current) && Number.isFinite(threshold) && threshold > 0 ? ` · ${current}/${threshold} stamps` : "";
