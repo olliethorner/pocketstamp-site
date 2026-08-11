@@ -8,6 +8,7 @@ const navigation = [
   ["/merchant/activity", "Activity", "activity"],
   ["/merchant/marketing", "Marketing", "marketing"],
   ["/merchant/get-customers", "Get Customers", "get-customers"],
+  ["/merchant/account", "Account", "account"],
 ];
 
 function NavigationLinks({ page }) {

@@ -94,6 +94,7 @@ export function normalizeMerchantContext(payload) {
             "Primary location",
           ),
     role: pickFirst(source.role, user.role, payload?.role, "Merchant"),
+    name: pickFirst(source.name, user.name, payload?.name),
     email: pickFirst(user.email, source.email, payload?.email),
     totalCustomers: pickFirst(source.totalCustomers, source.customerCount),
     birthdayRewardsEnabled: getBirthdayRewardsSetting({ ...payload, ...source }),
@@ -110,4 +111,15 @@ export function extractAccessToken(payload) {
     payload?.data?.accessToken,
     payload?.data?.token,
   );
+}
+
+export function normalizeMerchantSession(payload) {
+  const session = payload?.session || payload?.data?.session || {};
+  const accessToken = extractAccessToken(payload);
+  if (!accessToken) return null;
+  return {
+    accessToken,
+    refreshToken: session.refreshToken || session.refresh_token || null,
+    expiresAt: Date.now() + Number(session.expiresIn || session.expires_in || 3600) * 1000,
+  };
 }

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import MerchantLogin from "./MerchantLogin.jsx";
 import {
   fetchMerchantMe,
+  logoutMerchant,
+  refreshMerchantSession,
   isMerchantAuthenticationError,
   resetMerchantAuthenticationFailure,
   setMerchantAuthenticationFailureHandler,
@@ -17,12 +19,17 @@ export default function MerchantPortal({
   tokenStorageKey,
   page,
 }) {
-  const [accessToken, setAccessToken] = useState(() =>
-    localStorage.getItem(tokenStorageKey),
-  );
+  const readSession = useCallback(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem(tokenStorageKey));
+      return value?.accessToken ? value : null;
+    } catch { return null; }
+  }, [tokenStorageKey]);
+  const [session, setSession] = useState(readSession);
+  const accessToken = session?.accessToken || null;
   const [merchantContext, setMerchantContext] = useState(null);
   const [authState, setAuthState] = useState(() =>
-    localStorage.getItem(tokenStorageKey) ? "checking" : "unauthenticated",
+    readSession() ? "checking" : "unauthenticated",
   );
   const [authError, setAuthError] = useState("");
   const [activePage, setActivePage] = useState(
@@ -37,11 +44,31 @@ export default function MerchantPortal({
     if (hasHandledAuthenticationFailureRef.current) return;
     hasHandledAuthenticationFailureRef.current = true;
     localStorage.removeItem(tokenStorageKey);
-    setAccessToken(null);
+    setSession(null);
     setMerchantContext(null);
     setAuthError("");
     setAuthState("unauthenticated");
   }, [tokenStorageKey]);
+
+  const applySession = useCallback((nextSession) => {
+    localStorage.setItem(tokenStorageKey, JSON.stringify(nextSession));
+    setSession(nextSession);
+  }, [tokenStorageKey]);
+
+  useEffect(() => {
+    if (!session?.refreshToken) return undefined;
+    const delay = Math.max(0, (session.expiresAt || 0) - Date.now() - 60000);
+    const timer = window.setTimeout(async () => {
+      try {
+        const payload = await refreshMerchantSession(session.refreshToken);
+        const next = payload?.session;
+        if (!next?.accessToken || !next?.refreshToken) throw new Error("Invalid refreshed session");
+        applySession({ accessToken: next.accessToken, refreshToken: next.refreshToken, expiresAt: Date.now() + Number(next.expiresIn || 3600) * 1000 });
+        setMerchantContext(normalizeMerchantContext(payload));
+      } catch { clearMerchantSession(); }
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [session, applySession, clearMerchantSession]);
 
   useEffect(
     () => setMerchantAuthenticationFailureHandler(clearMerchantSession),
@@ -55,7 +82,16 @@ export default function MerchantPortal({
       if (!accessToken || authState !== "checking") return;
 
       try {
-        const payload = await fetchMerchantMe(accessToken);
+        let tokenToValidate = accessToken;
+        if (session?.refreshToken && session.expiresAt < Date.now() + 60000) {
+          const refreshed = await refreshMerchantSession(session.refreshToken);
+          const next = refreshed?.session;
+          if (!next?.accessToken || !next?.refreshToken) throw new Error("Invalid refreshed session");
+          const nextSession = { accessToken: next.accessToken, refreshToken: next.refreshToken, expiresAt: Date.now() + Number(next.expiresIn || 3600) * 1000 };
+          tokenToValidate = nextSession.accessToken;
+          applySession(nextSession);
+        }
+        const payload = await fetchMerchantMe(tokenToValidate);
         if (isMounted) {
           resetMerchantAuthenticationFailure();
           hasHandledAuthenticationFailureRef.current = false;
@@ -80,7 +116,7 @@ export default function MerchantPortal({
     return () => {
       isMounted = false;
     };
-  }, [accessToken, authState, clearMerchantSession]);
+  }, [accessToken, authState, session, applySession, clearMerchantSession]);
 
   useEffect(() => {
     function handlePopState() {
@@ -92,17 +128,18 @@ export default function MerchantPortal({
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  function handleLogin(token) {
+  function handleLogin(nextSession) {
     hasHandledAuthenticationFailureRef.current = false;
     resetMerchantAuthenticationFailure();
-    setAccessToken(token);
+    applySession(nextSession);
     setMerchantContext(null);
     setAuthError("");
     setAuthState("checking");
   }
 
-  function handleLogout() {
+  async function handleLogout() {
     hasHandledAuthenticationFailureRef.current = false;
+    if (accessToken) await logoutMerchant(accessToken).catch(() => {});
     clearMerchantSession();
   }
 
@@ -140,7 +177,7 @@ export default function MerchantPortal({
     );
   }
 
-  if (authState === "unauthenticated" || !accessToken || !merchantContext) {
+  if (authState === "unauthenticated" || !session || !merchantContext) {
     return (
       <MerchantLogin
         onLogin={handleLogin}

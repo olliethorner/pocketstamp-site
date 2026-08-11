@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   activateMerchantSetup,
+  acceptExistingMerchantSetup,
   fetchMerchantSetupInvite,
 } from "./api/merchantApi.js";
-import { extractAccessToken } from "./utils/merchantData.js";
+import { normalizeMerchantSession } from "./utils/merchantData.js";
 
 export default function MerchantSetup({ tokenStorageKey }) {
   const token = useMemo(() => {
@@ -17,6 +18,7 @@ export default function MerchantSetup({ tokenStorageKey }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [existingAccount, setExistingAccount] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -64,18 +66,31 @@ export default function MerchantSetup({ tokenStorageKey }) {
         password,
         confirmPassword,
       });
-      const accessToken = extractAccessToken(payload);
-      if (!accessToken) {
+      const session = normalizeMerchantSession(payload);
+      if (!session) {
         throw new Error("Setup completed, but no session token was returned.");
       }
 
-      localStorage.setItem(tokenStorageKey, accessToken);
+      localStorage.setItem(tokenStorageKey, JSON.stringify(session));
       window.location.href = "/merchant";
     } catch (setupError) {
+      setExistingAccount(["existing_account", "identity_collision"].includes(setupError.code));
       setError(setupError.message || "Unable to complete merchant setup.");
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleExistingAccountAccept() {
+    setError(""); setIsSubmitting(true);
+    try {
+      const payload = await acceptExistingMerchantSetup({ token, password });
+      const session = normalizeMerchantSession(payload);
+      if (!session) throw new Error("Sign in succeeded, but no session was returned.");
+      localStorage.setItem(tokenStorageKey, JSON.stringify(session));
+      window.location.href = "/merchant";
+    } catch (acceptError) { setError(acceptError.message || "Unable to accept this invitation."); }
+    finally { setIsSubmitting(false); }
   }
 
   return (
@@ -119,6 +134,7 @@ export default function MerchantSetup({ tokenStorageKey }) {
                 <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" required minLength={8} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#16856f] focus:ring-4 focus:ring-[#16856f]/10" />
               </label>
               {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700 ring-1 ring-red-100">{error}</div> : null}
+              {existingAccount ? <div className="space-y-3 text-sm font-semibold"><button type="button" onClick={handleExistingAccountAccept} disabled={isSubmitting || !password} className="w-full rounded-xl border border-[#143d3b] px-5 py-3 text-[#143d3b]">Sign in with this password and accept</button><div className="flex gap-4"><a href="/merchant" className="text-[#16856f]">Sign in</a><a href="/merchant/forgot-password" className="text-[#16856f]">Forgot password?</a></div></div> : null}
               <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-[#143d3b] px-5 py-3 font-semibold text-white transition hover:bg-[#0f2f2d] disabled:cursor-not-allowed disabled:opacity-70">
                 {isSubmitting ? "Setting up..." : "Create account"}
               </button>

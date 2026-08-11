@@ -5,6 +5,7 @@ export const MERCHANT_MANAGEMENT_ROUTES = Object.freeze({
   "/merchant/activity": "activity",
   "/merchant/marketing": "marketing",
   "/merchant/get-customers": "get-customers",
+  "/merchant/account": "account",
 });
 
 export function resolveMerchantManagementPage(pathname) {
@@ -33,6 +34,9 @@ export function resolveSafeMerchantReturnTo(value, origin) {
 export function isMerchantSetupPath(pathname) {
   return pathname === "/merchant/setup";
 }
+
+export function isMerchantForgotPasswordPath(pathname) { return pathname === "/merchant/forgot-password"; }
+export function isMerchantResetPasswordPath(pathname) { return pathname === "/merchant/reset-password"; }
 
 export function isMerchantScannerPath(pathname) {
   return pathname === "/merchant/scanner";

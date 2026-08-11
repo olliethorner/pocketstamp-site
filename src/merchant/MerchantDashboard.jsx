@@ -4,6 +4,7 @@ import MerchantOverview from "./pages/MerchantOverview.jsx";
 import MerchantCustomers from "./pages/MerchantCustomers.jsx";
 import MerchantActivity from "./pages/MerchantActivity.jsx";
 import MerchantGetCustomers from "./pages/MerchantGetCustomers.jsx";
+import MerchantAccount from "./pages/MerchantAccount.jsx";
 import MerchantMarketing from "./pages/MerchantMarketing.jsx";
 import { buildMerchantJoinUrl } from "./utils/joinUrl.js";
 import { getBirthdayRewardsSetting } from "./utils/merchantData.js";
@@ -390,6 +391,7 @@ export default function MerchantDashboard({
     activity: "Activity",
     marketing: "Marketing",
     "get-customers": "Get Customers",
+    account: "Account",
   };
 
   return (
@@ -493,6 +495,7 @@ export default function MerchantDashboard({
           onCopyJoinUrl={handleCopyJoinUrl}
         />
       ) : null}
+      {page === "account" ? <MerchantAccount accessToken={accessToken} merchantContext={merchantContext} onLogout={onLogout} /> : null}
     </MerchantLayout>
   );
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { loginMerchant } from "./api/merchantApi.js";
 import {
-  extractAccessToken,
+  normalizeMerchantSession,
   normalizeMerchantContext,
 } from "./utils/merchantData.js";
 
@@ -18,17 +18,16 @@ export default function MerchantLogin({ onLogin, tokenStorageKey }) {
 
     try {
       const payload = await loginMerchant(email, password);
-      const accessToken = extractAccessToken(payload);
+      const session = normalizeMerchantSession(payload);
 
-      if (!accessToken) {
+      if (!session) {
         throw new Error(
           "Login succeeded, but the response did not include session.accessToken. Safe debug: expected a session object with an accessToken field.",
         );
       }
 
-      // TODO: Future: switch to more robust session handling if needed.
-      localStorage.setItem(tokenStorageKey, accessToken);
-      onLogin(accessToken, normalizeMerchantContext(payload));
+      localStorage.setItem(tokenStorageKey, JSON.stringify(session));
+      onLogin(session, normalizeMerchantContext(payload));
     } catch (loginError) {
       setError(loginError.message || "Unable to sign in. Please try again.");
     } finally {
@@ -98,6 +97,7 @@ export default function MerchantLogin({ onLogin, tokenStorageKey }) {
             >
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
+            <a href="/merchant/forgot-password" className="block text-center text-sm font-semibold text-[#16856f]">Forgot password?</a>
           </form>
         </div>
       </div>

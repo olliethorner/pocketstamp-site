@@ -64,6 +64,7 @@ async function requestMerchantJson(path, options = {}, { authenticated = false }
       "Something went wrong. Please try again.";
     const error = new Error(message);
     error.status = response.status;
+    error.code = payload?.result || null;
     error.responseText = text;
     if (authenticated) notifyAuthenticationFailure(error);
     throw error;
@@ -97,6 +98,22 @@ export function loginMerchant(email, password) {
   });
 }
 
+export function refreshMerchantSession(refreshToken) {
+  return requestMerchantJson("/api/auth/refresh", { method: "POST", body: JSON.stringify({ refreshToken }) });
+}
+
+export function logoutMerchant(accessToken) {
+  return requestAuthenticatedMerchantJson(accessToken, "/api/auth/logout", { method: "POST" });
+}
+
+export function requestMerchantPasswordRecovery(email) {
+  return requestMerchantJson("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function updateMerchantPassword(accessToken, password) {
+  return requestAuthenticatedMerchantJson(accessToken, "/api/auth/password", { method: "POST", body: JSON.stringify({ password }) });
+}
+
 export function fetchMerchantSetupInvite(token) {
   const params = new URLSearchParams({ token });
   return requestMerchantJson(`/api/merchant/setup?${params.toString()}`);
@@ -107,6 +124,10 @@ export function activateMerchantSetup({ token, name, password, confirmPassword }
     method: "POST",
     body: JSON.stringify({ token, name, password, confirmPassword }),
   });
+}
+
+export function acceptExistingMerchantSetup({ token, password }) {
+  return requestMerchantJson("/api/merchant/setup/accept-existing", { method: "POST", body: JSON.stringify({ token, password }) });
 }
 
 export function fetchMerchantMe(accessToken) {

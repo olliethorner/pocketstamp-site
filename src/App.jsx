@@ -3,10 +3,14 @@ import { motion } from "framer-motion";
 import AdminPortal from "./AdminPortal.jsx";
 import MerchantPortalShell from "./merchant/MerchantPortal.jsx";
 import MerchantSetup from "./merchant/MerchantSetup.jsx";
+import MerchantForgotPassword from "./merchant/MerchantForgotPassword.jsx";
+import MerchantResetPassword from "./merchant/MerchantResetPassword.jsx";
 import MerchantDashboard from "./merchant/MerchantDashboard.jsx";
 import {
   isMerchantScannerPath,
   isMerchantSetupPath,
+  isMerchantForgotPasswordPath,
+  isMerchantResetPasswordPath,
   resolveMerchantManagementPage,
 } from "./merchant/merchantRoutes.js";
 import { SALES_EMAIL, SUPPORT_EMAIL } from "./contactEmails.js";
@@ -3238,6 +3242,9 @@ export default function App() {
   if (isMerchantSetupPath(pathname)) {
     return <MerchantSetup tokenStorageKey={TOKEN_STORAGE_KEY} />;
   }
+
+  if (isMerchantForgotPasswordPath(pathname)) return <MerchantForgotPassword />;
+  if (isMerchantResetPasswordPath(pathname)) return <MerchantResetPassword />;
 
   if (isMerchantScannerPath(pathname)) {
     return (
