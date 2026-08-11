@@ -119,10 +119,11 @@ export function fetchMerchantActivity(accessToken) {
 
 export function fetchMerchantCustomers(
   accessToken,
-  { search = "", status = "all", limit = 50 } = {},
+  { search = "", status = "all", page = 1, pageSize = 10 } = {},
 ) {
   const params = new URLSearchParams({
-    limit: String(limit),
+    page: String(page),
+    pageSize: String(pageSize),
     status,
   });
 

@@ -7,6 +7,7 @@ import MerchantGetCustomers from "./pages/MerchantGetCustomers.jsx";
 import MerchantMarketing from "./pages/MerchantMarketing.jsx";
 import { buildMerchantJoinUrl } from "./utils/joinUrl.js";
 import { getBirthdayRewardsSetting } from "./utils/merchantData.js";
+import { CUSTOMER_PAGE_SIZE } from "./utils/customerData.js";
 import { getMerchantPageDatasets } from "./utils/dashboardRefresh.js";
 import {
   fetchMerchantActivity,
@@ -41,7 +42,7 @@ export default function MerchantDashboard({
 }) {
   const isMountedRef = useRef(false);
   const isDashboardRefreshInFlightRef = useRef(false);
-  const isCustomerRefreshInFlightRef = useRef(false);
+  const customerRequestGenerationRef = useRef(0);
   const isCampaignRefreshInFlightRef = useRef(false);
   const [activityRows, setActivityRows] = useState([]);
   const [activityError, setActivityError] = useState("");
@@ -56,7 +57,9 @@ export default function MerchantDashboard({
   const [customerError, setCustomerError] = useState("");
   const [isCustomersLoading, setIsCustomersLoading] = useState(true);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
   const [customerStatus, setCustomerStatus] = useState("all");
+  const [customerPagination, setCustomerPagination] = useState({ page: 1, pageSize: CUSTOMER_PAGE_SIZE, total: 0, totalPages: 0 });
   const [expandedCustomerId, setExpandedCustomerId] = useState(null);
   const [copyState, setCopyState] = useState("idle");
   const [manualRefreshState, setManualRefreshState] = useState("idle");
@@ -134,8 +137,7 @@ export default function MerchantDashboard({
   }
 
   async function refreshCustomers({ showLoading = false } = {}) {
-    if (isCustomerRefreshInFlightRef.current) return;
-    isCustomerRefreshInFlightRef.current = true;
+    const requestGeneration = ++customerRequestGenerationRef.current;
 
     if (showLoading) {
       setIsCustomersLoading(true);
@@ -144,21 +146,22 @@ export default function MerchantDashboard({
 
     try {
       const payload = await fetchMerchantCustomers(accessToken, {
-        search: customerSearch,
+        search: debouncedCustomerSearch,
         status: effectiveCustomerStatus === "scanned_today" ? "all" : effectiveCustomerStatus,
-        limit: 50,
+        page: customerPagination.page,
+        pageSize: CUSTOMER_PAGE_SIZE,
       });
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || requestGeneration !== customerRequestGenerationRef.current) return;
       setCustomerRows(extractRows(payload, ["customers", "items"]));
+      setCustomerPagination(payload?.pagination || { page: 1, pageSize: CUSTOMER_PAGE_SIZE, total: 0, totalPages: 0 });
     } catch {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || requestGeneration !== customerRequestGenerationRef.current) return;
       setCustomerError("We couldn’t load loyalty customers right now.");
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && requestGeneration === customerRequestGenerationRef.current) {
         setIsCustomersLoading(false);
       }
-      isCustomerRefreshInFlightRef.current = false;
     }
   }
 
@@ -211,6 +214,11 @@ export default function MerchantDashboard({
   const onRefreshScannerOptions = useEffectEvent(refreshScannerOptions);
 
   useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedCustomerSearch(customerSearch), 300);
+    return () => window.clearTimeout(timeoutId);
+  }, [customerSearch]);
+
+  useEffect(() => {
     isMountedRef.current = true;
     onRefreshCurrentPageData({ showLoading: true });
     return () => {
@@ -235,7 +243,7 @@ export default function MerchantDashboard({
     return () => {
       isCancelled = true;
     };
-  }, [accessToken, customerSearch, effectiveCustomerStatus, page]);
+  }, [accessToken, debouncedCustomerSearch, effectiveCustomerStatus, customerPagination.page, page]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -332,11 +340,13 @@ export default function MerchantDashboard({
 
   function handleCustomerSearchChange(nextSearch) {
     setCustomerSearch(nextSearch);
+    setCustomerPagination((current) => ({ ...current, page: 1 }));
     setExpandedCustomerId(null);
   }
 
   function handleCustomerStatusChange(nextStatus) {
     setCustomerStatus(nextStatus);
+    setCustomerPagination((current) => ({ ...current, page: 1 }));
     setExpandedCustomerId(null);
   }
 
@@ -400,6 +410,11 @@ export default function MerchantDashboard({
           onSearchChange={handleCustomerSearchChange}
           status={effectiveCustomerStatus}
           onStatusChange={handleCustomerStatusChange}
+          pagination={customerPagination}
+          onPageChange={(nextPage) => {
+            setExpandedCustomerId(null);
+            setCustomerPagination((current) => ({ ...current, page: nextPage }));
+          }}
           expandedCustomerId={expandedCustomerId}
           onExpandedCustomerChange={setExpandedCustomerId}
           birthdayRewardsEnabled={birthdayRewardsEnabled}

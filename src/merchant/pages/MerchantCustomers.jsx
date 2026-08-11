@@ -1,6 +1,4 @@
-import { useState } from "react";
 import {
-  CUSTOMER_PAGE_SIZE,
   formatCustomerShortDate,
   getCustomerDetailFields,
   getCustomerId,
@@ -8,7 +6,6 @@ import {
   getCustomerStampProgress,
   getCustomerStatus,
   getCustomerStatusClass,
-  getVisibleCustomers,
   supportsScannedTodayFilter,
 } from "../utils/customerData.js";
 
@@ -40,31 +37,27 @@ export default function MerchantCustomers({
   onSearchChange,
   status,
   onStatusChange,
+  pagination,
+  onPageChange,
   expandedCustomerId,
   onExpandedCustomerChange,
   birthdayRewardsEnabled = false,
 }) {
-  const [pagination, setPagination] = useState({ page: 1, search, status });
-  const paginationContextChanged = pagination.search !== search || pagination.status !== status;
-  const page = paginationContextChanged ? 1 : pagination.page;
   const scannedTodaySupported = supportsScannedTodayFilter(customers);
   const filters = [
     ...baseFilters.filter(([value]) => birthdayRewardsEnabled || value !== "birthday_saved"),
     ...(scannedTodaySupported ? [["scanned_today", "Scanned today"]] : []),
   ];
-  const visibleCustomers = getVisibleCustomers(customers, status);
-  const pageCount = Math.max(1, Math.ceil(visibleCustomers.length / CUSTOMER_PAGE_SIZE));
-  const safePage = Math.min(page, pageCount);
-  if (paginationContextChanged || pagination.page !== safePage) {
-    setPagination({ page: safePage, search, status });
-  }
-  const pageStart = (safePage - 1) * CUSTOMER_PAGE_SIZE;
-  const pagedCustomers = visibleCustomers.slice(pageStart, pageStart + CUSTOMER_PAGE_SIZE);
+  const page = pagination?.page || 1;
+  const pageSize = pagination?.pageSize || 10;
+  const total = pagination?.total || 0;
+  const pageCount = Math.max(1, pagination?.totalPages || 0);
+  const pageStart = (page - 1) * pageSize;
 
   const countText = isLoading
     ? "Loading customers"
-    : visibleCustomers.length
-      ? `Showing ${pageStart + 1}-${Math.min(pageStart + CUSTOMER_PAGE_SIZE, visibleCustomers.length)} of ${visibleCustomers.length} returned customers`
+    : customers.length
+      ? `Showing ${pageStart + 1}-${Math.min(pageStart + customers.length, total)} of ${total} customers`
       : "Showing 0 customers";
 
   const emptyText = search.trim()
@@ -73,7 +66,7 @@ export default function MerchantCustomers({
       ? "No customers in these results were scanned today."
       : status !== "all"
         ? "No customers match this filter."
-        : "No loyalty customers yet. Customers will appear here after they create an Apple Wallet card.";
+        : "Your first customer will appear here after someone scans your join QR.";
 
   return (
     <section>
@@ -100,9 +93,9 @@ export default function MerchantCustomers({
       <div className="mt-5 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
         {isLoading ? <div className="p-5 text-slate-600">Loading loyalty customers...</div>
           : error ? <div className="p-5 text-red-700">{error}</div>
-            : !visibleCustomers.length ? <div className="p-5 text-slate-600">{emptyText}</div>
+            : !customers.length ? <div className="p-5 text-slate-600">{emptyText}</div>
               : <div className="divide-y divide-slate-100">
-                {pagedCustomers.map((customer, index) => {
+                {customers.map((customer, index) => {
                   const customerId = getCustomerId(customer, pageStart + index);
                   const customerStatus = getCustomerStatus(customer, birthdayRewardsEnabled);
                   const isExpanded = expandedCustomerId === customerId;
@@ -138,9 +131,9 @@ export default function MerchantCustomers({
               </div>}
       </div>
       <Pagination
-        page={safePage}
+        page={page}
         pageCount={pageCount}
-        onPageChange={(nextPage) => setPagination({ page: nextPage, search, status })}
+        onPageChange={onPageChange}
       />
     </section>
   );
