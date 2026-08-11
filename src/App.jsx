@@ -16,7 +16,8 @@ import {
   createOptimisticScannerActivity,
   formatScannerActivityTime,
   getQuickExtraStampTarget,
-  getScannerActivityLabel,
+  getScannerActivityFirstName,
+  getScannerActivitySummary,
   normalizeScannerActivities,
   prependScannerActivity,
 } from "./scannerActivity";
@@ -2838,7 +2839,7 @@ function ScannerKioskPage() {
       tone: "ready",
       icon: "⌁",
       title: "Ready to scan",
-      body: readyMessage || "Hold Apple Wallet pass under the scanner",
+      body: readyMessage || "Hold loyalty card under the scanner",
     },
     processing: {
       tone: "neutral",
@@ -3109,12 +3110,12 @@ function ScannerKioskPage() {
             <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Recent activity</p>
             <div className="ps-scanner-activity-list mt-3 grid gap-2">
               {recentActivity.length ? recentActivity.filter(Boolean).map((item, index) => (
-                  <div key={item.id || `scan-activity-${index}`} className="ps-scanner-activity-row grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center">
-                    <span className="font-semibold text-[var(--ps-muted)]">{formatScannerActivityTime(item.createdAt)}</span>
-                    <span className="min-w-0">
-                      <span className="block font-bold">{item.customerName || getScannerActivityLabel(item.type)}</span>
-                      <span className="block font-semibold text-[var(--ps-muted)]">
-                        {[item.customerName ? getScannerActivityLabel(item.type) : null, item.stampCount !== null && item.stampCount !== undefined ? `${item.stampCount} stamps` : null].filter(Boolean).join(" · ") || "No details"}
+                  <div key={item.id || `scan-activity-${index}`} className="ps-scanner-activity-row grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)]">
+                    <span className="ps-scanner-activity-main min-w-0">
+                      <span className="block font-semibold text-[var(--ps-muted)]">{formatScannerActivityTime(item.createdAt)}</span>
+                      <span className="mt-0.5 block leading-snug">
+                        <strong className="font-bold">{getScannerActivityFirstName(item.customerName)}</strong>
+                        <span className="font-semibold text-[var(--ps-muted)]"> · {getScannerActivitySummary(item.type, item.stampCount)}</span>
                       </span>
                     </span>
                     {item.passSerialNumber ? (

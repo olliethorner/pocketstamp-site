@@ -11,6 +11,16 @@ test("recent activity keeps compact and separate quick-add and Adjust actions", 
   assert.match(source, /className="ps-scanner-activity-actions flex items-center justify-end gap-1\.5"/);
 });
 
+test("Scanner Mode gives activity a wider overflow-safe landscape rail", () => {
+  const css = fs.readFileSync(new URL("./App.css", import.meta.url), "utf8");
+  assert.match(css, /grid-template-columns: minmax\(0, 64fr\) minmax\(22rem, 36fr\)/);
+  assert.match(css, /\.ps-scanner-activity-row \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto/);
+  assert.match(source, /getScannerActivityFirstName\(item\.customerName\)/);
+  assert.match(source, /getScannerActivitySummary\(item\.type, item\.stampCount\)/);
+  assert.doesNotMatch(source.slice(source.indexOf('className="ps-scanner-activity-row'), source.indexOf("activityLoadStatus")), /customerEmail|\.email/);
+  assert.match(source, /Hold loyalty card under the scanner/);
+});
+
 test("Adjust opens immediately from safe row data while authoritative lookup gates saving", () => {
   assert.match(source, /setAdjustment\(\{[\s\S]*isOpen: true,[\s\S]*result: baseResult,[\s\S]*isLoading: true,[\s\S]*isReady: false/);
   assert.match(source, /lookupScannerPass\([\s\S]*isLoading: false,[\s\S]*isReady: true/);

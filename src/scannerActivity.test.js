@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import {
   createOptimisticScannerActivity,
   getQuickExtraStampTarget,
+  getScannerActivityFirstName,
   getScannerActivityLabel,
+  getScannerActivitySummary,
   normalizeScannerActivities,
   prependScannerActivity,
 } from "./scannerActivity.js";
@@ -37,6 +39,20 @@ test("supports persisted activity labels", () => {
   assert.equal(getScannerActivityLabel("stamp_added"), "Stamp added");
   assert.equal(getScannerActivityLabel("reward_redeemed"), "Reward redeemed");
   assert.equal(getScannerActivityLabel("stamps_adjusted"), "Stamp count updated");
+});
+
+test("uses only a safe customer first name with a Customer fallback", () => {
+  assert.equal(getScannerActivityFirstName("Ollie Bennett"), "Ollie");
+  assert.equal(getScannerActivityFirstName("PocketStampTest5"), "PocketStampTest5");
+  assert.equal(getScannerActivityFirstName(""), "Customer");
+  assert.equal(getScannerActivityFirstName("ollie@example.com"), "Customer");
+});
+
+test("describes stamp additions and adjustments with their resulting count", () => {
+  assert.equal(getScannerActivitySummary("stamp_added", 4), "Stamp added · 4 stamps");
+  assert.equal(getScannerActivitySummary("stamps_adjusted", 4), "Stamp count updated to 4 stamps");
+  assert.equal(getScannerActivitySummary("stamp_added", 1), "Stamp added · 1 stamp");
+  assert.equal(getScannerActivitySummary("reward_redeemed", null), "Reward redeemed");
 });
 
 test("quick extra stamp is limited to the newest eligible stamp activity below threshold", () => {

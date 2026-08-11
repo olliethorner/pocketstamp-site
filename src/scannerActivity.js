@@ -42,6 +42,24 @@ export function getScannerActivityLabel(type) {
   }[type] || "Scan";
 }
 
+export function getScannerActivityFirstName(customerName) {
+  const name = String(customerName || "").trim();
+  if (!name || name.includes("@")) return "Customer";
+  return name.split(/\s+/)[0] || "Customer";
+}
+
+export function getScannerActivitySummary(type, stampCount) {
+  const count = Number(stampCount);
+  const hasCount = stampCount !== null && stampCount !== undefined && stampCount !== "" && Number.isFinite(count);
+  const stampState = hasCount ? `${count} ${count === 1 ? "stamp" : "stamps"}` : "";
+
+  if (type === "stamp_added") return ["Stamp added", stampState].filter(Boolean).join(" · ");
+  if (type === "stamps_adjusted") {
+    return stampState ? `Stamp count updated to ${stampState}` : "Stamp count updated";
+  }
+  return [getScannerActivityLabel(type), stampState].filter(Boolean).join(" · ");
+}
+
 export function formatScannerActivityTime(createdAt, locale) {
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return "Recent";
