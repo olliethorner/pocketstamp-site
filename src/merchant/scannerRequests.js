@@ -10,6 +10,10 @@ export function buildScannerLookupRequest({ deviceToken, scanValue, pass = {} })
   };
 }
 
+export function getScannerLookupIdentifier(source = {}, fallback = "") {
+  return fallback || source.passSerial || source.passSerialNumber || source.serialNumber || source.customerId || source.scanValue || "";
+}
+
 export function buildScannerAdjustmentRequest({ deviceToken, stamps, note, requestId, pass = {} }) {
   return {
     deviceToken,

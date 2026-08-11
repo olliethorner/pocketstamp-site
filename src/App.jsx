@@ -15,6 +15,7 @@ import "./App.css";
 import {
   createOptimisticScannerActivity,
   formatScannerActivityTime,
+  getQuickExtraStampTarget,
   getScannerActivityLabel,
   normalizeScannerActivities,
   prependScannerActivity,
@@ -28,6 +29,7 @@ import {
   buildScannerRedemptionRequest,
   buildScannerScanRequest,
   buildScannerUndoRequest,
+  getScannerLookupIdentifier,
 } from "./merchant/scannerRequests.js";
 import {
   applyManualPaste,
@@ -2207,6 +2209,7 @@ function ScannerKioskPage() {
   const scanActionControllerRef = useRef(null);
   const redemptionActionControllerRef = useRef(null);
   const adjustmentActionControllerRef = useRef(null);
+  const quickAddActionControllerRef = useRef(null);
   if (!scanActionControllerRef.current) {
     scanActionControllerRef.current = createScannerMutationActionController({ namespace: "scanner.scan" });
   }
@@ -2215,6 +2218,9 @@ function ScannerKioskPage() {
   }
   if (!adjustmentActionControllerRef.current) {
     adjustmentActionControllerRef.current = createScannerMutationActionController({ namespace: "scanner.adjust" });
+  }
+  if (!quickAddActionControllerRef.current) {
+    quickAddActionControllerRef.current = createScannerMutationActionController({ namespace: "scanner.adjust" });
   }
   const [device, setDevice] = useState(null);
   const [deviceError, setDeviceError] = useState("");
@@ -2229,6 +2235,8 @@ function ScannerKioskPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [quickAddActivityId, setQuickAddActivityId] = useState("");
+  const [quickAddError, setQuickAddError] = useState("");
   const [adjustment, setAdjustment] = useState({
     isOpen: false,
     result: null,
@@ -2289,6 +2297,7 @@ function ScannerKioskPage() {
     scanActionControllerRef.current.clear();
     redemptionActionControllerRef.current.clear();
     adjustmentActionControllerRef.current.clear();
+    quickAddActionControllerRef.current.clear();
   }
 
   function closeCamera() {
@@ -2299,6 +2308,7 @@ function ScannerKioskPage() {
 
   async function loadDevice() {
     clearManualAndScannerState();
+    setQuickAddError("");
     setDeviceLoadStatus("loading");
     setActivityLoadStatus("loading");
     setScanStatus("idle");
@@ -2394,6 +2404,7 @@ function ScannerKioskPage() {
     setScanValue("");
     updateManualCode("");
     setReadyMessage("");
+    setQuickAddError("");
     setScanStatus("processing");
 
     try {
@@ -2517,7 +2528,12 @@ function ScannerKioskPage() {
     });
 
     try {
-      const payload = await lookupScannerPass({ deviceToken, scanValue: lookupValue, scanResult: baseResult });
+      const lookupIdentifier = normalizeScannerScanValue(getScannerLookupIdentifier({
+        ...baseResult,
+        passSerial: getScanPassSerial(baseResult),
+        customerId: getScanCustomerId(baseResult),
+      }, lookupValue));
+      const payload = await lookupScannerPass({ deviceToken, scanValue: lookupIdentifier, scanResult: baseResult });
       const customerPass = getSuccessfulCustomerPass(payload);
       if (!customerPass) throw new Error("Customer lookup failed.");
       setAdjustment((current) => ({ ...current, isOpen: true, result: customerPass, isLoading: false, error: "" }));
@@ -2525,6 +2541,51 @@ function ScannerKioskPage() {
       setAdjustment((current) => ({ ...current, isOpen: false, result: null, isLoading: false, error: "" }));
       setReadyMessage(getScanMessage(error) || "Customer lookup is not available.");
     } finally {
+      focusScannerInput();
+    }
+  }
+
+  async function addQuickExtraStamp(item) {
+    const targetStamps = getQuickExtraStampTarget(item, rewardThreshold);
+    if (targetStamps === null || quickAddActionControllerRef.current.state().pending) return;
+    const sourceResult = {
+      customerId: item.customerId,
+      customerName: item.customerName,
+      passSerialNumber: item.passSerialNumber,
+      currentStamps: item.stampCount,
+      rewardThreshold,
+    };
+    const actionKey = JSON.stringify([item.passSerialNumber, targetStamps, "quick-extra-stamp"]);
+    setQuickAddActivityId(item.id);
+    setQuickAddError("");
+    window.clearTimeout(readyTimerRef.current);
+    try {
+      const execution = await quickAddActionControllerRef.current.submit(actionKey, (requestId) =>
+        adjustScannerStamps({
+          deviceToken,
+          scanResult: sourceResult,
+          stamps: targetStamps,
+          note: "Extra qualifying item",
+          requestId,
+        }));
+      if (!execution.accepted) return;
+      const payload = execution.value;
+      const mergedResult = {
+        ...sourceResult,
+        ...(payload || {}),
+        currentStamps: targetStamps,
+        stamps: targetStamps,
+        stampCount: targetStamps,
+      };
+      setScanResult(mergedResult);
+      setScanStatus(payload?.rewardReady ? "reward_ready" : "stamp_added");
+      if (!await loadRecentActivity()) addFallbackActivity("stamps_adjusted", mergedResult);
+      notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
+      if (!payload?.rewardReady) scheduleReady(3600);
+    } catch (error) {
+      setQuickAddError(getScanMessage(error));
+    } finally {
+      setQuickAddActivityId("");
       focusScannerInput();
     }
   }
@@ -2657,6 +2718,7 @@ function ScannerKioskPage() {
       };
 
       setScanResult(mergedResult);
+      setScanStatus(payload?.rewardReady ? "reward_ready" : "stamp_added");
       setAdjustment((current) => ({
         ...current,
         result: mergedResult,
@@ -2665,7 +2727,7 @@ function ScannerKioskPage() {
       }));
       if (!await loadRecentActivity()) addFallbackActivity("stamps_adjusted", mergedResult);
       notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
-      scheduleReady(3600);
+      if (!payload?.rewardReady) scheduleReady(3600);
     } catch (error) {
       setAdjustment((current) => ({
         ...current,
@@ -3015,18 +3077,31 @@ function ScannerKioskPage() {
                     {[item.customerName, item.stampCount !== null && item.stampCount !== undefined ? `${item.stampCount} stamps` : null].filter(Boolean).join(" · ") || "No details"}
                   </span>
                   {item.passSerialNumber ? (
-                    <button
-                      type="button"
-                      onClick={() => openAdjustment({
-                        customerId: item.customerId,
-                        customerName: item.customerName,
-                        passSerialNumber: item.passSerialNumber,
-                        currentStamps: item.stampCount,
-                      })}
-                      className="ps-button-secondary bg-white px-3 py-2 text-xs"
-                    >
-                      Adjust
-                    </button>
+                    <span className="flex items-center justify-end gap-2">
+                      {index === 0 && getQuickExtraStampTarget(item, rewardThreshold) !== null ? (
+                        <button
+                          type="button"
+                          onClick={() => addQuickExtraStamp(item)}
+                          disabled={Boolean(quickAddActivityId)}
+                          className="ps-button-secondary bg-white px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {quickAddActivityId === item.id ? "Adding..." : "+1 more"}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => openAdjustment({
+                          customerId: item.customerId,
+                          customerName: item.customerName,
+                          passSerialNumber: item.passSerialNumber,
+                          currentStamps: item.stampCount,
+                        })}
+                        disabled={Boolean(quickAddActivityId)}
+                        className="ps-button-secondary bg-white px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Adjust
+                      </button>
+                    </span>
                   ) : null}
                 </div>
               )) : activityLoadStatus === "loading" ? (
@@ -3038,6 +3113,7 @@ function ScannerKioskPage() {
                   No scans yet.
                 </p>
               ) : null}
+              {quickAddError ? <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800 ring-1 ring-red-200">{quickAddError}</p> : null}
             </div>
           </div>
           <section className="ps-scanner-utilities rounded-2xl bg-[#fffdf8]/82 p-4 ring-1 ring-[var(--ps-border)]">

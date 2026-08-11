@@ -25,6 +25,14 @@ export function prependScannerActivity(current, activity) {
   return normalizeScannerActivities({ activities: [activity, ...(Array.isArray(current) ? current : [])] });
 }
 
+export function getQuickExtraStampTarget(activity, rewardThreshold) {
+  if (!activity || !["stamp_added", "stamps_adjusted"].includes(activity.type) || !activity.passSerialNumber) return null;
+  const current = Number(activity.stampCount);
+  const threshold = Number(rewardThreshold);
+  if (!Number.isInteger(current) || !Number.isInteger(threshold) || current < 0 || current >= threshold) return null;
+  return current + 1;
+}
+
 export function getScannerActivityLabel(type) {
   return {
     stamp_added: "Stamp added",

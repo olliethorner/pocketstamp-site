@@ -8,6 +8,7 @@ import {
   buildScannerRedemptionRequest,
   buildScannerScanRequest,
   buildScannerUndoRequest,
+  getScannerLookupIdentifier,
 } from "./merchant/scannerRequests.js";
 
 const requestId = "scanner.scan.123e4567-e89b-42d3-a456-426614174000";
@@ -51,6 +52,12 @@ test("adjustment and redemption payloads send requestId without changing existin
     scanEventId: "event-1",
     requestId,
   });
+});
+
+test("recent activity adjustment resolves the pass identifier required by lookup", () => {
+  assert.equal(getScannerLookupIdentifier({ customerId: "customer-a", passSerialNumber: "pass-a" }), "pass-a");
+  assert.equal(getScannerLookupIdentifier({ customerId: "customer-a" }), "customer-a");
+  assert.equal(getScannerLookupIdentifier({ passSerialNumber: "pass-a" }, "manual-code"), "manual-code");
 });
 
 test("lookup and event-derived undo remain requestId-free", () => {

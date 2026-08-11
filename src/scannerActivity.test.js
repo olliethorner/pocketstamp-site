@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createOptimisticScannerActivity,
+  getQuickExtraStampTarget,
   getScannerActivityLabel,
   normalizeScannerActivities,
   prependScannerActivity,
@@ -38,6 +39,15 @@ test("supports persisted activity labels", () => {
   assert.equal(getScannerActivityLabel("stamps_adjusted"), "Stamp count updated");
 });
 
+test("quick extra stamp is limited to the newest eligible stamp activity below threshold", () => {
+  const activity = { type: "stamp_added", passSerialNumber: "pass-a", stampCount: 4 };
+  assert.equal(getQuickExtraStampTarget(activity, 10), 5);
+  assert.equal(getQuickExtraStampTarget({ ...activity, type: "stamps_adjusted" }, 10), 5);
+  assert.equal(getQuickExtraStampTarget({ ...activity, stampCount: 10 }, 10), null);
+  assert.equal(getQuickExtraStampTarget({ ...activity, type: "reward_redeemed" }, 10), null);
+  assert.equal(getQuickExtraStampTarget({ ...activity, passSerialNumber: null }, 10), null);
+});
+
 test("server activity replaces optimistic state and remains newest-five without duplicates", () => {
   const optimistic = createOptimisticScannerActivity("stamp_added", {
     customerName: "Jamie",
@@ -69,7 +79,7 @@ test("Scanner Mode hydrates and refetches provider-neutral persisted activity af
 
   assert.match(source, /fetchScannerActivity\(deviceToken\)/);
   assert.match(source, /setDeviceLoadStatus\("ready"\);[\s\S]{0,160}void loadRecentActivity\(\)/);
-  assert.equal((source.match(/if \(!await loadRecentActivity\(\)\) addFallbackActivity\(/g) || []).length, 4);
+  assert.equal((source.match(/if \(!await loadRecentActivity\(\)\) addFallbackActivity\(/g) || []).length, 5);
   assert.match(source, /addFallbackActivity\("stamp_added", payload\)/);
   assert.match(source, /addFallbackActivity\("stamps_adjusted", mergedResult\)/);
   assert.match(source, /addFallbackActivity\("reward_redeemed", payload\)/);
