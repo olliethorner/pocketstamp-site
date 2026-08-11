@@ -10,7 +10,7 @@ const homepageSource = appSource.slice(
 );
 
 test("public homepage positions PocketStamp for Apple Wallet and Google Wallet without an app", () => {
-  assert.match(homepageSource, /Digital loyalty cards for Apple Wallet and Google Wallet/);
+  assert.match(homepageSource, /Digital loyalty for independent cafés/);
   assert.match(homepageSource, /card to Apple Wallet or Google Wallet — no app required/);
   assert.match(homepageSource, /iPhone \+ Android/);
 });

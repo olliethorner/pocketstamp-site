@@ -1352,7 +1352,7 @@ function MarketingHomepage() {
             transition={{ duration: 0.45 }}
             className="ps-hero-copy"
           >
-            <p className="ps-eyebrow">Digital loyalty cards for Apple Wallet and Google Wallet</p>
+            <p className="ps-eyebrow">Digital loyalty for independent cafés</p>
             <h1 className="ps-display">
               Digital loyalty that brings customers back.
             </h1>
