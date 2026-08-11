@@ -179,7 +179,9 @@ test("App wires paste, lookup, submit, ready clearing, and modal gating to manua
   assert.match(source, /clearManualAndScannerState/);
   assert.match(source, /getSuccessfulCustomerPass\(payload\)/);
   assert.match(source, /if \(!customerPass\) throw new Error\("Customer lookup failed\."\)/);
-  assert.match(source, /isOpen: false, result: null/);
+  assert.match(source, /isOpen: true,[\s\S]*isLoading: true,[\s\S]*isReady: false/);
+  assert.match(source, /error: getScanMessage\(error\) \|\| "Customer lookup is not available\."/);
+  assert.match(source, /disabled=\{isSaving \|\| !isReady\}/);
   assert.doesNotMatch(source, /scanValuePrefix/);
 });
 

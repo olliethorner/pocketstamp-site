@@ -2085,77 +2085,95 @@ function CustomerAdjustmentModal({
   isSaving,
   error,
   success,
+  authoritativeStamps,
+  isReady,
   fallbackThreshold,
   onChangeStamps,
   onChangeNote,
   onSave,
   onClose,
 }) {
+  const dialogRef = useRef(null);
   const currentStamps = Number(getScanCurrentStamps(customerResult) ?? 0);
   const threshold = Number(getScanRewardThreshold(customerResult) ?? fallbackThreshold ?? 10);
   const maxStamps = Number.isFinite(threshold) && threshold >= 0 ? threshold : 10;
   const passSerial = getScanPassSerial(customerResult);
   const customerId = getScanCustomerId(customerResult);
-  const identifierLabel = passSerial ? "Pass ID" : customerId ? "Customer ID" : "Pass ID";
   const identifierValue = maskScannerId(passSerial || customerId);
   const lastActivity = formatScannerDateTime(getScanLastActivity(customerResult));
+
+  useEffect(() => {
+    if (isOpen) dialogRef.current?.focus();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    function handleEscape(event) {
+      if (event.key === "Escape" && !isSaving) onClose();
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, isSaving, onClose]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 px-4 py-6">
-      <section className="w-full max-w-xl rounded-3xl bg-[#fffdf8] p-5 text-[var(--ps-espresso)] shadow-[var(--ps-shadow)] ring-1 ring-[var(--ps-border)]">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Customer correction</p>
-            <h2 className="mt-1 text-2xl font-semibold">View / adjust customer</h2>
-          </div>
-          <button type="button" onClick={onClose} className="ps-button-secondary bg-white">
-            Cancel
-          </button>
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scanner-adjustment-title"
+        tabIndex="-1"
+        className="w-full max-w-lg rounded-3xl bg-[#fffdf8] p-5 text-[var(--ps-espresso)] shadow-[var(--ps-shadow)] ring-1 ring-[var(--ps-border)] outline-none"
+      >
+        <p className="text-sm font-bold uppercase tracking-wide text-[var(--ps-muted)]">Customer correction</p>
+        <h2 id="scanner-adjustment-title" className="mt-1 text-2xl font-semibold">
+          {getScanCustomerName(customerResult) || "Customer"}
+        </h2>
+        {getScanCustomerEmail(customerResult) ? (
+          <p className="mt-1 text-sm font-semibold text-[var(--ps-muted)]">{getScanCustomerEmail(customerResult)}</p>
+        ) : null}
+
+        <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-[var(--ps-border)]">
+          <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Current balance</p>
+          <p className="mt-1 text-xl font-semibold">
+            {Number.isFinite(authoritativeStamps) ? `${authoritativeStamps} of ${maxStamps} stamps` : `${currentStamps} of ${maxStamps} stamps`}
+          </p>
+          {isLoading ? <p className="mt-1 text-sm font-semibold text-[var(--ps-muted)]">Refreshing current balance...</p> : null}
+          {lastActivity ? <p className="mt-2 text-xs font-semibold text-[var(--ps-muted)]">Last activity {lastActivity}</p> : null}
+          {identifierValue ? <p className="mt-1 text-xs text-[var(--ps-muted)]">Reference {identifierValue}</p> : null}
         </div>
 
-        <div className="mt-5 grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-[var(--ps-border)]">
-          <div>
-            <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Customer</p>
-            <p className="mt-1 text-xl font-semibold">{getScanCustomerName(customerResult) || "Customer"}</p>
-            {getScanCustomerEmail(customerResult) ? (
-              <p className="text-sm font-semibold text-[var(--ps-muted)]">{getScanCustomerEmail(customerResult)}</p>
-            ) : null}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <KioskStat label="Current stamps" value={`${currentStamps}/${maxStamps}`} />
-            <KioskStat label={identifierLabel} value={identifierValue || "Unavailable"} />
-            <KioskStat label="Last activity" value={lastActivity || "Unavailable"} />
-          </div>
-        </div>
-
-        <form className="mt-5 grid gap-4" onSubmit={onSave}>
+        <form className="mt-4 grid gap-4" onSubmit={onSave}>
           <label className="block">
-            <span className="text-sm font-bold uppercase text-[var(--ps-muted)]">Stamp count</span>
-            <div className="mt-2 grid grid-cols-[3.5rem_1fr_3.5rem] gap-2">
+            <span className="text-sm font-bold text-[var(--ps-muted)]">Adjust stamp count</span>
+            <div className="mt-2 grid grid-cols-[3.75rem_1fr_3.75rem] overflow-hidden rounded-2xl border border-[var(--ps-border)] bg-white">
               <button
                 type="button"
                 onClick={() => onChangeStamps(Math.max(0, currentStamps - 1))}
-                disabled={isSaving || currentStamps <= 0}
-                className="ps-button-secondary bg-white px-0 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSaving || !isReady || currentStamps <= 0}
+                aria-label="Remove one stamp"
+                className="grid min-h-14 place-items-center border-r border-[var(--ps-border)] text-2xl font-semibold disabled:cursor-not-allowed disabled:opacity-40"
               >
                 -
               </button>
               <input
-                type="number"
-                min="0"
-                max={maxStamps}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={currentStamps}
                 onChange={(event) => onChangeStamps(event.target.value)}
-                className="ps-input bg-white text-center text-xl font-bold"
-                disabled={isSaving}
+                aria-label="Adjusted stamp count"
+                className="min-w-0 border-0 bg-white text-center text-2xl font-bold outline-none"
+                disabled={isSaving || !isReady}
               />
               <button
                 type="button"
                 onClick={() => onChangeStamps(Math.min(maxStamps, currentStamps + 1))}
-                disabled={isSaving || currentStamps >= maxStamps}
-                className="ps-button-secondary bg-white px-0 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSaving || !isReady || currentStamps >= maxStamps}
+                aria-label="Add one stamp"
+                className="grid min-h-14 place-items-center border-l border-[var(--ps-border)] text-2xl font-semibold disabled:cursor-not-allowed disabled:opacity-40"
               >
                 +
               </button>
@@ -2163,26 +2181,25 @@ function CustomerAdjustmentModal({
           </label>
 
           <label className="block">
-            <span className="text-sm font-bold uppercase text-[var(--ps-muted)]">Reason / note</span>
+            <span className="text-sm font-bold text-[var(--ps-muted)]">Optional note</span>
             <input
               onChange={(event) => onChangeNote(event.target.value)}
               className="ps-input mt-2 bg-white"
               placeholder="Optional"
-              disabled={isSaving}
+              disabled={isSaving || !isReady}
             />
           </label>
 
           <p className="text-sm font-semibold text-[var(--ps-muted)]">Manual changes are logged.</p>
 
-          {isLoading ? <p className="rounded-xl bg-white p-3 text-sm font-bold text-[var(--ps-muted)] ring-1 ring-[var(--ps-border)]">Loading customer details...</p> : null}
           {error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-800 ring-1 ring-red-200">{error}</p> : null}
           {success ? <p className="rounded-xl bg-[#e7f7f3] p-3 text-sm font-bold text-[#0f6f5f] ring-1 ring-emerald-200">{success}</p> : null}
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <button type="submit" disabled={isSaving || isLoading} className="ps-button-primary disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={isSaving || !isReady} className="ps-button-primary disabled:cursor-not-allowed disabled:opacity-60">
               Save adjustment
             </button>
-            <button type="button" onClick={onClose} className="ps-button-secondary bg-white">
+            <button type="button" onClick={onClose} disabled={isSaving} className="ps-button-secondary bg-white disabled:cursor-not-allowed disabled:opacity-60">
               Cancel
             </button>
           </div>
@@ -2203,6 +2220,7 @@ function ScannerKioskPage() {
   const manualInputRef = useRef(null);
   const manualCodeRef = useRef("");
   const readyTimerRef = useRef(null);
+  const adjustmentLookupSequenceRef = useRef(0);
   const scannerBufferRef = useRef("");
   const lastKeyTimeRef = useRef(0);
   const bufferTimerRef = useRef(null);
@@ -2241,10 +2259,12 @@ function ScannerKioskPage() {
     isOpen: false,
     result: null,
     isLoading: false,
+    isReady: false,
     isSaving: false,
     error: "",
     success: "",
     note: "",
+    authoritativeStamps: null,
   });
 
   const merchantName = getScannerMerchantName(device || {});
@@ -2517,14 +2537,18 @@ function ScannerKioskPage() {
 
     window.clearTimeout(readyTimerRef.current);
     adjustmentActionControllerRef.current.clear();
+    const lookupSequence = adjustmentLookupSequenceRef.current + 1;
+    adjustmentLookupSequenceRef.current = lookupSequence;
     setAdjustment({
-      isOpen: false,
+      isOpen: true,
       result: baseResult,
       isLoading: true,
+      isReady: false,
       isSaving: false,
       error: "",
       success: "",
       note: "",
+      authoritativeStamps: null,
     });
 
     try {
@@ -2536,12 +2560,23 @@ function ScannerKioskPage() {
       const payload = await lookupScannerPass({ deviceToken, scanValue: lookupIdentifier, scanResult: baseResult });
       const customerPass = getSuccessfulCustomerPass(payload);
       if (!customerPass) throw new Error("Customer lookup failed.");
-      setAdjustment((current) => ({ ...current, isOpen: true, result: customerPass, isLoading: false, error: "" }));
+      if (adjustmentLookupSequenceRef.current !== lookupSequence) return;
+      setAdjustment((current) => ({
+        ...current,
+        result: customerPass,
+        authoritativeStamps: Number(getScanCurrentStamps(customerPass) ?? 0),
+        isLoading: false,
+        isReady: true,
+        error: "",
+      }));
     } catch (error) {
-      setAdjustment((current) => ({ ...current, isOpen: false, result: null, isLoading: false, error: "" }));
-      setReadyMessage(getScanMessage(error) || "Customer lookup is not available.");
-    } finally {
-      focusScannerInput();
+      if (adjustmentLookupSequenceRef.current !== lookupSequence) return;
+      setAdjustment((current) => ({
+        ...current,
+        isLoading: false,
+        isReady: false,
+        error: getScanMessage(error) || "Customer lookup is not available.",
+      }));
     }
   }
 
@@ -2627,8 +2662,9 @@ function ScannerKioskPage() {
   }
 
   function closeAdjustment() {
+    adjustmentLookupSequenceRef.current += 1;
     adjustmentActionControllerRef.current.clear();
-    setAdjustment((current) => ({ ...current, isOpen: false, error: "", success: "", note: "" }));
+    setAdjustment((current) => ({ ...current, isOpen: false, isLoading: false, isReady: false, error: "", success: "", note: "", authoritativeStamps: null }));
     clearManualAndScannerState();
     focusScannerInput();
   }
@@ -2666,7 +2702,7 @@ function ScannerKioskPage() {
 
   async function saveAdjustment(event) {
     event.preventDefault();
-    if (adjustmentActionControllerRef.current.state().pending) return;
+    if (!adjustment.isReady || adjustment.isLoading || adjustmentActionControllerRef.current.state().pending) return;
     const currentStamps = Number(getScanCurrentStamps(adjustment.result));
     const threshold = Number(getScanRewardThreshold(adjustment.result) ?? rewardThreshold ?? 10);
     const maxStamps = Number.isFinite(threshold) && threshold >= 0 ? threshold : 10;
@@ -2722,6 +2758,7 @@ function ScannerKioskPage() {
       setAdjustment((current) => ({
         ...current,
         result: mergedResult,
+        authoritativeStamps: currentStamps,
         isSaving: false,
         success: "Stamp count updated",
       }));
@@ -2914,9 +2951,11 @@ function ScannerKioskPage() {
         isOpen={adjustment.isOpen}
         customerResult={adjustment.result}
         isLoading={adjustment.isLoading}
+        isReady={adjustment.isReady}
         isSaving={adjustment.isSaving}
         error={adjustment.error}
         success={adjustment.success}
+        authoritativeStamps={adjustment.authoritativeStamps}
         fallbackThreshold={rewardThreshold}
         onChangeStamps={updateAdjustmentStamps}
         onChangeNote={(note) => {
@@ -3070,20 +3109,22 @@ function ScannerKioskPage() {
             <p className="text-sm font-bold uppercase text-[var(--ps-muted)]">Recent activity</p>
             <div className="ps-scanner-activity-list mt-3 grid gap-2">
               {recentActivity.length ? recentActivity.filter(Boolean).map((item, index) => (
-                <div key={item.id || `scan-activity-${index}`} className="ps-scanner-activity-row grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_1fr_auto_auto] sm:items-center">
-                  <span className="font-semibold text-[var(--ps-muted)]">{formatScannerActivityTime(item.createdAt)}</span>
-                  <span className="truncate font-bold">{getScannerActivityLabel(item.type)}</span>
-                  <span className="truncate font-semibold text-[var(--ps-muted)]">
-                    {[item.customerName, item.stampCount !== null && item.stampCount !== undefined ? `${item.stampCount} stamps` : null].filter(Boolean).join(" · ") || "No details"}
-                  </span>
-                  {item.passSerialNumber ? (
-                    <span className="flex items-center justify-end gap-2">
+                  <div key={item.id || `scan-activity-${index}`} className="ps-scanner-activity-row grid gap-2 rounded-xl bg-white p-3 text-sm ring-1 ring-[var(--ps-border)] sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center">
+                    <span className="font-semibold text-[var(--ps-muted)]">{formatScannerActivityTime(item.createdAt)}</span>
+                    <span className="min-w-0">
+                      <span className="block font-bold">{item.customerName || getScannerActivityLabel(item.type)}</span>
+                      <span className="block font-semibold text-[var(--ps-muted)]">
+                        {[item.customerName ? getScannerActivityLabel(item.type) : null, item.stampCount !== null && item.stampCount !== undefined ? `${item.stampCount} stamps` : null].filter(Boolean).join(" · ") || "No details"}
+                      </span>
+                    </span>
+                    {item.passSerialNumber ? (
+                    <span className="ps-scanner-activity-actions flex items-center justify-end gap-1.5">
                       {index === 0 && getQuickExtraStampTarget(item, rewardThreshold) !== null ? (
                         <button
                           type="button"
                           onClick={() => addQuickExtraStamp(item)}
                           disabled={Boolean(quickAddActivityId)}
-                          className="ps-button-secondary bg-white px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                          className="ps-scanner-row-action ps-button-secondary bg-white px-2.5 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {quickAddActivityId === item.id ? "Adding..." : "+1 more"}
                         </button>
@@ -3097,7 +3138,7 @@ function ScannerKioskPage() {
                           currentStamps: item.stampCount,
                         })}
                         disabled={Boolean(quickAddActivityId)}
-                        className="ps-button-secondary bg-white px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                        className="ps-scanner-row-action ps-button-secondary bg-white px-2.5 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Adjust
                       </button>
