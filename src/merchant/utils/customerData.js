@@ -28,7 +28,7 @@ export function formatCustomerBirthday(customer) {
 }
 
 export function getCustomerName(customer) {
-  return pickFirst(customer.name, customer.fullName, customer.firstName, "Wallet customer");
+  return pickFirst(customer.name, customer.fullName, customer.firstName, "Customer");
 }
 
 export function getCustomerId(customer, index) {
@@ -102,7 +102,7 @@ export function getCustomerDetailFields(customer, birthdayRewardsEnabled = false
     ["Email", customer.email || "No email saved"],
     ["Joined", formatCustomerDate(customer.joinedDate)],
     birthdayRewardsEnabled ? ["Birthday", formatCustomerBirthday(customer)] : null,
-    ["Apple Wallet card", formatCustomerWalletStatus(customer)],
+    ["Loyalty card", formatCustomerWalletStatus(customer)],
     ["Reward threshold", `${Number(customer.rewardThreshold ?? 10) || 10} stamps`],
     ["Last activity", formatCustomerDate(customer.lastUpdated)],
   ].filter(Boolean);

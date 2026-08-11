@@ -85,7 +85,7 @@ export default function MerchantGetCustomers({
           {[
             ["1", "Scan the QR code", "Customers point their phone camera at your QR."],
             ["2", "Enter their details", "They add the details needed for their loyalty card."],
-            ["3", "Add to Apple Wallet", "Their PocketStamp card is saved to Apple Wallet."],
+            ["3", "Add to Apple Wallet or Google Wallet", "Their loyalty card is saved to their phone."],
           ].map(([number, title, text]) => (
             <li key={number} className="flex gap-3">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--ps-blue-soft)] text-xs font-bold text-[var(--ps-blue)]">{number}</span>

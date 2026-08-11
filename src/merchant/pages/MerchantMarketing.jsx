@@ -21,9 +21,9 @@ function NotificationOverview({ summary, isLoading, error }) {
 
   return (
     <section>
-      <h2 className="text-2xl font-semibold">Notification Overview</h2>
+      <h2 className="text-2xl font-semibold">Customer messages</h2>
       <p className="mt-2 max-w-3xl leading-7 text-[var(--ps-muted)]">
-        A combined overview of automated loyalty reminders and promotional campaign notifications.
+        See automated loyalty reminders and promotional messages in one place.
       </p>
 
       <div className="mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 sm:p-6">
@@ -56,7 +56,7 @@ function AutomatedReminders({ birthdayRewardsEnabled }) {
 
   return (
     <section>
-      <h2 className="text-2xl font-semibold">Automated Loyalty Reminders</h2>
+      <h2 className="text-2xl font-semibold">Automated loyalty reminders</h2>
       <p className="mt-2 max-w-3xl leading-7 text-[var(--ps-muted)]">
         PocketStamp can automatically help bring customers back at useful moments in their loyalty journey.
       </p>
@@ -135,9 +135,9 @@ function PromotionalCampaigns({
 
   return (
     <section>
-      <h2 className="text-2xl font-semibold">Promotional Campaigns</h2>
+      <h2 className="text-2xl font-semibold">Promotional messages</h2>
       <p className="mt-2 max-w-3xl leading-7 text-[var(--ps-muted)]">
-        Create and schedule one-time promotional messages for Apple Wallet customers where this feature is available.
+        Create and schedule one-time promotional messages for your loyalty customers where this feature is available.
       </p>
 
       <div className="mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 sm:p-6">
@@ -153,7 +153,7 @@ function PromotionalCampaigns({
               <input className="ps-input mt-2 w-full" type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} required />
               <span className="mt-1 block text-xs font-normal text-[var(--ps-muted)]">Uses this device’s timezone ({timeZone}).</span>
             </label>
-            <button className="ps-button-primary" type="submit" disabled={isCreating}>{isCreating ? "Scheduling..." : "Schedule Update"}</button>
+            <button className="ps-button-primary" type="submit" disabled={isCreating}>{isCreating ? "Scheduling..." : "Schedule message"}</button>
           </form>
         ) : (
           <p className="rounded-xl bg-[#fbfaf7] p-4 text-sm text-[var(--ps-muted)]">
@@ -164,10 +164,10 @@ function PromotionalCampaigns({
         {formError ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{formError}</p> : null}
 
         <div className="mt-7 border-t border-[var(--ps-border)] pt-6">
-          <h3 className="text-lg font-semibold">Campaign history</h3>
-          {isLoading && campaigns.length === 0 ? <p className="mt-4 text-sm text-[var(--ps-muted)]">Loading campaign history...</p> : null}
-          {error ? <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">Campaign history is unavailable right now.</p> : null}
-          {!isLoading && campaigns.length === 0 && !error ? <p className="mt-4 text-sm text-[var(--ps-muted)]">No updates scheduled yet.</p> : null}
+          <h3 className="text-lg font-semibold">Message history</h3>
+          {isLoading && campaigns.length === 0 ? <p className="mt-4 text-sm text-[var(--ps-muted)]">Loading message history...</p> : null}
+          {error ? <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">Message history is unavailable right now.</p> : null}
+          {!isLoading && campaigns.length === 0 && !error ? <p className="mt-4 text-sm text-[var(--ps-muted)]">No messages scheduled yet.</p> : null}
           {campaigns.length ? (
             <div className="mt-4 divide-y divide-[var(--ps-border)] rounded-xl ring-1 ring-[var(--ps-border)]">
               {campaigns.map((campaign) => {

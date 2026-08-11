@@ -36,16 +36,10 @@ export default function MerchantOverview({
     <div className="space-y-7">
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard
-          label="Active Wallet cards"
+          label="Loyalty customers"
           value={isDashboardSummaryLoading ? "..." : dashboardSummary?.activeWalletCards ?? metricFallback}
-          helper={
-            isDashboardSummaryLoading
-              ? helperFallback
-              : dashboardSummaryError
-                ? helperFallback
-                : `${dashboardSummary?.customersJoined ?? 0} customers joined`
-          }
-          iconLabel="Wallet"
+          helper={isDashboardSummaryLoading || dashboardSummaryError ? helperFallback : null}
+          iconLabel="Customers"
         />
         <MetricCard
           label="Stamps today"
@@ -56,7 +50,7 @@ export default function MerchantOverview({
         <MetricCard
           label="Rewards redeemed"
           value={isDashboardSummaryLoading ? "..." : dashboardSummary?.rewardsRedeemed ?? metricFallback}
-          helper={isDashboardSummaryLoading || dashboardSummaryError ? helperFallback : "Recorded redemptions"}
+          helper={isDashboardSummaryLoading || dashboardSummaryError ? helperFallback : "All time"}
           iconLabel="✓"
         />
       </div>

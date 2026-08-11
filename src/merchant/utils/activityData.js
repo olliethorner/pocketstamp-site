@@ -51,9 +51,9 @@ export function formatActivityTitle(item, birthdayRewardsEnabled = false) {
   if (type === "birthday") return text.includes("activat") ? "Birthday reward activated" : "Birthday reward redeemed";
   if (type === "reward") return text.includes("redeem") ? "Reward redeemed" : "Reward earned";
   if (type === "stamp") return "Stamp added";
-  if (type === "reminder") return text.includes("sent") ? "Reminder sent" : "Wallet reminder";
+  if (type === "reminder") return text.includes("sent") ? "Reminder sent" : "Loyalty reminder";
   if (type === "join") return "Customer joined";
-  if (type === "wallet") return text.includes("creat") ? "Apple Wallet card created" : "Apple Wallet card updated";
+  if (type === "wallet") return text.includes("creat") ? "Loyalty card created" : "Loyalty card updated";
   return first(item.title, item.description, item.message, titleCase(first(item.type, item.eventType, item.action, item.event, item.kind)));
 }
 
@@ -64,7 +64,7 @@ export function formatActivityBadge(item, birthdayRewardsEnabled = false) {
     reward: "Redeemed",
     reminder: "Reminder",
     join: "Joined",
-    wallet: "Wallet",
+    wallet: "Card",
     activity: titleCase(first(item.type, item.eventType, item.action, item.event, item.kind)),
   }[classifyActivity(item, birthdayRewardsEnabled)];
 }
@@ -81,7 +81,7 @@ export function formatActivityDetail(item) {
     const progress = Number.isFinite(current) && Number.isFinite(threshold) && threshold > 0 ? ` · ${current}/${threshold} stamps` : "";
     return `${customer}${progress}`;
   }
-  return customer || (type === "reminder" ? "Wallet reminder" : titleCase(first(item.type, item.eventType, item.action, item.event, item.kind)));
+  return customer || (type === "reminder" ? "Loyalty reminder" : titleCase(first(item.type, item.eventType, item.action, item.event, item.kind)));
 }
 
 export function formatActivityTime(timestamp) {
