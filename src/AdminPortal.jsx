@@ -57,7 +57,7 @@ const initialOnboardingForm = {
   colorSuggestions: null,
   setupMode: "qr_only",
   staffDashboardAccess: true,
-  createDemoCustomer: true,
+  createDemoCustomer: false,
 };
 
 const wizardSteps = [
@@ -2006,14 +2006,19 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
                   />
                   Staff dashboard access
                 </label>
-                <label className="flex items-center gap-3 rounded-xl bg-white p-4 font-semibold ring-1 ring-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={form.createDemoCustomer}
-                    onChange={(event) => updateField("createDemoCustomer", event.target.checked)}
-                  />
-                  Create demo customer
-                </label>
+                <div className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
+                  <label className="flex items-center gap-3 font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={form.createDemoCustomer}
+                      onChange={(event) => updateField("createDemoCustomer", event.target.checked)}
+                    />
+                    Create demo customer
+                  </label>
+                  <p className="mt-2 text-sm font-normal text-slate-600">
+                    Demo customer creation is temporarily unavailable for the current loyalty setup.
+                  </p>
+                </div>
               </div>
             ) : null}
 
