@@ -5,6 +5,16 @@ import {
   fetchMerchantSetupInvite,
 } from "./api/merchantApi.js";
 import { normalizeMerchantSession } from "./utils/merchantData.js";
+import AuthShell, { MerchantAuthBrand } from "./AuthShell.jsx";
+import PasswordField from "./PasswordField.jsx";
+
+function setupErrorMessage(error) {
+  if (error?.code === "invite_expired") return "This setup link has expired. Ask PocketStamp to send you a new setup link.";
+  if (["invite_not_found", "invite_already_used"].includes(error?.code)) return "This setup link is invalid or has already been used. If you already have an account, sign in instead.";
+  if (["existing_account", "identity_collision"].includes(error?.code)) return "This email already has a PocketStamp account. Sign in with that account or reset its password.";
+  if (error?.code === "weak_password") return "Your password does not meet the password requirements. Use at least 8 characters.";
+  return "We couldn’t complete account setup. Please try again or contact PocketStamp support.";
+}
 
 export default function MerchantSetup({ tokenStorageKey }) {
   const token = useMemo(() => {
@@ -25,7 +35,7 @@ export default function MerchantSetup({ tokenStorageKey }) {
 
     async function loadInvite() {
       if (!token) {
-        setError("This setup link is missing a token.");
+        setError("This setup link is invalid or incomplete. Ask PocketStamp to send you a new setup link.");
         setIsLoading(false);
         return;
       }
@@ -37,7 +47,7 @@ export default function MerchantSetup({ tokenStorageKey }) {
         setInvite(nextInvite);
         setName(nextInvite?.name || "");
       } catch (inviteError) {
-        if (isMounted) setError(inviteError.message || "Unable to load setup link.");
+        if (isMounted) setError(setupErrorMessage(inviteError));
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -75,7 +85,7 @@ export default function MerchantSetup({ tokenStorageKey }) {
       window.location.href = "/merchant";
     } catch (setupError) {
       setExistingAccount(["existing_account", "identity_collision"].includes(setupError.code));
-      setError(setupError.message || "Unable to complete merchant setup.");
+      setError(setupErrorMessage(setupError));
     } finally {
       setIsSubmitting(false);
     }
@@ -89,18 +99,13 @@ export default function MerchantSetup({ tokenStorageKey }) {
       if (!session) throw new Error("Sign in succeeded, but no session was returned.");
       localStorage.setItem(tokenStorageKey, JSON.stringify(session));
       window.location.href = "/merchant";
-    } catch (acceptError) { setError(acceptError.message || "Unable to accept this invitation."); }
+    } catch { setError("We couldn’t sign you in. Check your password or reset it and try again."); }
     finally { setIsSubmitting(false); }
   }
 
   return (
-    <main className="min-h-screen bg-[#fbfaf7] px-6 py-10 text-slate-950">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-7xl items-center justify-center">
-        <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl shadow-slate-900/10 ring-1 ring-slate-200">
-          <a href="/" className="flex items-center gap-3" aria-label="PocketStamp home">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#143d3b] text-white">PS</span>
-            <span className="text-xl font-semibold">PocketStamp Merchant</span>
-          </a>
+    <AuthShell width="max-w-lg">
+          <MerchantAuthBrand />
 
           <div className="mt-10">
             <h1 className="text-3xl font-semibold text-slate-950">Set up your merchant account</h1>
@@ -112,9 +117,9 @@ export default function MerchantSetup({ tokenStorageKey }) {
           </div>
 
           {isLoading ? (
-            <div className="mt-8 rounded-2xl bg-[#f8fafc] p-4 text-sm font-semibold text-slate-600">Checking setup link...</div>
+            <div role="status" className="mt-8 rounded-2xl bg-[#f8fafc] p-4 text-sm font-semibold text-slate-600">Checking setup link…</div>
           ) : error && !invite ? (
-            <div className="mt-8 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700 ring-1 ring-red-100">{error}</div>
+            <div><div role="alert" className="mt-8 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700 ring-1 ring-red-100">{error}</div><div className="mt-5 flex flex-wrap gap-4 text-sm font-semibold"><a href="/merchant" className="text-[#16856f]">Sign in</a><a href="/merchant/forgot-password" className="text-[#16856f]">Forgot password?</a></div></div>
           ) : (
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
               <label className="block">
@@ -125,15 +130,9 @@ export default function MerchantSetup({ tokenStorageKey }) {
                 <span className="text-sm font-semibold text-slate-700">Name</span>
                 <input type="text" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#16856f] focus:ring-4 focus:ring-[#16856f]/10" />
               </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Password</span>
-                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required minLength={8} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#16856f] focus:ring-4 focus:ring-[#16856f]/10" />
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Confirm password</span>
-                <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" required minLength={8} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#16856f] focus:ring-4 focus:ring-[#16856f]/10" />
-              </label>
-              {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700 ring-1 ring-red-100">{error}</div> : null}
+              <div><PasswordField id="setup-password" label="Password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={8} describedBy="setup-password-guidance setup-error" /><p id="setup-password-guidance" className="mt-2 text-sm text-slate-500">Use at least 8 characters.</p></div>
+              <PasswordField id="setup-confirm-password" label="Confirm password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} describedBy="setup-error" />
+              {error ? <div id="setup-error" role="alert" className="rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700 ring-1 ring-red-100">{error}</div> : null}
               {existingAccount ? <div className="space-y-3 text-sm font-semibold"><button type="button" onClick={handleExistingAccountAccept} disabled={isSubmitting || !password} className="w-full rounded-xl border border-[#143d3b] px-5 py-3 text-[#143d3b]">Sign in with this password and accept</button><div className="flex gap-4"><a href="/merchant" className="text-[#16856f]">Sign in</a><a href="/merchant/forgot-password" className="text-[#16856f]">Forgot password?</a></div></div> : null}
               <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-[#143d3b] px-5 py-3 font-semibold text-white transition hover:bg-[#0f2f2d] disabled:cursor-not-allowed disabled:opacity-70">
                 {isSubmitting ? "Setting up..." : "Create account"}
@@ -143,8 +142,6 @@ export default function MerchantSetup({ tokenStorageKey }) {
               </p>
             </form>
           )}
-        </div>
-      </div>
-    </main>
+    </AuthShell>
   );
 }

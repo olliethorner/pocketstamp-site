@@ -4,6 +4,8 @@ import {
   normalizeMerchantSession,
   normalizeMerchantContext,
 } from "./utils/merchantData.js";
+import AuthShell, { MerchantAuthBrand } from "./AuthShell.jsx";
+import PasswordField from "./PasswordField.jsx";
 
 export default function MerchantLogin({ onLogin, tokenStorageKey }) {
   const [email, setEmail] = useState("");
@@ -28,23 +30,16 @@ export default function MerchantLogin({ onLogin, tokenStorageKey }) {
 
       localStorage.setItem(tokenStorageKey, JSON.stringify(session));
       onLogin(session, normalizeMerchantContext(payload));
-    } catch (loginError) {
-      setError(loginError.message || "Unable to sign in. Please try again.");
+    } catch {
+      setError("We couldn’t sign you in. Check your email and password and try again.");
     } finally {
       setIsLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-[#fbfaf7] px-6 py-10 text-slate-950">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-7xl items-center justify-center">
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl shadow-slate-900/10 ring-1 ring-slate-200">
-          <a href="/" className="flex items-center gap-3" aria-label="PocketStamp home">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#143d3b] text-white">
-              PS
-            </span>
-            <span className="text-xl font-semibold">PocketStamp Merchant</span>
-          </a>
+    <AuthShell>
+          <MerchantAuthBrand />
 
           <div className="mt-10">
             <h1 className="text-3xl font-semibold text-slate-950">
@@ -69,20 +64,10 @@ export default function MerchantLogin({ onLogin, tokenStorageKey }) {
               />
             </label>
 
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Password</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="current-password"
-                required
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-[#16856f] focus:ring-4 focus:ring-[#16856f]/10"
-              />
-            </label>
+            <div><PasswordField id="merchant-password" label="Password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" describedBy={error ? "merchant-login-error" : undefined} /><a href="/merchant/forgot-password" className="mt-3 inline-block text-sm font-semibold text-[#16856f] underline-offset-4 hover:underline">Forgot password?</a></div>
 
             {error ? (
-              <div className="flex gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+              <div id="merchant-login-error" role="alert" className="flex gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-700">
                 <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-bold">
                   !
                 </span>
@@ -97,10 +82,7 @@ export default function MerchantLogin({ onLogin, tokenStorageKey }) {
             >
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
-            <a href="/merchant/forgot-password" className="block text-center text-sm font-semibold text-[#16856f]">Forgot password?</a>
           </form>
-        </div>
-      </div>
-    </main>
+    </AuthShell>
   );
 }
