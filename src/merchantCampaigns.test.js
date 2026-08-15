@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 import {
+  CAMPAIGN_MESSAGE_MAX_LENGTH,
   canManageCampaigns,
   getCampaignDeliveredText,
   getCampaignStatusLabel,
@@ -11,6 +12,26 @@ import {
   normalizeCampaignRows,
   toScheduledAtIso,
 } from "./merchantCampaigns.js";
+
+test("campaign message contract and Marketing form use the 250-character limit", async () => {
+  assert.equal(CAMPAIGN_MESSAGE_MAX_LENGTH, 250);
+  const suppliedMessage = "Hi Julie! PocketStamp now supports both Apple Wallet and Google Wallet. If you’d still like to give it a try, I’d be happy to waive the setup fee and offer a free 30-day trial. — Ollie";
+  assert.equal(suppliedMessage.length, 184);
+  const vite = await createServer({ appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
+  try {
+    const { default: MerchantMarketing } = await vite.ssrLoadModule("/src/merchant/pages/MerchantMarketing.jsx");
+    const html = renderToStaticMarkup(MerchantMarketing({
+      merchantContext: { role: "owner", locationId: null }, campaigns: [],
+      isLoading: false, error: null, onRefresh: async () => {}, accessToken: "test",
+      reminderSummary: {}, isReminderSummaryLoading: false, reminderError: null,
+      birthdayRewardsEnabled: false,
+    }));
+    assert.match(html, /maxLength="250"/);
+    assert.match(html, />0 \/ 250</);
+  } finally {
+    await vite.close();
+  }
+});
 
 test("only unscoped owners and managers can manage campaigns", () => {
   assert.equal(canManageCampaigns({ role: "owner", locationId: null }), true);

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  CAMPAIGN_MESSAGE_MAX_LENGTH,
   canManageCampaigns,
   formatCampaignDateTime,
   getCampaignStatusPresentation,
@@ -94,8 +95,8 @@ function PromotionalCampaigns({
   async function handleSubmit(event) {
     event.preventDefault();
     const trimmedMessage = message.trim();
-    if (!trimmedMessage || trimmedMessage.length > 90) {
-      setFormError("Enter a message of up to 90 characters.");
+    if (!trimmedMessage || trimmedMessage.length > CAMPAIGN_MESSAGE_MAX_LENGTH) {
+      setFormError(`Enter a message of up to ${CAMPAIGN_MESSAGE_MAX_LENGTH} characters.`);
       return;
     }
     if (!isFutureLocalDateTime(scheduledAt)) {
@@ -145,8 +146,8 @@ function PromotionalCampaigns({
           <form className="grid gap-4 lg:grid-cols-[1fr_18rem_auto] lg:items-end" onSubmit={handleSubmit}>
             <label className="block text-sm font-semibold">
               Message
-              <textarea className="ps-input mt-2 min-h-24 w-full resize-y" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={90} required placeholder="Share a short update" />
-              <span className="mt-1 block text-right text-xs font-normal text-[var(--ps-muted)]">{message.length}/90</span>
+              <textarea className="ps-input mt-2 min-h-28 w-full resize-y" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={CAMPAIGN_MESSAGE_MAX_LENGTH} required placeholder="Share a short update" />
+              <span className="mt-1 block text-right text-xs font-normal text-[var(--ps-muted)]">{message.length} / {CAMPAIGN_MESSAGE_MAX_LENGTH}</span>
             </label>
             <label className="block text-sm font-semibold">
               Schedule time

@@ -14,6 +14,8 @@ const STATUS_PRESENTATION = {
 
 const UNKNOWN_STATUS_PRESENTATION = { label: "Sending", tone: "progress" };
 
+export const CAMPAIGN_MESSAGE_MAX_LENGTH = 250;
+
 function isNonNegativeCount(value) {
   return Number.isFinite(value) && value >= 0;
 }
