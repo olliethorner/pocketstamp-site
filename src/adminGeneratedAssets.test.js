@@ -6,9 +6,11 @@ const source = fs.readFileSync(new URL("./AdminPortal.jsx", import.meta.url), "u
 
 test("onboarding success keeps working while join-poster generation is asynchronous", () => {
   assert.match(source, /Café merchant created/);
-  assert.match(source, /GeneratedAssetsCard merchantId=\{normalizedCreated\.merchantId\}/);
-  assert.match(source, /Your poster is generating\. Café setup can continue normally\./);
-  assert.match(source, /window\.setTimeout\(poll, 2500\)/);
+  assert.match(source, /initialReadiness=\{normalizedCreated\.onboardingSummary\} showReadiness/);
+  assert.match(source, /Your poster is being created automatically\./);
+  assert.match(source, /window\.setTimeout\(poll, 3500\)/);
+  assert.match(source, /wallet-readiness/);
+  assert.match(source, /return \(\) => \{ active = false; window\.clearTimeout\(timeoutId\); \}/);
 });
 
 test("generated-assets UI covers generating, ready, failed, preview, downloads, and regeneration", () => {
@@ -19,6 +21,9 @@ test("generated-assets UI covers generating, ready, failed, preview, downloads, 
   assert.match(source, /Sales \/ overview sheet/);
   assert.match(source, /assets\/\$\{asset\.id\}\/url/);
   assert.match(source, /generation failed\. Try again\./);
+  assert.match(source, /Launch Materials/);
+  assert.doesNotMatch(source, />Generated assets</);
+  assert.match(source, /group\.ready \|\| group\.failed \? <button/);
 });
 
 test("café detail exposes a minimal Assets tab using admin-scoped backend endpoints", () => {

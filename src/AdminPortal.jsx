@@ -15,6 +15,7 @@ import {
   buildMerchantEditPatchPayload,
   getWalletDraftColorValue,
 } from "./walletThemeDraft.js";
+import { shouldPollOnboardingStatus } from "./adminOnboardingStatus.js";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
@@ -921,8 +922,9 @@ function normalizeGeneratedAssets(payload) {
   return candidates.find(Array.isArray) || [];
 }
 
-function GeneratedAssetsCard({ merchantId, accessToken, initialSummary = null, compact = false }) {
+function GeneratedAssetsCard({ merchantId, accessToken, initialSummary = null, initialReadiness = null, showReadiness = false, compact = false }) {
   const [assets, setAssets] = useState(() => normalizeGeneratedAssets(initialSummary || {}));
+  const [readiness, setReadiness] = useState(initialReadiness);
   const [scheduleState, setScheduleState] = useState(initialSummary?.status || "generating");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -931,30 +933,33 @@ function GeneratedAssetsCard({ merchantId, accessToken, initialSummary = null, c
     { key: "join-poster", title: "Join poster", pdf: assets.find((asset) => asset.assetType === "join_poster_pdf"), png: assets.find((asset) => asset.assetType === "join_poster_png") },
     { key: "sales-sheet", title: "Sales / overview sheet", pdf: assets.find((asset) => asset.assetType === "sales_sheet_pdf"), png: assets.find((asset) => asset.assetType === "sales_sheet_png") },
   ].map((group) => ({ ...group, ready: group.pdf?.status === "ready" && group.png?.status === "ready", failed: [group.pdf, group.png].some((asset) => asset?.status === "failed") }));
-  const ready = groups.every((group) => group.ready);
-  const failed = scheduleState === "failed_to_schedule" || groups.every((group) => group.failed);
+  const shouldPoll = shouldPollOnboardingStatus({ readiness: showReadiness ? readiness : null, assets, scheduleState });
 
   useEffect(() => {
-    if (!merchantId || ready || failed) return undefined;
+    if (!merchantId || !shouldPoll) return undefined;
     let active = true;
     let timeoutId;
     const poll = async () => {
       try {
-        const payload = await adminFetch(`/api/admin/merchants/${merchantId}/assets`, {}, accessToken);
+        const [payload, readinessPayload] = await Promise.all([
+          adminFetch(`/api/admin/merchants/${merchantId}/assets`, {}, accessToken),
+          showReadiness ? adminFetch(`/api/admin/merchants/${merchantId}/wallet-readiness`, {}, accessToken) : Promise.resolve(null),
+        ]);
         const nextAssets = normalizeGeneratedAssets(payload);
         if (!active) return;
         setAssets(nextAssets);
-        setScheduleState(nextAssets.some((asset) => asset.status === "failed") ? "failed" : "generating");
-        if (!nextAssets.length || nextAssets.some((asset) => ["pending", "generating"].includes(asset.status))) {
-          timeoutId = window.setTimeout(poll, 2500);
-        }
+        if (readinessPayload?.readiness) setReadiness(readinessPayload.readiness);
+        const nextScheduleState = nextAssets.some((asset) => asset.status === "failed") ? "failed" : "generating";
+        setScheduleState(nextScheduleState);
+        const nextReadiness = readinessPayload?.readiness || initialReadiness;
+        if (shouldPollOnboardingStatus({ readiness: showReadiness ? nextReadiness : null, assets: nextAssets, scheduleState: nextScheduleState })) timeoutId = window.setTimeout(poll, 3500);
       } catch {
         if (active) timeoutId = window.setTimeout(poll, 5000);
       }
     };
     timeoutId = window.setTimeout(poll, 500);
     return () => { active = false; window.clearTimeout(timeoutId); };
-  }, [merchantId, accessToken, ready, failed]);
+  }, [merchantId, accessToken, initialReadiness, shouldPoll, showReadiness]);
 
   async function regenerate(group) {
     setBusy(true); setMessage("");
@@ -981,13 +986,14 @@ function GeneratedAssetsCard({ merchantId, accessToken, initialSummary = null, c
     }
   }
 
-  return (
+  return (<>
+    {showReadiness ? <WalletReadiness summary={readiness} /> : null}
     <div className={`rounded-2xl bg-white p-5 ring-1 ring-slate-200 ${compact ? "mt-6" : ""}`}>
-      <p className="ps-eyebrow">Generated assets</p>
+      <p className="ps-eyebrow">Launch Materials</p>
       {message ? <p className="mt-3 text-sm font-semibold text-[var(--ps-blue)]">{message}</p> : null}
-      <div className="mt-3 grid gap-4">{groups.map((group) => { const status = group.ready ? "Ready" : group.failed ? "Failed" : "Generating"; return <section key={group.key} className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200"><div className="flex items-start justify-between gap-3"><h2 className="text-lg font-semibold">{group.title}</h2><span className={`rounded-full px-3 py-1 text-xs font-bold ${group.ready ? "bg-emerald-50 text-emerald-700" : group.failed ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{status}</span></div>{status === "Generating" ? <p className="mt-2 text-sm text-[var(--ps-muted)]">{group.key === "join-poster" ? "Your poster is generating. Café setup can continue normally." : "Your sales sheet is generating. Café setup can continue normally."}</p> : null}{status === "Failed" ? <p className="mt-2 text-sm text-red-700">Generation failed. Retry this asset independently.</p> : null}{group.ready ? <p className="mt-2 text-sm text-[var(--ps-muted)]">Generated {formatDate(pickFirst(group.pdf.generatedAt, group.png.generatedAt))}</p> : null}<div className="mt-3 flex flex-wrap gap-3">{group.ready ? <button type="button" onClick={() => openAsset(group.png, `${group.title} preview`)} className="ps-button-primary">Preview</button> : null}{group.pdf?.status === "ready" ? <button type="button" onClick={() => openAsset(group.pdf, "PDF", true)} className="ps-button-secondary">Download PDF</button> : null}{group.png?.status === "ready" ? <button type="button" onClick={() => openAsset(group.png, "PNG", true)} className="ps-button-secondary">Download PNG</button> : null}<button type="button" disabled={busy} onClick={() => regenerate(group)} className="ps-button-secondary disabled:opacity-60">{busy ? "Scheduling..." : group.failed ? "Retry" : "Regenerate"}</button></div></section>; })}</div>
+      <div className="mt-3 grid gap-4">{groups.map((group) => { const status = group.ready ? "Ready" : group.failed ? "Failed" : "Generating"; return <section key={group.key} className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200"><div className="flex items-start justify-between gap-3"><h2 className="text-lg font-semibold">{group.title}</h2><span className={`rounded-full px-3 py-1 text-xs font-bold ${group.ready ? "bg-emerald-50 text-emerald-700" : group.failed ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{status}</span></div>{status === "Generating" ? <div className="mt-2 text-sm text-[var(--ps-muted)]"><p>{group.key === "join-poster" ? "Your poster is being created automatically." : "Your sales sheet is being created automatically."}</p><p className="mt-1">This usually takes less than a minute.</p></div> : null}{status === "Failed" ? <p className="mt-2 text-sm text-red-700">Generation failed. Retry this asset independently.</p> : null}{group.ready ? <p className="mt-2 text-sm text-[var(--ps-muted)]">Generated {formatDate(pickFirst(group.pdf.generatedAt, group.png.generatedAt))}</p> : null}<div className="mt-3 flex flex-wrap gap-3">{group.ready ? <button type="button" onClick={() => openAsset(group.png, `${group.title} preview`)} className="ps-button-primary">Preview</button> : null}{group.pdf?.status === "ready" ? <button type="button" onClick={() => openAsset(group.pdf, "PDF", true)} className="ps-button-secondary">Download PDF</button> : null}{group.png?.status === "ready" ? <button type="button" onClick={() => openAsset(group.png, "PNG", true)} className="ps-button-secondary">Download PNG</button> : null}{group.ready || group.failed ? <button type="button" disabled={busy} onClick={() => regenerate(group)} className="ps-button-secondary disabled:opacity-60">{busy ? "Scheduling..." : group.failed ? "Retry" : "Regenerate"}</button> : null}</div></section>; })}</div>
     </div>
-  );
+  </>);
 }
 
 function buildWelcomeEmail(form, links) {
@@ -1828,8 +1834,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
             </div>
           ) : null}
 
-          <WalletReadiness summary={normalizedCreated.onboardingSummary} />
-          <GeneratedAssetsCard merchantId={normalizedCreated.merchantId} accessToken={accessToken} initialSummary={normalizedCreated.assetGeneration} compact />
+          <GeneratedAssetsCard merchantId={normalizedCreated.merchantId} accessToken={accessToken} initialSummary={normalizedCreated.assetGeneration} initialReadiness={normalizedCreated.onboardingSummary} showReadiness compact />
 
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <Detail label="Merchant ID" value={normalizedCreated.merchantId} />
