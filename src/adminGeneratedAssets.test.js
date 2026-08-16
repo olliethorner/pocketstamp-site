@@ -13,9 +13,12 @@ test("onboarding success keeps working while join-poster generation is asynchron
 
 test("generated-assets UI covers generating, ready, failed, preview, downloads, and regeneration", () => {
   for (const label of ["Generating", "Ready", "Failed", "Preview", "Download PDF", "Download PNG", "Regenerate", "Retry"]) assert.match(source, new RegExp(label));
-  assert.match(source, /assets\/join-poster/);
+  assert.match(source, /assets\/\$\{group\.key\}/);
+  assert.match(source, /sales_sheet_pdf/);
+  assert.match(source, /sales_sheet_png/);
+  assert.match(source, /Sales \/ overview sheet/);
   assert.match(source, /assets\/\$\{asset\.id\}\/url/);
-  assert.match(source, /Poster generation failed\. Try again\./);
+  assert.match(source, /generation failed\. Try again\./);
 });
 
 test("café detail exposes a minimal Assets tab using admin-scoped backend endpoints", () => {

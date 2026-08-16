@@ -927,11 +927,12 @@ function GeneratedAssetsCard({ merchantId, accessToken, initialSummary = null, c
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const pdf = assets.find((asset) => asset.assetType === "join_poster_pdf");
-  const png = assets.find((asset) => asset.assetType === "join_poster_png");
-  const ready = pdf?.status === "ready" && png?.status === "ready";
-  const failed = scheduleState === "failed_to_schedule" || assets.some((asset) => asset.status === "failed");
-  const status = ready ? "Ready" : failed ? "Failed" : "Generating";
+  const groups = [
+    { key: "join-poster", title: "Join poster", pdf: assets.find((asset) => asset.assetType === "join_poster_pdf"), png: assets.find((asset) => asset.assetType === "join_poster_png") },
+    { key: "sales-sheet", title: "Sales / overview sheet", pdf: assets.find((asset) => asset.assetType === "sales_sheet_pdf"), png: assets.find((asset) => asset.assetType === "sales_sheet_png") },
+  ].map((group) => ({ ...group, ready: group.pdf?.status === "ready" && group.png?.status === "ready", failed: [group.pdf, group.png].some((asset) => asset?.status === "failed") }));
+  const ready = groups.every((group) => group.ready);
+  const failed = scheduleState === "failed_to_schedule" || groups.every((group) => group.failed);
 
   useEffect(() => {
     if (!merchantId || ready || failed) return undefined;
@@ -955,15 +956,15 @@ function GeneratedAssetsCard({ merchantId, accessToken, initialSummary = null, c
     return () => { active = false; window.clearTimeout(timeoutId); };
   }, [merchantId, accessToken, ready, failed]);
 
-  async function regenerate() {
+  async function regenerate(group) {
     setBusy(true); setMessage("");
     try {
-      const payload = await adminFetch(`/api/admin/merchants/${merchantId}/assets/join-poster`, { method: "POST", body: "{}" }, accessToken);
+      const payload = await adminFetch(`/api/admin/merchants/${merchantId}/assets/${group.key}`, { method: "POST", body: "{}" }, accessToken);
       const nextAssets = normalizeGeneratedAssets(payload);
-      setAssets(nextAssets); setScheduleState(payload?.result?.status || "generating");
-      setMessage(payload?.result?.status === "ready" ? "Current poster is already ready." : "Poster generation scheduled.");
+      setAssets((current) => [...current.filter((asset) => !asset.assetType.startsWith(group.key === "join-poster" ? "join_poster_" : "sales_sheet_")), ...nextAssets]); setScheduleState(payload?.result?.status || "generating");
+      setMessage(payload?.result?.status === "ready" ? `Current ${group.title.toLowerCase()} is already ready.` : `${group.title} generation scheduled.`);
     } catch {
-      setScheduleState("failed"); setMessage("Poster generation failed. Try again.");
+      setMessage(`${group.title} generation failed. Try again.`);
     } finally { setBusy(false); }
   }
 
@@ -982,20 +983,9 @@ function GeneratedAssetsCard({ merchantId, accessToken, initialSummary = null, c
 
   return (
     <div className={`rounded-2xl bg-white p-5 ring-1 ring-slate-200 ${compact ? "mt-6" : ""}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><p className="ps-eyebrow">Generated assets</p><h2 className="mt-2 text-xl font-semibold">Join poster</h2></div>
-        <span className={`rounded-full px-3 py-1 text-xs font-bold ${ready ? "bg-emerald-50 text-emerald-700" : failed ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{status}</span>
-      </div>
-      {status === "Generating" ? <p className="mt-3 text-sm text-[var(--ps-muted)]">Your poster is generating. Café setup can continue normally.</p> : null}
-      {status === "Failed" ? <p className="mt-3 text-sm text-red-700">Poster generation failed. Try again.</p> : null}
-      {ready ? <p className="mt-3 text-sm text-[var(--ps-muted)]">Generated {formatDate(pickFirst(pdf.generatedAt, png.generatedAt))}</p> : null}
+      <p className="ps-eyebrow">Generated assets</p>
       {message ? <p className="mt-3 text-sm font-semibold text-[var(--ps-blue)]">{message}</p> : null}
-      <div className="mt-4 flex flex-wrap gap-3">
-        {ready ? <button type="button" onClick={() => openAsset(png, "Preview")} className="ps-button-primary">Preview</button> : null}
-        {pdf?.status === "ready" ? <button type="button" onClick={() => openAsset(pdf, "PDF", true)} className="ps-button-secondary">Download PDF</button> : null}
-        {png?.status === "ready" ? <button type="button" onClick={() => openAsset(png, "PNG", true)} className="ps-button-secondary">Download PNG</button> : null}
-        <button type="button" disabled={busy} onClick={regenerate} className="ps-button-secondary disabled:opacity-60">{busy ? "Scheduling..." : failed ? "Retry" : "Regenerate"}</button>
-      </div>
+      <div className="mt-3 grid gap-4">{groups.map((group) => { const status = group.ready ? "Ready" : group.failed ? "Failed" : "Generating"; return <section key={group.key} className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200"><div className="flex items-start justify-between gap-3"><h2 className="text-lg font-semibold">{group.title}</h2><span className={`rounded-full px-3 py-1 text-xs font-bold ${group.ready ? "bg-emerald-50 text-emerald-700" : group.failed ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{status}</span></div>{status === "Generating" ? <p className="mt-2 text-sm text-[var(--ps-muted)]">{group.key === "join-poster" ? "Your poster is generating. Café setup can continue normally." : "Your sales sheet is generating. Café setup can continue normally."}</p> : null}{status === "Failed" ? <p className="mt-2 text-sm text-red-700">Generation failed. Retry this asset independently.</p> : null}{group.ready ? <p className="mt-2 text-sm text-[var(--ps-muted)]">Generated {formatDate(pickFirst(group.pdf.generatedAt, group.png.generatedAt))}</p> : null}<div className="mt-3 flex flex-wrap gap-3">{group.ready ? <button type="button" onClick={() => openAsset(group.png, `${group.title} preview`)} className="ps-button-primary">Preview</button> : null}{group.pdf?.status === "ready" ? <button type="button" onClick={() => openAsset(group.pdf, "PDF", true)} className="ps-button-secondary">Download PDF</button> : null}{group.png?.status === "ready" ? <button type="button" onClick={() => openAsset(group.png, "PNG", true)} className="ps-button-secondary">Download PNG</button> : null}<button type="button" disabled={busy} onClick={() => regenerate(group)} className="ps-button-secondary disabled:opacity-60">{busy ? "Scheduling..." : group.failed ? "Retry" : "Regenerate"}</button></div></section>; })}</div>
     </div>
   );
 }
