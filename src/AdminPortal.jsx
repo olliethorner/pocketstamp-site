@@ -804,6 +804,12 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
     welcomePack.onboardingSummary,
     merchant.onboardingSummary,
   );
+  const assetGeneration = pickFirst(
+    response.assetGeneration,
+    data.assetGeneration,
+    result.assetGeneration,
+    data.result?.assetGeneration,
+  );
 
   return {
     merchantId,
@@ -826,6 +832,7 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
     staffDashboardUrl,
     demoPassUrl,
     onboardingSummary,
+    assetGeneration,
     welcomeEmailSubject: pickFirst(
       response.welcomeEmailSubject,
       data.welcomeEmailSubject,
@@ -905,6 +912,90 @@ function WalletReadiness({ summary }) {
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function normalizeGeneratedAssets(payload) {
+  const candidates = [payload?.assets, payload?.result?.assets, payload?.data?.assets, payload?.data?.result?.assets];
+  return candidates.find(Array.isArray) || [];
+}
+
+function GeneratedAssetsCard({ merchantId, accessToken, initialSummary = null, compact = false }) {
+  const [assets, setAssets] = useState(() => normalizeGeneratedAssets(initialSummary || {}));
+  const [scheduleState, setScheduleState] = useState(initialSummary?.status || "generating");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const pdf = assets.find((asset) => asset.assetType === "join_poster_pdf");
+  const png = assets.find((asset) => asset.assetType === "join_poster_png");
+  const ready = pdf?.status === "ready" && png?.status === "ready";
+  const failed = scheduleState === "failed_to_schedule" || assets.some((asset) => asset.status === "failed");
+  const status = ready ? "Ready" : failed ? "Failed" : "Generating";
+
+  useEffect(() => {
+    if (!merchantId || ready || failed) return undefined;
+    let active = true;
+    let timeoutId;
+    const poll = async () => {
+      try {
+        const payload = await adminFetch(`/api/admin/merchants/${merchantId}/assets`, {}, accessToken);
+        const nextAssets = normalizeGeneratedAssets(payload);
+        if (!active) return;
+        setAssets(nextAssets);
+        setScheduleState(nextAssets.some((asset) => asset.status === "failed") ? "failed" : "generating");
+        if (!nextAssets.length || nextAssets.some((asset) => ["pending", "generating"].includes(asset.status))) {
+          timeoutId = window.setTimeout(poll, 2500);
+        }
+      } catch {
+        if (active) timeoutId = window.setTimeout(poll, 5000);
+      }
+    };
+    timeoutId = window.setTimeout(poll, 500);
+    return () => { active = false; window.clearTimeout(timeoutId); };
+  }, [merchantId, accessToken, ready, failed]);
+
+  async function regenerate() {
+    setBusy(true); setMessage("");
+    try {
+      const payload = await adminFetch(`/api/admin/merchants/${merchantId}/assets/join-poster`, { method: "POST", body: "{}" }, accessToken);
+      const nextAssets = normalizeGeneratedAssets(payload);
+      setAssets(nextAssets); setScheduleState(payload?.result?.status || "generating");
+      setMessage(payload?.result?.status === "ready" ? "Current poster is already ready." : "Poster generation scheduled.");
+    } catch {
+      setScheduleState("failed"); setMessage("Poster generation failed. Try again.");
+    } finally { setBusy(false); }
+  }
+
+  async function openAsset(asset, label, download = false) {
+    if (!asset?.id) return;
+    setMessage("");
+    try {
+      const suffix = download ? "?download=1" : "";
+      const payload = await adminFetch(`/api/admin/merchants/${merchantId}/assets/${asset.id}/url${suffix}`, {}, accessToken);
+      if (!payload?.url) throw new Error("missing_url");
+      window.open(payload.url, "_blank", "noopener,noreferrer");
+    } catch {
+      setMessage(`${label} is temporarily unavailable. Try again.`);
+    }
+  }
+
+  return (
+    <div className={`rounded-2xl bg-white p-5 ring-1 ring-slate-200 ${compact ? "mt-6" : ""}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><p className="ps-eyebrow">Generated assets</p><h2 className="mt-2 text-xl font-semibold">Join poster</h2></div>
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${ready ? "bg-emerald-50 text-emerald-700" : failed ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{status}</span>
+      </div>
+      {status === "Generating" ? <p className="mt-3 text-sm text-[var(--ps-muted)]">Your poster is generating. Café setup can continue normally.</p> : null}
+      {status === "Failed" ? <p className="mt-3 text-sm text-red-700">Poster generation failed. Try again.</p> : null}
+      {ready ? <p className="mt-3 text-sm text-[var(--ps-muted)]">Generated {formatDate(pickFirst(pdf.generatedAt, png.generatedAt))}</p> : null}
+      {message ? <p className="mt-3 text-sm font-semibold text-[var(--ps-blue)]">{message}</p> : null}
+      <div className="mt-4 flex flex-wrap gap-3">
+        {ready ? <button type="button" onClick={() => openAsset(png, "Preview")} className="ps-button-primary">Preview</button> : null}
+        {pdf?.status === "ready" ? <button type="button" onClick={() => openAsset(pdf, "PDF", true)} className="ps-button-secondary">Download PDF</button> : null}
+        {png?.status === "ready" ? <button type="button" onClick={() => openAsset(png, "PNG", true)} className="ps-button-secondary">Download PNG</button> : null}
+        <button type="button" disabled={busy} onClick={regenerate} className="ps-button-secondary disabled:opacity-60">{busy ? "Scheduling..." : failed ? "Retry" : "Regenerate"}</button>
+      </div>
     </div>
   );
 }
@@ -1748,6 +1839,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
           ) : null}
 
           <WalletReadiness summary={normalizedCreated.onboardingSummary} />
+          <GeneratedAssetsCard merchantId={normalizedCreated.merchantId} accessToken={accessToken} initialSummary={normalizedCreated.assetGeneration} compact />
 
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <Detail label="Merchant ID" value={normalizedCreated.merchantId} />
@@ -2382,6 +2474,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   const detailTabs = [
     ["overview", "Overview"],
     ["wallet", "Wallet Card"],
+    ["assets", "Assets"],
     ["scanner", "Scanner Mode"],
     ["email", "Welcome Email"],
     ["settings", "Settings"],
@@ -2650,6 +2743,9 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         </div>
 
         <div className="mt-8">
+          {activeDetailTab === "assets" ? (
+            <GeneratedAssetsCard merchantId={merchantId} accessToken={accessToken} />
+          ) : null}
           {activeDetailTab === "overview" ? (
             <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
               <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
