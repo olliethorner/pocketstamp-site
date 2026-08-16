@@ -15,7 +15,7 @@ import {
   buildMerchantEditPatchPayload,
   getWalletDraftColorValue,
 } from "./walletThemeDraft.js";
-import { shouldPollOnboardingStatus } from "./adminOnboardingStatus.js";
+import { shouldPollOnboardingStatus, shouldPollWalletReadiness, walletReadinessRows } from "./adminOnboardingStatus.js";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
@@ -867,16 +867,13 @@ function normalizeOnboardResponse(responseJson, formState = {}) {
   };
 }
 
-function WalletReadiness({ summary }) {
+function WalletReadiness({ summary, showContext = true }) {
   if (!summary || typeof summary !== "object") return null;
 
   const wallets = summary.wallets && typeof summary.wallets === "object"
     ? summary.wallets
     : {};
-  const walletRows = [
-    ["Apple Wallet", wallets.apple],
-    ["Google Wallet", wallets.google],
-  ].filter(([, wallet]) => wallet && typeof wallet === "object");
+  const walletRows = walletReadinessRows({ wallets });
 
   if (!summary.heading && !summary.merchant && !walletRows.length) return null;
 
@@ -889,8 +886,8 @@ function WalletReadiness({ summary }) {
   return (
     <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-slate-200">
       <p className="ps-eyebrow">Wallet readiness</p>
-      {summary.heading ? <h2 className="mt-2 text-xl font-semibold">{summary.heading}</h2> : null}
-      {summary.merchant ? <p className="mt-1 text-sm text-[var(--ps-muted)]">{summary.merchant}</p> : null}
+      {showContext && summary.heading ? <h2 className="mt-2 text-xl font-semibold">{summary.heading}</h2> : null}
+      {showContext && summary.merchant ? <p className="mt-1 text-sm text-[var(--ps-muted)]">{summary.merchant}</p> : null}
 
       {walletRows.length ? (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -915,6 +912,39 @@ function WalletReadiness({ summary }) {
       ) : null}
     </div>
   );
+}
+
+function CurrentWalletReadiness({ merchantId, accessToken }) {
+  const [readiness, setReadiness] = useState(null);
+  const [state, setState] = useState("loading");
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    let timeoutId;
+
+    const check = async () => {
+      try {
+        const payload = await adminFetch(`/api/admin/merchants/${merchantId}/wallet-readiness`, {}, accessToken);
+        if (!active) return;
+        if (!payload?.readiness) throw new Error("missing_readiness");
+        setReadiness(payload.readiness);
+        setState("ready");
+        if (shouldPollWalletReadiness(payload.readiness)) timeoutId = window.setTimeout(check, 3500);
+      } catch {
+        if (!active) return;
+        setReadiness(null);
+        setState("error");
+      }
+    };
+
+    check();
+    return () => { active = false; window.clearTimeout(timeoutId); };
+  }, [merchantId, accessToken, retryKey]);
+
+  if (state === "loading") return <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-slate-200"><p className="ps-eyebrow">Wallet readiness</p><p className="mt-3 text-sm text-[var(--ps-muted)]">Checking Wallet readiness…</p></div>;
+  if (state === "error") return <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-slate-200"><p className="ps-eyebrow">Wallet readiness</p><p className="mt-3 text-sm text-[var(--ps-muted)]">Wallet readiness could not be checked right now.</p><button type="button" className="ps-button-secondary mt-3" onClick={() => { setState("loading"); setRetryKey((value) => value + 1); }}>Retry</button></div>;
+  return <WalletReadiness summary={readiness} showContext={false} />;
 }
 
 function normalizeGeneratedAssets(payload) {
@@ -2742,7 +2772,8 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
             <GeneratedAssetsCard merchantId={merchantId} accessToken={accessToken} />
           ) : null}
           {activeDetailTab === "overview" ? (
-            <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+            <div>
+              <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
               <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200">
                 <h2 className="text-xl font-semibold">Overview</h2>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -2787,6 +2818,8 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
                   </p>
                 )}
               </div>
+              </div>
+              <CurrentWalletReadiness key={merchantId} merchantId={merchantId} accessToken={accessToken} />
             </div>
           ) : null}
 

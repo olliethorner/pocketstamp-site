@@ -22,4 +22,23 @@ export function shouldPollOnboardingStatus({ readiness, assets, scheduleState } 
   return googlePreparing || !assetsTerminal;
 }
 
+export function shouldPollWalletReadiness(readiness) {
+  return readiness?.wallets?.google?.state === "preparing";
+}
+
+export function walletReadinessRows(readiness) {
+  const wallets = readiness?.wallets && typeof readiness.wallets === "object" ? readiness.wallets : {};
+  return [
+    ["Apple Wallet", wallets.apple],
+    ["Google Wallet", wallets.google],
+  ]
+    .filter(([, wallet]) => wallet && typeof wallet === "object")
+    .map(([label, wallet]) => [label, {
+      tone: wallet.tone,
+      status: wallet.status,
+      message: wallet.message,
+      reason: wallet.reason,
+    }]);
+}
+
 export { ASSET_GROUPS };
