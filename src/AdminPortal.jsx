@@ -16,6 +16,7 @@ import {
   getWalletDraftColorValue,
 } from "./walletThemeDraft.js";
 import { shouldPollOnboardingStatus, shouldPollWalletReadiness, walletReadinessRows } from "./adminOnboardingStatus.js";
+import { CrmAccountPage, CrmCafesPage } from "./AdminCrm.jsx";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
@@ -2230,7 +2231,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
   );
 }
 
-function CafesListPage({ accessToken, adminContext, onLogout }) {
+export function CafesListPage({ accessToken, adminContext, onLogout }) {
   const [merchants, setMerchants] = useState([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -3753,12 +3754,17 @@ export default function AdminPortal({ path }) {
   }
 
   if (path === "/admin/onboard") return <OnboardCafePage {...pageProps} />;
-  if (path === "/admin/cafes") return <CafesListPage {...pageProps} />;
+  if (path === "/admin/cafes") return <CrmCafesPage {...pageProps} Shell={AdminShell} />;
   if (path === "/admin/account") return <AccountPage adminContext={adminContext} onLogout={handleLogout} />;
 
   const detailMatch = path.match(/^\/admin\/cafes\/([^/]+)$/);
   if (detailMatch) {
     return <MerchantDetailPage merchantId={decodeURIComponent(detailMatch[1])} {...pageProps} />;
+  }
+
+  const crmDetailMatch = path.match(/^\/admin\/crm\/cafes\/([^/]+)$/);
+  if (crmDetailMatch) {
+    return <CrmAccountPage accountId={decodeURIComponent(crmDetailMatch[1])} {...pageProps} Shell={AdminShell} />;
   }
 
   return (
