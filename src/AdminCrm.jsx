@@ -1,11 +1,501 @@
-import { useEffect,useState } from "react";
-import { CRM_ACTIVITY_TYPES,CRM_STAGES,crmListFilter,hasTechnicalTabs,pocketStampState,stageLabel } from "./adminCrm.js";
+import { useEffect, useState } from "react";
+import {
+  CRM_ACTIVITY_TYPES,
+  CRM_STAGES,
+  assignedAdminLabel,
+  crmListFilter,
+  crmListMessage,
+  decorateTimelineActivities,
+  hasTechnicalTabs,
+  pocketStampState,
+  stageLabel,
+} from "./adminCrm.js";
 
-const API_BASE=import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
-async function request(path,options,token){if(!API_BASE)throw new Error("Missing VITE_POCKETSTAMP_BACKEND_URL.");const response=await fetch(`${API_BASE}${path}`,{...options,headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`,...options?.headers}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.message||"CRM request failed.");return payload;}
-const date=(value)=>{if(!value)return "—";const dateOnly=/^\d{4}-\d{2}-\d{2}$/.test(value);return new Intl.DateTimeFormat(undefined,{dateStyle:"medium",...(dateOnly?{timeZone:"UTC"}:{})}).format(new Date(value));};
-const badge="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-100";
+const API_BASE = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
+async function request(path, options, token) {
+  if (!API_BASE) throw new Error("Missing VITE_POCKETSTAMP_BACKEND_URL.");
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...options?.headers,
+    },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || "CRM request failed.");
+  return payload;
+}
+const date = (value) => {
+  if (!value) return "—";
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    ...(dateOnly ? { timeZone: "UTC" } : {}),
+  }).format(new Date(value));
+};
+const badge =
+  "inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-100";
 
-export function CrmCafesPage({accessToken,Shell,adminContext,onLogout}){const [accounts,setAccounts]=useState([]),[filter,setFilter]=useState("all"),[search,setSearch]=useState(""),[error,setError]=useState("");useEffect(()=>{request("/api/admin/crm/accounts?sort=next_follow_up",{},accessToken).then((p)=>setAccounts(p.accounts||[])).catch((e)=>setError(e.message));},[accessToken]);const filtered=crmListFilter(accounts,filter).filter((a)=>!search||[a.display_name,a.name,a.email,a.website,a.address,a.primary_contact?.name].some((v)=>String(v||"").toLowerCase().includes(search.toLowerCase())));return <Shell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}><section className="ps-flow-card"><p className="ps-eyebrow">Sales workspace</p><div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h1 className="text-3xl font-semibold">Cafés</h1><p className="mt-2 text-slate-500">Prospects and PocketStamp merchants in one sales view.</p></div><input className="ps-input lg:max-w-sm" aria-label="Search cafés" placeholder="Search café, contact or location" value={search} onChange={(e)=>setSearch(e.target.value)}/></div><div className="mt-5 flex flex-wrap gap-2">{[["all","All"],["follow_up","Needs follow-up"],["prospects","Prospects"],["trials","Trials"],["customers","Customers"],["configured","PocketStamp configured"]].map(([v,l])=><button key={v} className={filter===v?"ps-button-primary":"ps-button-secondary"} onClick={()=>setFilter(v)}>{l}</button>)}</div>{error?<p className="mt-5 text-red-700">{error}</p>:null}<div className="mt-6 overflow-x-auto rounded-2xl ring-1 ring-slate-200"><table className="w-full min-w-[1100px] text-left text-sm"><thead className="bg-[#fbfaf7] text-xs uppercase text-slate-500"><tr>{["Café","Location","Primary contact","Sales stage","Last contact","Next follow-up","PocketStamp","Assigned"].map((h)=><th className="px-4 py-3" key={h}>{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{filtered.map((a)=><tr key={a.id}><td className="px-4 py-4"><a className="font-semibold text-[var(--ps-blue)] no-underline" href={`/admin/crm/cafes/${a.id}`}>{a.display_name||a.name}</a></td><td className="px-4 py-4 text-slate-600">{a.locality||a.address||"—"}</td><td className="px-4 py-4 text-slate-600">{a.primary_contact?.name||"—"}</td><td className="px-4 py-4"><span className={badge}>{stageLabel(a.stage)}</span></td><td className="px-4 py-4 text-slate-600">{date(a.last_contact_at)}</td><td className="px-4 py-4 text-slate-600">{date(a.next_follow_up_at)}</td><td className="px-4 py-4 text-slate-600">{pocketStampState(a)}</td><td className="px-4 py-4 text-slate-600">{a.assigned_admin?.full_name||a.assigned_admin_user_id||"Unassigned"}</td></tr>)}</tbody></table>{!filtered.length?<p className="p-5 text-slate-500">No CRM cafés match this view.</p>:null}</div></section></Shell>}
+export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
+  const [accounts, setAccounts] = useState([]),
+    [filter, setFilter] = useState("all"),
+    [search, setSearch] = useState(""),
+    [error, setError] = useState(""),
+    [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let current = true;
+    request("/api/admin/crm/accounts?sort=next_follow_up", {}, accessToken)
+      .then((p) => {
+        if (current) setAccounts(p.accounts || []);
+      })
+      .catch((e) => {
+        if (current) setError(e.message);
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [accessToken]);
+  const filtered = crmListFilter(accounts, filter).filter(
+      (a) =>
+        !search ||
+        [
+          a.display_name,
+          a.name,
+          a.email,
+          a.website,
+          a.address,
+          a.primary_contact?.name,
+        ].some((v) =>
+          String(v || "")
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+        ),
+    ),
+    message = crmListMessage({
+      loading,
+      error,
+      total: accounts.length,
+      visible: filtered.length,
+    });
+  return (
+    <Shell
+      active="/admin/cafes"
+      adminContext={adminContext}
+      onLogout={onLogout}
+    >
+      <section className="ps-flow-card">
+        <p className="ps-eyebrow">Sales workspace</p>
+        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold">Cafés</h1>
+            <p className="mt-2 text-slate-500">
+              Prospects and PocketStamp merchants in one sales view.
+            </p>
+          </div>
+          <input
+            className="ps-input lg:max-w-sm"
+            aria-label="Search cafés"
+            placeholder="Search café, contact or location"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {[
+            ["all", "All"],
+            ["follow_up", "Needs follow-up"],
+            ["prospects", "Prospects"],
+            ["trials", "Trials"],
+            ["customers", "Customers"],
+            ["configured", "PocketStamp configured"],
+          ].map(([v, l]) => (
+            <button
+              key={v}
+              className={
+                filter === v ? "ps-button-primary" : "ps-button-secondary"
+              }
+              onClick={() => setFilter(v)}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+        {error ? <p className="mt-5 text-red-700">{error}</p> : null}
+        <div
+          className="mt-6 overflow-x-auto rounded-2xl ring-1 ring-slate-200"
+          aria-busy={loading}
+        >
+          <table className="w-full min-w-[1100px] text-left text-sm">
+            <thead className="bg-[#fbfaf7] text-xs uppercase text-slate-500">
+              <tr>
+                {[
+                  "Café",
+                  "Location",
+                  "Primary contact",
+                  "Sales stage",
+                  "Last contact",
+                  "Next follow-up",
+                  "PocketStamp",
+                  "Assigned",
+                ].map((h) => (
+                  <th className="px-4 py-3" key={h}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((a) => (
+                <tr key={a.id}>
+                  <td className="px-4 py-4">
+                    <a
+                      className="font-semibold text-[var(--ps-blue)] no-underline"
+                      href={`/admin/crm/cafes/${a.id}`}
+                    >
+                      {a.display_name || a.name}
+                    </a>
+                  </td>
+                  <td className="px-4 py-4 text-slate-600">
+                    {a.locality || a.address || "—"}
+                  </td>
+                  <td className="px-4 py-4 text-slate-600">
+                    {a.primary_contact?.name || "—"}
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className={badge}>{stageLabel(a.stage)}</span>
+                  </td>
+                  <td className="px-4 py-4 text-slate-600">
+                    {date(a.last_contact_at)}
+                  </td>
+                  <td className="px-4 py-4 text-slate-600">
+                    {date(a.next_follow_up_at)}
+                  </td>
+                  <td className="px-4 py-4 text-slate-600">
+                    {pocketStampState(a)}
+                  </td>
+                  <td className="px-4 py-4 text-slate-600">
+                    {assignedAdminLabel(a, adminContext)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {message ? (
+            <p className="p-5 text-slate-500" role="status">
+              {message}
+            </p>
+          ) : null}
+        </div>
+      </section>
+    </Shell>
+  );
+}
 
-export function CrmAccountPage({accountId,accessToken,Shell,adminContext,onLogout}){const [data,setData]=useState(null),[error,setError]=useState(""),[activity,setActivity]=useState({activityType:"in_person_visit",direction:"outbound",happenedOn:new Date().toISOString().slice(0,10),summary:"",notes:""}),[contact,setContact]=useState({name:"",role:"unknown",email:"",phone:""});const load=()=>request(`/api/admin/crm/accounts/${accountId}`,{},accessToken).then(setData).catch((e)=>setError(e.message));useEffect(load,[accountId,accessToken]);if(!data)return <Shell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}><section className="ps-flow-card">{error||"Loading CRM account…"}</section></Shell>;const {account,contacts,activities,primaryContact}=data;async function patch(values){await request(`/api/admin/crm/accounts/${accountId}`,{method:"PATCH",body:JSON.stringify(values)},accessToken);load();}async function log(e){e.preventDefault();await request(`/api/admin/crm/accounts/${accountId}/activities`,{method:"POST",body:JSON.stringify(activity)},accessToken);setActivity({...activity,summary:"",notes:""});load();}async function addContact(e){e.preventDefault();await request(`/api/admin/crm/accounts/${accountId}/contacts`,{method:"POST",body:JSON.stringify(contact)},accessToken);setContact({name:"",role:"unknown",email:"",phone:""});load();}return <Shell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}><section className="ps-flow-card"><p className="ps-eyebrow">Sales</p><div className="mt-3 flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-semibold">{account.display_name||account.name}</h1><p className="mt-2 text-slate-500">{pocketStampState(account)}</p></div><select className="ps-input max-w-48" aria-label="Sales stage" value={account.stage} onChange={(e)=>patch({stage:e.target.value})}>{CRM_STAGES.map((s)=><option value={s} key={s}>{stageLabel(s)}</option>)}</select></div><div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">{[["Last contact",date(account.last_contact_at)],["Next follow-up",date(account.next_follow_up_at)],["Primary contact",primaryContact?.name||"—"],["Trial",stageLabel(account.trial_status)]].map(([l,v])=><div className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100" key={l}><p className="text-xs font-bold uppercase text-slate-500">{l}</p><p className="mt-2 font-semibold">{v}</p></div>)}</div><div className="mt-6 grid gap-6 lg:grid-cols-2"><form className="rounded-2xl p-5 ring-1 ring-slate-200" onSubmit={log}><h2 className="text-xl font-semibold">Quick log activity</h2><div className="mt-4 grid gap-3"><select className="ps-input" value={activity.activityType} onChange={(e)=>setActivity({...activity,activityType:e.target.value})}>{CRM_ACTIVITY_TYPES.map((t)=><option key={t} value={t}>{stageLabel(t)}</option>)}</select><input className="ps-input" type="date" value={activity.happenedOn} onChange={(e)=>setActivity({...activity,happenedOn:e.target.value})}/><input className="ps-input" required maxLength="500" placeholder="Short summary" value={activity.summary} onChange={(e)=>setActivity({...activity,summary:e.target.value})}/><textarea className="ps-input" placeholder="Notes" value={activity.notes} onChange={(e)=>setActivity({...activity,notes:e.target.value})}/><button className="ps-button-primary">Save activity</button></div></form><div className="rounded-2xl p-5 ring-1 ring-slate-200"><h2 className="text-xl font-semibold">Sales context</h2><label className="mt-4 block text-sm font-bold">Next follow-up<input className="ps-input mt-2" type="datetime-local" defaultValue={account.next_follow_up_at?.slice(0,16)||""} onBlur={(e)=>patch({nextFollowUpAt:e.target.value||null})}/></label><label className="mt-4 block text-sm font-bold">Follow-up note<textarea className="ps-input mt-2" defaultValue={account.follow_up_note||""} onBlur={(e)=>patch({followUpNote:e.target.value})}/></label><label className="mt-4 block text-sm font-bold">Key objection<textarea className="ps-input mt-2" defaultValue={account.key_objection||""} onBlur={(e)=>patch({keyObjection:e.target.value})}/></label></div></div><div className="mt-8 grid gap-6 lg:grid-cols-2"><section><h2 className="text-xl font-semibold">Activity timeline</h2><div className="mt-4 grid gap-3">{activities.map((a)=><article className="rounded-xl p-4 ring-1 ring-slate-200" key={a.id}><div className="flex justify-between gap-3"><strong>{stageLabel(a.activity_type)}</strong><span className="text-sm text-slate-500">{date(a.happened_at||a.happened_on)}</span></div><p className="mt-2">{a.summary}</p>{a.notes?<p className="mt-2 text-sm text-slate-500">{a.notes}</p>:null}</article>)}{!activities.length?<p className="text-slate-500">No sales activity yet.</p>:null}</div></section><section><h2 className="text-xl font-semibold">Contacts</h2><div className="mt-4 grid gap-3">{contacts.map((c)=><div className="rounded-xl p-4 ring-1 ring-slate-200" key={c.id}><strong>{c.name}</strong> · {stageLabel(c.role)}{c.is_primary?" · Primary":""}<p className="text-sm text-slate-500">{c.email||c.phone||"No contact method"}</p></div>)}</div><form className="mt-4 grid gap-3 rounded-xl p-4 ring-1 ring-slate-200" onSubmit={addContact}><input className="ps-input" required placeholder="Contact name" value={contact.name} onChange={(e)=>setContact({...contact,name:e.target.value})}/><select className="ps-input" value={contact.role} onChange={(e)=>setContact({...contact,role:e.target.value})}>{["owner","manager","employee","other","unknown"].map((r)=><option key={r}>{r}</option>)}</select><input className="ps-input" placeholder="Email" value={contact.email} onChange={(e)=>setContact({...contact,email:e.target.value})}/><button className="ps-button-secondary">Add contact</button></form></section></div><section className="mt-8 rounded-2xl p-5 ring-1 ring-slate-200"><h2 className="text-xl font-semibold">PocketStamp setup</h2>{hasTechnicalTabs(account)?<a className="ps-button-secondary mt-4" href={`/admin/cafes/${account.merchant_id}`}>Open Wallet, assets, scanner and settings</a>:<p className="mt-3 text-slate-500">Create or link a PocketStamp demo when this prospect is ready.</p>}</section></section></Shell>}
+export function CrmAccountPage({
+  accountId,
+  accessToken,
+  Shell,
+  adminContext,
+  onLogout,
+}) {
+  const [data, setData] = useState(null),
+    [error, setError] = useState(""),
+    [activity, setActivity] = useState({
+      activityType: "in_person_visit",
+      direction: "outbound",
+      happenedOn: new Date().toISOString().slice(0, 10),
+      summary: "",
+      notes: "",
+    }),
+    [contact, setContact] = useState({
+      name: "",
+      role: "unknown",
+      email: "",
+      phone: "",
+    });
+  const load = () =>
+    request(`/api/admin/crm/accounts/${accountId}`, {}, accessToken)
+      .then(setData)
+      .catch((e) => setError(e.message));
+  useEffect(load, [accountId, accessToken]);
+  if (!data)
+    return (
+      <Shell
+        active="/admin/cafes"
+        adminContext={adminContext}
+        onLogout={onLogout}
+      >
+        <section className="ps-flow-card">
+          {error || "Loading CRM account…"}
+        </section>
+      </Shell>
+    );
+  const { account, contacts, activities, primaryContact } = data;
+  async function patch(values) {
+    await request(
+      `/api/admin/crm/accounts/${accountId}`,
+      { method: "PATCH", body: JSON.stringify(values) },
+      accessToken,
+    );
+    load();
+  }
+  async function log(e) {
+    e.preventDefault();
+    await request(
+      `/api/admin/crm/accounts/${accountId}/activities`,
+      { method: "POST", body: JSON.stringify(activity) },
+      accessToken,
+    );
+    setActivity({ ...activity, summary: "", notes: "" });
+    load();
+  }
+  async function addContact(e) {
+    e.preventDefault();
+    await request(
+      `/api/admin/crm/accounts/${accountId}/contacts`,
+      { method: "POST", body: JSON.stringify(contact) },
+      accessToken,
+    );
+    setContact({ name: "", role: "unknown", email: "", phone: "" });
+    load();
+  }
+  return (
+    <Shell
+      active="/admin/cafes"
+      adminContext={adminContext}
+      onLogout={onLogout}
+    >
+      <section className="ps-flow-card">
+        <p className="ps-eyebrow">Sales</p>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold">
+              {account.display_name || account.name}
+            </h1>
+            <p className="mt-2 text-slate-500">{pocketStampState(account)}</p>
+          </div>
+        </div>
+        <h2 className="mt-6 text-xl font-semibold">Sales overview</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100">
+            <label className="text-xs font-bold uppercase text-slate-500" htmlFor="crm-sales-stage">Stage</label>
+            <select
+              id="crm-sales-stage"
+              className="ps-input mt-2"
+              aria-label="Sales stage"
+              value={account.stage}
+              onChange={(e) => patch({ stage: e.target.value })}
+            >
+              {CRM_STAGES.map((s) => (
+                <option value={s} key={s}>
+                  {stageLabel(s)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {[
+            ["Assigned to", assignedAdminLabel(account, adminContext)],
+            ["Last contact", date(account.last_contact_at)],
+            ["Next follow-up", date(account.next_follow_up_at)],
+            ["Primary contact", primaryContact?.name || "—"],
+            ["Trial", stageLabel(account.trial_status)],
+          ].map(([l, v]) => (
+            <div
+              className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100"
+              key={l}
+            >
+              <p className="text-xs font-bold uppercase text-slate-500">{l}</p>
+              <p className="mt-2 font-semibold">{v}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <form
+            className="rounded-2xl p-5 ring-1 ring-slate-200"
+            onSubmit={log}
+          >
+            <h2 className="text-xl font-semibold">Quick log activity</h2>
+            <div className="mt-4 grid gap-3">
+              <select
+                className="ps-input"
+                value={activity.activityType}
+                onChange={(e) =>
+                  setActivity({ ...activity, activityType: e.target.value })
+                }
+              >
+                {CRM_ACTIVITY_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {stageLabel(t)}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="ps-input"
+                type="date"
+                value={activity.happenedOn}
+                onChange={(e) =>
+                  setActivity({ ...activity, happenedOn: e.target.value })
+                }
+              />
+              <input
+                className="ps-input"
+                required
+                maxLength="500"
+                placeholder="Short summary"
+                value={activity.summary}
+                onChange={(e) =>
+                  setActivity({ ...activity, summary: e.target.value })
+                }
+              />
+              <textarea
+                className="ps-input"
+                placeholder="Notes"
+                value={activity.notes}
+                onChange={(e) =>
+                  setActivity({ ...activity, notes: e.target.value })
+                }
+              />
+              <button className="ps-button-primary">Save activity</button>
+            </div>
+          </form>
+          <div className="rounded-2xl p-5 ring-1 ring-slate-200">
+            <h2 className="text-xl font-semibold">Sales context</h2>
+            <label className="mt-4 block text-sm font-bold">
+              Next follow-up
+              <input
+                className="ps-input mt-2"
+                type="datetime-local"
+                defaultValue={account.next_follow_up_at?.slice(0, 16) || ""}
+                onBlur={(e) =>
+                  patch({ nextFollowUpAt: e.target.value || null })
+                }
+              />
+            </label>
+            <label className="mt-4 block text-sm font-bold">
+              Follow-up note
+              <textarea
+                className="ps-input mt-2"
+                defaultValue={account.follow_up_note || ""}
+                onBlur={(e) => patch({ followUpNote: e.target.value })}
+              />
+            </label>
+            <label className="mt-4 block text-sm font-bold">
+              Key objection
+              <textarea
+                className="ps-input mt-2"
+                defaultValue={account.key_objection || ""}
+                onBlur={(e) => patch({ keyObjection: e.target.value })}
+              />
+            </label>
+          </div>
+        </div>
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <section>
+            <h2 className="text-xl font-semibold">Activity timeline</h2>
+            <div className="mt-4 grid gap-3">
+              {decorateTimelineActivities(activities).map((a) => (
+                <article
+                  className="rounded-xl p-4 ring-1 ring-slate-200"
+                  key={a.id}
+                >
+                  <div className="flex justify-between gap-3">
+                    <strong>{stageLabel(a.activity_type)}</strong>
+                    <span className="text-sm text-slate-500">
+                      {date(a.happened_at || a.happened_on)}
+                    </span>
+                  </div>
+                  <p className="mt-2">{a.summary}</p>
+                  {a.displayNotes ? (
+                    <p className="mt-2 text-sm text-slate-500">
+                      {a.displayNotes}
+                    </p>
+                  ) : null}
+                  {a.reviewContext ? (
+                    <p className="mt-2 text-sm font-medium text-slate-600">
+                      {a.reviewContext}
+                    </p>
+                  ) : null}
+                </article>
+              ))}
+              {!activities.length ? (
+                <p className="text-slate-500">No sales activity yet.</p>
+              ) : null}
+            </div>
+          </section>
+          <section>
+            <h2 className="text-xl font-semibold">Contacts</h2>
+            <div className="mt-4 grid gap-3">
+              {contacts.map((c) => (
+                <div
+                  className="rounded-xl p-4 ring-1 ring-slate-200"
+                  key={c.id}
+                >
+                  <strong>{c.name}</strong> · {stageLabel(c.role)}
+                  {c.is_primary ? " · Primary" : ""}
+                  <p className="text-sm text-slate-500">
+                    {c.email || c.phone || "No contact method"}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <form
+              className="mt-4 grid gap-3 rounded-xl p-4 ring-1 ring-slate-200"
+              onSubmit={addContact}
+            >
+              <input
+                className="ps-input"
+                required
+                placeholder="Contact name"
+                value={contact.name}
+                onChange={(e) =>
+                  setContact({ ...contact, name: e.target.value })
+                }
+              />
+              <select
+                className="ps-input"
+                value={contact.role}
+                onChange={(e) =>
+                  setContact({ ...contact, role: e.target.value })
+                }
+              >
+                {["owner", "manager", "employee", "other", "unknown"].map(
+                  (r) => (
+                    <option key={r}>{r}</option>
+                  ),
+                )}
+              </select>
+              <input
+                className="ps-input"
+                placeholder="Email"
+                value={contact.email}
+                onChange={(e) =>
+                  setContact({ ...contact, email: e.target.value })
+                }
+              />
+              <button className="ps-button-secondary">Add contact</button>
+            </form>
+          </section>
+        </div>
+        <section className="mt-8 rounded-2xl p-5 ring-1 ring-slate-200">
+          <h2 className="text-xl font-semibold">PocketStamp setup</h2>
+          {hasTechnicalTabs(account) ? (
+            <a
+              className="ps-button-secondary mt-4"
+              href={`/admin/cafes/${account.merchant_id}`}
+            >
+              Open Wallet, assets, scanner and settings
+            </a>
+          ) : (
+            <p className="mt-3 text-slate-500">
+              Create or link a PocketStamp demo when this prospect is ready.
+            </p>
+          )}
+        </section>
+      </section>
+    </Shell>
+  );
+}
