@@ -7,6 +7,7 @@ import {
   crmListMessage,
   decorateTimelineActivities,
   hasTechnicalTabs,
+  isArchived,
   pocketStampState,
   stageLabel,
 } from "./adminCrm.js";
@@ -39,6 +40,7 @@ const badge =
 
 export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
   const [accounts, setAccounts] = useState([]),
+    [archivedAccounts, setArchivedAccounts] = useState(null),
     [filter, setFilter] = useState("all"),
     [search, setSearch] = useState(""),
     [error, setError] = useState(""),
@@ -59,7 +61,23 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
       current = false;
     };
   }, [accessToken]);
-  const filtered = crmListFilter(accounts, filter).filter(
+  useEffect(() => {
+    if (filter !== "archived" || archivedAccounts !== null) return;
+    let current = true;
+    request("/api/admin/crm/accounts?sort=next_follow_up&archived=true", {}, accessToken)
+      .then((p) => {
+        if (current) setArchivedAccounts(p.accounts || []);
+      })
+      .catch((e) => {
+        if (current) setError(e.message);
+      });
+    return () => {
+      current = false;
+    };
+  }, [accessToken, archivedAccounts, filter]);
+  const visibleAccounts = filter === "archived" ? archivedAccounts || [] : accounts,
+    viewLoading = filter === "archived" ? archivedAccounts === null && !error : loading,
+    filtered = crmListFilter(visibleAccounts, filter).filter(
       (a) =>
         !search ||
         [
@@ -76,9 +94,9 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
         ),
     ),
     message = crmListMessage({
-      loading,
+      loading: viewLoading,
       error,
-      total: accounts.length,
+      total: visibleAccounts.length,
       visible: filtered.length,
     });
   return (
@@ -112,6 +130,7 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
             ["trials", "Trials"],
             ["customers", "Customers"],
             ["configured", "PocketStamp configured"],
+            ["archived", "Archived"],
           ].map(([v, l]) => (
             <button
               key={v}
@@ -127,7 +146,7 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
         {error ? <p className="mt-5 text-red-700">{error}</p> : null}
         <div
           className="mt-6 overflow-x-auto rounded-2xl ring-1 ring-slate-200"
-          aria-busy={loading}
+          aria-busy={viewLoading}
         >
           <table className="w-full min-w-[1100px] text-left text-sm">
             <thead className="bg-[#fbfaf7] text-xs uppercase text-slate-500">
@@ -158,6 +177,11 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
                     >
                       {a.display_name || a.name}
                     </a>
+                    {isArchived(a) ? (
+                      <span className="ml-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                        Archived
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-4 py-4 text-slate-600">
                     {a.locality || a.address || "—"}
@@ -277,7 +301,17 @@ export function CrmAccountPage({
               {account.display_name || account.name}
             </h1>
             <p className="mt-2 text-slate-500">{pocketStampState(account)}</p>
+            {isArchived(account) ? (
+              <span className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                Archived
+              </span>
+            ) : null}
           </div>
+          {isArchived(account) && adminContext?.role === "owner" ? (
+            <button className="ps-button-secondary" onClick={() => patch({ archived: false })}>
+              Restore account
+            </button>
+          ) : null}
         </div>
         <h2 className="mt-6 text-xl font-semibold">Sales overview</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
