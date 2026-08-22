@@ -58,4 +58,25 @@ test("admin routes use history navigation and archived CRM data loads on demand"
   assert.match(portal, /Promise\.all\(\[loadAdminContext\(nextSession\), routePreload\]\)/);
   assert.doesNotMatch(crm, /Promise\.all\(\[\s*request\("\/api\/admin\/crm\/accounts/);
   assert.match(crm, /filter !== "archived" \|\| archivedAccounts/);
+  assert.doesNotMatch(crm, /useEffect\(load,/);
+  assert.match(crm, /useEffect\(\(\) => \{\s*load\(\);\s*\}, \[load\]\)/);
+});
+
+test("admin shell links remain SPA-driven across detail unmount and history transitions", async () => {
+  const [app, portal] = await Promise.all([
+    readFile(new URL("./App.jsx", import.meta.url), "utf8"),
+    readFile(new URL("./AdminPortal.jsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(portal, /onNavigate\?\.\("\/admin\/onboard"\)/);
+  assert.match(portal, /onNavigate\?\.\(href\)/);
+  assert.match(app, /handlePopState/);
+  assert.match(app, /removeEventListener\("popstate"/);
+});
+
+test("Archived stage calls existing archive workflow and restore preserves underlying stage", async () => {
+  const crm = await readFile(new URL("./AdminCrm.jsx", import.meta.url), "utf8");
+  assert.match(crm, /isArchived\(account\) \? "archived" : account\.stage/);
+  assert.match(crm, /e\.target\.value === "archived" \? patch\(\{ archived: true \}\)/);
+  assert.match(crm, /patch\(\{ archived: false \}\)/);
+  assert.doesNotMatch(crm, /patch\(\{ stage: "archived" \}\)/);
 });

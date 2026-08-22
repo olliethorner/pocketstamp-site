@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CRM_ACTIVITY_TYPES,
   CRM_STAGES,
@@ -298,7 +298,7 @@ export function CrmAccountPage({
       email: "",
       phone: "",
     });
-  const load = () =>
+  const load = useCallback(() =>
     request(`/api/admin/crm/accounts/${accountId}`, {}, accessToken)
       .then((payload) => {
         setData(setAccountDetail(accountId, payload));
@@ -309,8 +309,10 @@ export function CrmAccountPage({
         });
       })
       .catch((e) => setError(e.message))
-      .finally(() => setRefreshing(false));
-  useEffect(load, [accountId, accessToken]);
+      .finally(() => setRefreshing(false)), [accountId, accessToken]);
+  useEffect(() => {
+    load();
+  }, [load]);
   if (!data)
     return (
       <Shell
@@ -435,11 +437,11 @@ export function CrmAccountPage({
               id="crm-sales-stage"
               className="ps-input mt-2"
               aria-label="Sales stage"
-              value={account.stage}
-              onChange={(e) => patch({ stage: e.target.value })}
+              value={isArchived(account) ? "archived" : account.stage}
+              onChange={(e) => e.target.value === "archived" ? patch({ archived: true }) : patch({ stage: e.target.value })}
             >
-              {CRM_STAGES.map((s) => (
-                <option value={s} key={s}>
+              {[...CRM_STAGES, ...(adminContext?.role === "owner" || isArchived(account) ? ["archived"] : [])].map((s) => (
+                <option value={s} key={s} disabled={s === "archived" && adminContext?.role !== "owner"}>
                   {stageLabel(s)}
                 </option>
               ))}
@@ -563,17 +565,17 @@ export function CrmAccountPage({
                     </span>
                   </div>
                   {!followUpHistory ? <p className="mt-2">{a.summary}</p> : null}
-                  {followUpHistory?.previousAt || followUpHistory?.nextAt ? (
+                  {a.activity_type === "follow_up_scheduled" && followUpHistory?.nextAt ? (
                     <p className="mt-2 font-semibold text-slate-700">
-                      {followUpHistory.previousAt ? date(followUpHistory.previousAt) : "Not scheduled"}
-                      {a.activity_type === "follow_up_rescheduled" ? " → " : null}
-                      {a.activity_type === "follow_up_rescheduled" ? (followUpHistory.nextAt ? date(followUpHistory.nextAt) : "Not scheduled") : null}
-                      {a.activity_type === "follow_up_scheduled" && followUpHistory.nextAt ? date(followUpHistory.nextAt) : null}
+                      {date(followUpHistory.nextAt)}
                     </p>
                   ) : null}
+                  {a.activity_type === "follow_up_rescheduled" ? <p className="mt-2 font-semibold text-slate-700">{followUpHistory?.previousAt ? date(followUpHistory.previousAt) : "No previous date"} → {followUpHistory?.nextAt ? date(followUpHistory.nextAt) : "No new date"}</p> : null}
+                  {a.activity_type === "follow_up_completed" ? <p className="mt-2 font-semibold text-slate-700">Completed:</p> : null}
                   {a.activity_type === "follow_up_rescheduled" && followUpHistory?.previousNote && followUpHistory.previousNote !== followUpHistory.nextNote ? <p className="mt-2 text-sm text-slate-400 line-through">{followUpHistory.previousNote}</p> : null}
-                  {followUpHistory?.nextNote ? <p className="mt-2 text-sm text-slate-600">{followUpHistory.nextNote}</p> : null}
-                  {a.displayNotes ? (
+                  {a.activity_type === "follow_up_completed" && followUpHistory?.previousNote ? <p className="mt-2 text-sm text-slate-600">{followUpHistory.previousNote}</p> : null}
+                  {a.activity_type !== "follow_up_completed" && followUpHistory?.nextNote ? <p className="mt-2 text-sm text-slate-600">{followUpHistory.nextNote}</p> : null}
+                  {!followUpHistory && a.displayNotes ? (
                     <p className="mt-2 text-sm text-slate-500">
                       {a.displayNotes}
                     </p>

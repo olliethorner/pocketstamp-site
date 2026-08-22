@@ -1,6 +1,6 @@
 export const CRM_STAGES = ["new","contacted","interested","trial","customer","not_now","lost"];
 export const CRM_ACTIVITY_TYPES = ["in_person_visit","email","phone_call","sms","instagram_dm","demo","note","trial_event"];
-export function stageLabel(stage){return String(stage||"new").replaceAll("_"," ").replace(/\b\w/g,(v)=>v.toUpperCase());}
+export function stageLabel(stage){const followUps={follow_up_scheduled:"Follow-up scheduled",follow_up_rescheduled:"Follow-up rescheduled",follow_up_completed:"Follow-up completed"};return followUps[stage]||String(stage||"new").replaceAll("_"," ").replace(/\b\w/g,(v)=>v.toUpperCase());}
 export function pocketStampState(account){if(!account?.merchant_id&&!account?.merchant?.id)return "Not configured";const state=account.pocketstamp_state||account.pocketStampState||{};const ready=[state.appleReady&&"Apple Ready",state.googleReady&&"Google Ready",state.assetsReady&&"Assets Ready"].filter(Boolean);return ready.length?ready.join(" · "):"Merchant linked";}
 export function localDayKey(value){if(!value)return null;const d=value instanceof Date?value:new Date(value);if(Number.isNaN(d.valueOf()))return null;return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
 export function followUpUrgency(value,now=new Date()){const key=localDayKey(value),today=localDayKey(now);if(!key)return "neutral";if(key===today)return "today";return key<today?"overdue":"neutral";}
