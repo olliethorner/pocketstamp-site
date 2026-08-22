@@ -3217,7 +3217,17 @@ function ScannerKioskPage() {
 }
 
 export default function App() {
-  const pathname = window.location.pathname;
+  const [pathname, setPathname] = useState(window.location.pathname);
+  useEffect(() => {
+    const handlePopState = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+  const navigate = (nextPath, { replace = false } = {}) => {
+    window.history[replace ? "replaceState" : "pushState"](null, "", nextPath);
+    setPathname(window.location.pathname);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
 
   if (pathname === demoJoinUrl) {
     return <DemoJoinPage />;
@@ -3280,7 +3290,7 @@ export default function App() {
   }
 
   if (pathname.startsWith("/admin")) {
-    return <AdminPortal path={pathname} />;
+    return <AdminPortal path={pathname} onNavigate={navigate} />;
   }
 
   return <MarketingHomepage />;

@@ -20,6 +20,15 @@ import {
   pocketStampState,
   stageLabel,
 } from "./adminCrm.js";
+import {
+  getAccountDetail,
+  getAccountLists,
+  getAccountSummary,
+  prefetchAccountDetail,
+  setAccountDetail,
+  setAccountList,
+  setMerchantSummary,
+} from "./adminCrmCache.js";
 
 const API_BASE = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 async function request(path, options, token) {
@@ -59,7 +68,7 @@ const urgencyClass = (value) =>
       ? "bg-red-50 text-red-800 ring-red-200"
       : "bg-slate-50 text-slate-700 ring-slate-200";
 
-function CrmCalendar({ accounts, selectedDate, onSelectedDate, onDate }) {
+function CrmCalendar({ accounts, selectedDate, onSelectedDate, onDate, onNavigate }) {
   const entries = calendarEntries(accounts), today = localDayKey(new Date());
   return (
     <section className="mt-5 rounded-2xl bg-white p-4 ring-1 ring-slate-200" aria-label="Follow-up calendar">
@@ -77,7 +86,7 @@ function CrmCalendar({ accounts, selectedDate, onSelectedDate, onDate }) {
           <div className={`min-h-28 border-r border-slate-100 bg-white p-2 ${key===today?'bg-blue-50/40':''}`} key={key}>
             <button className="text-left" onClick={() => onDate(key)} aria-label={`Filter follow-ups for ${key}`}><span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">{new Intl.DateTimeFormat("en-GB",{weekday:"short"}).format(day)}</span><span className={`mt-1 flex size-7 items-center justify-center rounded-full text-sm font-semibold ${key===today?'bg-[var(--ps-blue)] text-white':''}`}>{day.getDate()}</span></button>
             <div className="mt-1 grid gap-1">
-              {dayEntries.slice(0,2).map((account)=><a className="min-w-0 rounded bg-emerald-50 px-1.5 py-1 text-[10px] text-emerald-900 no-underline" href={`/admin/crm/cafes/${account.id}`} key={account.id} title={account.follow_up_note||account.display_name||account.name}><span className="block truncate font-bold">{account.display_name||account.name}</span>{account.follow_up_note?<span className="block truncate opacity-75">{account.follow_up_note}</span>:null}</a>)}
+              {dayEntries.slice(0,2).map((account)=><a className="min-w-0 rounded bg-emerald-50 px-1.5 py-1 text-[10px] text-emerald-900 no-underline" href={`/admin/crm/cafes/${account.id}`} key={account.id} onClick={(event)=>{event.preventDefault();onNavigate(`/admin/crm/cafes/${account.id}`);}} title={account.follow_up_note||account.display_name||account.name}><span className="block truncate font-bold">{account.display_name||account.name}</span>{account.follow_up_note?<span className="block truncate opacity-75">{account.follow_up_note}</span>:null}</a>)}
               {dayEntries.length>2?<button className="text-left text-[10px] font-semibold text-slate-500" onClick={() => onDate(key)}>+{dayEntries.length-2} more</button>:null}
             </div>
           </div>
@@ -88,23 +97,26 @@ function CrmCalendar({ accounts, selectedDate, onSelectedDate, onDate }) {
   );
 }
 
-export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
-  const [accounts, setAccounts] = useState([]),
-    [archivedAccounts, setArchivedAccounts] = useState([]),
+export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout, onNavigate }) {
+  const [initialCache] = useState(getAccountLists);
+  const [accounts, setAccounts] = useState(initialCache.activeAccounts || []),
+    [archivedAccounts, setArchivedAccounts] = useState(initialCache.archivedAccounts),
+    [archivedCount, setArchivedCount] = useState(initialCache.archivedCount),
     [filter, setFilter] = useState("all"),
     [search, setSearch] = useState(""),
     [sort, setSort] = useState("next_follow_up_at:asc"),
     [selectedDate, setSelectedDate] = useState(new Date()),
     [error, setError] = useState(""),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(!initialCache.activeAccounts);
   useEffect(() => {
+    if (initialCache.activeAccounts && Date.now() - initialCache.activeLoadedAt < 30000) return undefined;
     let current = true;
-    Promise.all([
-      request("/api/admin/crm/accounts?sort=next_follow_up", {}, accessToken),
-      request("/api/admin/crm/accounts?sort=next_follow_up&archived=true", {}, accessToken),
-    ])
-      .then(([active, archived]) => {
-        if (current) { setAccounts(active.accounts || []); setArchivedAccounts(archived.accounts || []); }
+    request("/api/admin/crm/accounts?sort=next_follow_up", {}, accessToken)
+      .then((active) => {
+        if (current) {
+          setAccounts(setAccountList(active.accounts, { archivedCount: active.archivedCount }));
+          setArchivedCount(active.archivedCount || 0);
+        }
       })
       .catch((e) => {
         if (current) setError(e.message);
@@ -115,11 +127,21 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
     return () => {
       current = false;
     };
-  }, [accessToken]);
-  const visibleAccounts = filter === "archived" ? archivedAccounts : accounts,
-    viewLoading = loading,
+  }, [accessToken, initialCache.activeAccounts, initialCache.activeLoadedAt]);
+  useEffect(() => {
+    if (filter !== "archived" || archivedAccounts) return;
+    let current = true;
+    request("/api/admin/crm/accounts?sort=next_follow_up&archived=true", {}, accessToken)
+      .then((payload) => { if (current) setArchivedAccounts(setAccountList(payload.accounts, { archived: true })); })
+      .catch((e) => { if (current) setError(e.message); });
+    return () => { current = false; };
+  }, [accessToken, archivedAccounts, filter]);
+  const openAccount = (account) => onNavigate(`/admin/crm/cafes/${account.id}`),
+    prefetchAccount = (account) => prefetchAccountDetail(account.id, () => request(`/api/admin/crm/accounts/${account.id}`, {}, accessToken)).catch(() => {}),
+    visibleAccounts = filter === "archived" ? archivedAccounts || [] : accounts,
+    viewLoading = filter === "archived" ? !archivedAccounts && !error : loading,
     filtered = crmSort(crmSearch(crmListFilter(visibleAccounts, filter),search),sort),
-    counts = pipelineCounts(accounts,archivedAccounts.length),
+    counts = pipelineCounts(accounts,archivedCount),
     message = crmListMessage({
       loading: viewLoading,
       error,
@@ -131,6 +153,7 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
       active="/admin/cafes"
       adminContext={adminContext}
       onLogout={onLogout}
+      onNavigate={onNavigate}
     >
       <section className="ps-flow-card !p-4 lg:!p-6">
         <p className="ps-eyebrow">Sales Workspace</p>
@@ -142,7 +165,7 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
             </p>
           </div>
         </div>
-        <CrmCalendar accounts={accounts} selectedDate={selectedDate} onSelectedDate={setSelectedDate} onDate={(key)=>setFilter(`date:${key}`)} />
+        <CrmCalendar accounts={accounts} selectedDate={selectedDate} onSelectedDate={setSelectedDate} onDate={(key)=>setFilter(`date:${key}`)} onNavigate={onNavigate} />
         <section className="mt-5" aria-label="Pipeline summary">
           <h2 className="text-lg font-semibold">Pipeline</h2>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
@@ -189,11 +212,13 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((a) => (
-                <tr className="cursor-pointer hover:bg-blue-50/40" key={a.id} onClick={() => { window.location.href=`/admin/crm/cafes/${a.id}`; }}>
+                <tr className="cursor-pointer hover:bg-blue-50/40" key={a.id} onClick={() => openAccount(a)} onMouseEnter={() => prefetchAccount(a)}>
                   <td className="px-3 py-2.5">
                     <a
                       className="font-semibold text-[var(--ps-blue)] no-underline"
                       href={`/admin/crm/cafes/${a.id}`}
+                      onClick={(event) => { event.preventDefault(); event.stopPropagation(); openAccount(a); }}
+                      onFocus={() => prefetchAccount(a)}
                     >
                       {a.display_name || a.name}
                     </a>
@@ -233,7 +258,7 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
           ) : null}
         </div>
         <div className="mt-4 grid gap-3 md:hidden">
-          {filtered.map((a)=><a className="rounded-xl bg-white p-4 text-inherit no-underline ring-1 ring-slate-200" href={`/admin/crm/cafes/${a.id}`} key={a.id}><div className="flex items-start justify-between gap-3"><strong>{a.display_name||a.name}</strong><span className={badge}>{stageLabel(a.stage)}</span></div><p className="mt-1 text-sm text-slate-500">{a.locality||a.address||"Location unavailable"}</p><div className={`mt-3 rounded-lg px-3 py-2 text-sm ring-1 ${urgencyClass(a.next_follow_up_at)}`}><span className="font-semibold">Next follow-up:</span> {date(a.next_follow_up_at)}</div></a>)}
+          {filtered.map((a)=><a className="rounded-xl bg-white p-4 text-inherit no-underline ring-1 ring-slate-200" href={`/admin/crm/cafes/${a.id}`} key={a.id} onClick={(event)=>{event.preventDefault();openAccount(a);}} onFocus={()=>prefetchAccount(a)} onTouchStart={()=>prefetchAccount(a)}><div className="flex items-start justify-between gap-3"><strong>{a.display_name||a.name}</strong><span className={badge}>{stageLabel(a.stage)}</span></div><p className="mt-1 text-sm text-slate-500">{a.locality||a.address||"Location unavailable"}</p><div className={`mt-3 rounded-lg px-3 py-2 text-sm ring-1 ${urgencyClass(a.next_follow_up_at)}`}><span className="font-semibold">Next follow-up:</span> {date(a.next_follow_up_at)}</div></a>)}
           {message?<p className="text-slate-500" role="status">{message}</p>:null}
         </div>
       </section>
@@ -247,8 +272,11 @@ export function CrmAccountPage({
   Shell,
   adminContext,
   onLogout,
+  onNavigate,
 }) {
-  const [data, setData] = useState(null),
+  const cachedDetail = getAccountDetail(accountId), cachedSummary = getAccountSummary(accountId);
+  const [data, setData] = useState(cachedDetail || (cachedSummary ? { account: cachedSummary, contacts: [], activities: [], primaryContact: cachedSummary.primary_contact || null } : null)),
+    [refreshing, setRefreshing] = useState(!cachedDetail),
     [error, setError] = useState(""),
     [activity, setActivity] = useState({
       activityType: "in_person_visit",
@@ -272,14 +300,15 @@ export function CrmAccountPage({
   const load = () =>
     request(`/api/admin/crm/accounts/${accountId}`, {}, accessToken)
       .then((payload) => {
-        setData(payload);
+        setData(setAccountDetail(accountId, payload));
         setNextSteps({
           nextFollowUpAt: datetimeLocal(payload.account.next_follow_up_at),
           followUpNote: payload.account.follow_up_note || "",
           keyObjection: payload.account.key_objection || "",
         });
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(e.message))
+      .finally(() => setRefreshing(false));
   useEffect(load, [accountId, accessToken]);
   if (!data)
     return (
@@ -287,6 +316,7 @@ export function CrmAccountPage({
         active="/admin/cafes"
         adminContext={adminContext}
         onLogout={onLogout}
+        onNavigate={onNavigate}
       >
         <section className="ps-flow-card">
           {error || "Loading CRM account…"}
@@ -373,8 +403,10 @@ export function CrmAccountPage({
       active="/admin/cafes"
       adminContext={adminContext}
       onLogout={onLogout}
+      onNavigate={onNavigate}
     >
       <section className="ps-flow-card">
+        {refreshing ? <p className="mb-3 text-sm text-slate-500" role="status">Refreshing café details…</p> : null}
         <p className="ps-eyebrow">Sales</p>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -605,6 +637,7 @@ export function CrmAccountPage({
             <a
               className="ps-button-secondary mt-4"
               href={`/admin/cafes/${account.merchant_id}`}
+              onClick={(event) => { event.preventDefault(); setMerchantSummary(account.merchant); onNavigate(`/admin/cafes/${account.merchant_id}`); }}
             >
               Open Wallet, assets, scanner and settings
             </a>

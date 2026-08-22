@@ -17,6 +17,7 @@ import {
 } from "./walletThemeDraft.js";
 import { shouldPollOnboardingStatus, shouldPollWalletReadiness, walletReadinessRows } from "./adminOnboardingStatus.js";
 import { CrmAccountPage, CrmCafesPage } from "./AdminCrm.jsx";
+import { clearAdminCrmCache, getAccountLists, getMerchantSummary, setAccountList, setMerchantSummary } from "./adminCrmCache.js";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
@@ -1287,7 +1288,7 @@ async function copyRichEmailToClipboard({ html = "", text = "" }) {
   return "plain";
 }
 
-function AdminShell({ children, active, adminContext, onLogout }) {
+function AdminShell({ children, active, adminContext, onLogout, onNavigate }) {
   const navItems = [
     ["/admin/onboard", "Onboard Café"],
     ["/admin/cafes", "Cafés"],
@@ -1298,7 +1299,7 @@ function AdminShell({ children, active, adminContext, onLogout }) {
     <main className="ps-dashboard min-h-screen text-[var(--ps-espresso)]">
       <header className="border-b border-[var(--ps-border)] bg-[rgba(255,253,248,0.92)]">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <a href="/admin/onboard" className="flex items-center gap-3 text-[var(--ps-espresso)] no-underline">
+          <a href="/admin/onboard" onClick={(event) => { event.preventDefault(); onNavigate?.("/admin/onboard"); }} className="flex items-center gap-3 text-[var(--ps-espresso)] no-underline">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--ps-espresso)] text-sm font-bold text-white">
               PS
             </span>
@@ -1316,6 +1317,7 @@ function AdminShell({ children, active, adminContext, onLogout }) {
                   <a
                     key={href}
                     href={href}
+                    onClick={(event) => { event.preventDefault(); onNavigate?.(href); }}
                     className={`rounded-full px-4 py-2 text-sm font-semibold no-underline transition ${
                       isActive
                         ? "bg-[var(--ps-blue)] text-white"
@@ -1692,7 +1694,7 @@ function FinalThemeDebug({ form, warnings = [] }) {
   );
 }
 
-function OnboardCafePage({ accessToken, adminContext, onLogout }) {
+function OnboardCafePage({ accessToken, adminContext, onLogout, onNavigate }) {
   const [form, setForm] = useState(initialOnboardingForm);
   const [step, setStep] = useState(0);
   const [slugEdited, setSlugEdited] = useState(false);
@@ -1848,7 +1850,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
 
   if (step === 5) {
     return (
-      <AdminShell active="/admin/onboard" adminContext={adminContext} onLogout={onLogout}>
+      <AdminShell active="/admin/onboard" adminContext={adminContext} onLogout={onLogout} onNavigate={onNavigate}>
         <section className="ps-flow-card">
           <p className="ps-eyebrow">Success / handoff</p>
           <h1 className="mt-3 text-3xl font-semibold">Café merchant created</h1>
@@ -1939,7 +1941,7 @@ function OnboardCafePage({ accessToken, adminContext, onLogout }) {
   }
 
   return (
-    <AdminShell active="/admin/onboard" adminContext={adminContext} onLogout={onLogout}>
+    <AdminShell active="/admin/onboard" adminContext={adminContext} onLogout={onLogout} onNavigate={onNavigate}>
       <div className="grid gap-6 lg:grid-cols-[0.72fr_0.28fr]">
         <section className="ps-flow-card">
           <p className="ps-eyebrow">Onboard café</p>
@@ -2342,11 +2344,13 @@ export function CafesListPage({ accessToken, adminContext, onLogout }) {
   );
 }
 
-function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout }) {
-  const [merchant, setMerchant] = useState(null);
+function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout, onNavigate }) {
+  const initialMerchant = getMerchantSummary(merchantId);
+  const [merchant, setMerchant] = useState(initialMerchant);
   const [detailPayload, setDetailPayload] = useState(null);
-  const [form, setForm] = useState({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [form, setForm] = useState(() => initialMerchant ? buildMerchantEditForm(initialMerchant) : {});
+  const [isLoading, setIsLoading] = useState(!initialMerchant);
+  const [isRefreshing, setIsRefreshing] = useState(Boolean(initialMerchant));
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState("");
@@ -2375,13 +2379,14 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
         if (!isMounted) return;
         setDetailPayload(payload || {});
         setMerchant(nextMerchant);
+        setMerchantSummary(nextMerchant);
         const mergedMerchant = mergeMerchantDetailPayload(payload, nextMerchant);
         setForm(buildMerchantEditForm(mergedMerchant));
         setOwnerSetupEmail(getMerchantOwnerEmail(mergedMerchant) || getContactEmail(mergedMerchant) || "");
       } catch (loadError) {
         if (isMounted) setError(loadError.message || "Unable to load café.");
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) { setIsLoading(false); setIsRefreshing(false); }
       }
     }
 
@@ -2427,7 +2432,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
 
   if (isLoading) {
     return (
-      <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
+      <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout} onNavigate={onNavigate}>
         <section className="ps-flow-card">Loading café...</section>
       </AdminShell>
     );
@@ -2435,7 +2440,7 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
 
   if (error || !merchant) {
     return (
-      <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
+      <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout} onNavigate={onNavigate}>
         <section className="ps-flow-card"><Alert tone="red">{error || "Café not found."}</Alert></section>
       </AdminShell>
     );
@@ -2722,8 +2727,9 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout })
   }
 
   return (
-    <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout}>
+    <AdminShell active="/admin/cafes" adminContext={adminContext} onLogout={onLogout} onNavigate={onNavigate}>
       <section className="ps-flow-card">
+        {isRefreshing ? <p className="mb-3 text-sm text-slate-500" role="status">Refreshing café configuration…</p> : null}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="ps-eyebrow">Café detail</p>
@@ -3618,9 +3624,9 @@ function AdminLoginPage({ onLogin }) {
   );
 }
 
-function AccountPage({ adminContext, onLogout }) {
+function AccountPage({ adminContext, onLogout, onNavigate }) {
   return (
-    <AdminShell active="/admin/account" adminContext={adminContext} onLogout={onLogout}>
+    <AdminShell active="/admin/account" adminContext={adminContext} onLogout={onLogout} onNavigate={onNavigate}>
       <section className="ps-flow-card">
         <p className="ps-eyebrow">My Account</p>
         <h1 className="mt-3 text-3xl font-semibold">{adminContext.fullName || adminContext.email}</h1>
@@ -3640,9 +3646,10 @@ function AccountPage({ adminContext, onLogout }) {
   );
 }
 
-export default function AdminPortal({ path }) {
+export default function AdminPortal({ path, onNavigate }) {
   const [session, setSession] = useState(() => getStoredAdminSession());
   const initialSessionRef = useRef(session);
+  const initialPathRef = useRef(path);
   const [adminContext, setAdminContext] = useState(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [authError, setAuthError] = useState("");
@@ -3651,9 +3658,10 @@ export default function AdminPortal({ path }) {
 
   function handleLogout() {
     clearAdminSession();
+    clearAdminCrmCache();
     setSession(null);
     setAdminContext(null);
-    window.history.replaceState(null, "", "/admin/login");
+    onNavigate("/admin/login", { replace: true });
   }
 
   async function loadAdminContext(nextSession) {
@@ -3665,6 +3673,7 @@ export default function AdminPortal({ path }) {
   }
 
   async function handleLogin(email, password) {
+    clearAdminCrmCache();
     const nextSession = await signInAdmin(email, password);
     try {
       await loadAdminContext(nextSession);
@@ -3674,7 +3683,7 @@ export default function AdminPortal({ path }) {
     }
     storeAdminSession(nextSession);
     setSession(nextSession);
-    window.history.replaceState(null, "", "/admin/onboard");
+    onNavigate("/admin/onboard", { replace: true });
   }
 
   useEffect(() => {
@@ -3695,7 +3704,13 @@ export default function AdminPortal({ path }) {
           if (isMounted) setSession(nextSession);
         }
 
-        await loadAdminContext(nextSession);
+        const cachedLists = getAccountLists();
+        const routePreload = initialPathRef.current === "/admin/cafes" && !cachedLists.activeAccounts
+          ? adminFetch("/api/admin/crm/accounts?sort=next_follow_up", {}, nextSession.accessToken)
+              .then((payload) => setAccountList(payload.accounts, { archivedCount: payload.archivedCount }))
+              .catch(() => null)
+          : Promise.resolve();
+        await Promise.all([loadAdminContext(nextSession), routePreload]);
         if (isMounted) setAuthError("");
       } catch (error) {
         clearAdminSession();
@@ -3741,6 +3756,7 @@ export default function AdminPortal({ path }) {
     accessToken,
     adminContext,
     onLogout: handleLogout,
+    onNavigate,
   };
 
   if (path === "/admin") {
@@ -3755,7 +3771,7 @@ export default function AdminPortal({ path }) {
 
   if (path === "/admin/onboard") return <OnboardCafePage {...pageProps} />;
   if (path === "/admin/cafes") return <CrmCafesPage {...pageProps} Shell={AdminShell} />;
-  if (path === "/admin/account") return <AccountPage adminContext={adminContext} onLogout={handleLogout} />;
+  if (path === "/admin/account") return <AccountPage adminContext={adminContext} onLogout={handleLogout} onNavigate={onNavigate} />;
 
   const detailMatch = path.match(/^\/admin\/cafes\/([^/]+)$/);
   if (detailMatch) {
@@ -3768,7 +3784,7 @@ export default function AdminPortal({ path }) {
   }
 
   return (
-    <AdminShell active="/admin/onboard" adminContext={adminContext} onLogout={handleLogout}>
+    <AdminShell active="/admin/onboard" adminContext={adminContext} onLogout={handleLogout} onNavigate={onNavigate}>
       <section className="ps-flow-card">
         <h1 className="text-3xl font-semibold">Admin page not found</h1>
         <a href="/admin/onboard" className="ps-button-primary mt-6">
