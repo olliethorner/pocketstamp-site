@@ -30,10 +30,16 @@ async function request(path, options, token) {
 const date = (value) => {
   if (!value) return "—";
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     ...(dateOnly ? { timeZone: "UTC" } : {}),
   }).format(new Date(value));
+};
+const datetimeLocal = (value) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  const local = new Date(parsed.valueOf() - parsed.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
 };
 const badge =
   "inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-100";
@@ -235,6 +241,12 @@ export function CrmAccountPage({
       summary: "",
       notes: "",
     }),
+    [nextSteps, setNextSteps] = useState({
+      nextFollowUpAt: "",
+      followUpNote: "",
+      keyObjection: "",
+    }),
+    [saving, setSaving] = useState(false),
     [contact, setContact] = useState({
       name: "",
       role: "unknown",
@@ -243,7 +255,14 @@ export function CrmAccountPage({
     });
   const load = () =>
     request(`/api/admin/crm/accounts/${accountId}`, {}, accessToken)
-      .then(setData)
+      .then((payload) => {
+        setData(payload);
+        setNextSteps({
+          nextFollowUpAt: datetimeLocal(payload.account.next_follow_up_at),
+          followUpNote: payload.account.follow_up_note || "",
+          keyObjection: payload.account.key_objection || "",
+        });
+      })
       .catch((e) => setError(e.message));
   useEffect(load, [accountId, accessToken]);
   if (!data)
@@ -265,17 +284,63 @@ export function CrmAccountPage({
       { method: "PATCH", body: JSON.stringify(values) },
       accessToken,
     );
-    load();
+    return load();
   }
   async function log(e) {
     e.preventDefault();
-    await request(
-      `/api/admin/crm/accounts/${accountId}/activities`,
-      { method: "POST", body: JSON.stringify(activity) },
-      accessToken,
-    );
-    setActivity({ ...activity, summary: "", notes: "" });
-    load();
+    setSaving(true);
+    setError("");
+    try {
+      const optionalNextSteps = {};
+      if (nextSteps.nextFollowUpAt)
+        optionalNextSteps.nextFollowUpAt = new Date(nextSteps.nextFollowUpAt).toISOString();
+      if (nextSteps.followUpNote.trim())
+        optionalNextSteps.followUpNote = nextSteps.followUpNote;
+      if (nextSteps.keyObjection.trim() && nextSteps.keyObjection.trim() !== (account.key_objection || ""))
+        optionalNextSteps.keyObjection = nextSteps.keyObjection;
+      await request(
+        `/api/admin/crm/accounts/${accountId}/activities`,
+        { method: "POST", body: JSON.stringify({ ...activity, ...optionalNextSteps }) },
+        accessToken,
+      );
+      setActivity({ ...activity, summary: "", notes: "" });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function saveNextSteps() {
+    setSaving(true);
+    setError("");
+    try {
+      await patch({
+        nextFollowUpAt: nextSteps.nextFollowUpAt ? new Date(nextSteps.nextFollowUpAt).toISOString() : null,
+        followUpNote: nextSteps.followUpNote || null,
+        keyObjection: nextSteps.keyObjection || null,
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function completeFollowUp() {
+    setSaving(true);
+    setError("");
+    try {
+      await request(
+        `/api/admin/crm/accounts/${accountId}/follow-up/complete`,
+        { method: "POST", body: JSON.stringify({}) },
+        accessToken,
+      );
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
   }
   async function addContact(e) {
     e.preventDefault();
@@ -347,11 +412,10 @@ export function CrmAccountPage({
             </div>
           ))}
         </div>
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <form
-            className="rounded-2xl p-5 ring-1 ring-slate-200"
-            onSubmit={log}
-          >
+        {error ? <p className="mt-5 text-red-700" role="alert">{error}</p> : null}
+        <form className="mt-6 rounded-2xl p-5 ring-1 ring-slate-200" onSubmit={log}>
+          <div className="grid gap-6 lg:grid-cols-2">
+          <div>
             <h2 className="text-xl font-semibold">Quick log activity</h2>
             <div className="mt-4 grid gap-3">
               <select
@@ -393,40 +457,45 @@ export function CrmAccountPage({
                   setActivity({ ...activity, notes: e.target.value })
                 }
               />
-              <button className="ps-button-primary">Save activity</button>
             </div>
-          </form>
-          <div className="rounded-2xl p-5 ring-1 ring-slate-200">
-            <h2 className="text-xl font-semibold">Sales context</h2>
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold">Next steps</h2>
             <label className="mt-4 block text-sm font-bold">
               Next follow-up
               <input
                 className="ps-input mt-2"
                 type="datetime-local"
-                defaultValue={account.next_follow_up_at?.slice(0, 16) || ""}
-                onBlur={(e) =>
-                  patch({ nextFollowUpAt: e.target.value || null })
-                }
+                value={nextSteps.nextFollowUpAt}
+                onChange={(e) => setNextSteps({ ...nextSteps, nextFollowUpAt: e.target.value })}
               />
             </label>
             <label className="mt-4 block text-sm font-bold">
               Follow-up note
               <textarea
                 className="ps-input mt-2"
-                defaultValue={account.follow_up_note || ""}
-                onBlur={(e) => patch({ followUpNote: e.target.value })}
+                value={nextSteps.followUpNote}
+                onChange={(e) => setNextSteps({ ...nextSteps, followUpNote: e.target.value })}
               />
             </label>
             <label className="mt-4 block text-sm font-bold">
               Key objection
               <textarea
                 className="ps-input mt-2"
-                defaultValue={account.key_objection || ""}
-                onBlur={(e) => patch({ keyObjection: e.target.value })}
+                value={nextSteps.keyObjection}
+                onChange={(e) => setNextSteps({ ...nextSteps, keyObjection: e.target.value })}
               />
             </label>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button type="button" className="ps-button-secondary" disabled={saving} onClick={saveNextSteps}>Save next steps</button>
+              {account.next_follow_up_at ? (
+                <button type="button" className="ps-button-secondary" disabled={saving} onClick={completeFollowUp}>Mark follow-up complete</button>
+              ) : null}
+            </div>
           </div>
-        </div>
+          </div>
+          <button className="ps-button-primary mt-5" disabled={saving}>{saving ? "Saving…" : "Save activity"}</button>
+        </form>
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <section>
             <h2 className="text-xl font-semibold">Activity timeline</h2>
