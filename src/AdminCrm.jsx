@@ -2,12 +2,20 @@ import { useEffect, useState } from "react";
 import {
   CRM_ACTIVITY_TYPES,
   CRM_STAGES,
+  activityIcon,
   assignedAdminLabel,
+  calendarDays,
+  calendarEntries,
   crmListFilter,
   crmListMessage,
+  crmSearch,
+  crmSort,
   decorateTimelineActivities,
+  followUpUrgency,
   hasTechnicalTabs,
   isArchived,
+  localDayKey,
+  pipelineCounts,
   pocketStampState,
   stageLabel,
 } from "./adminCrm.js";
@@ -43,19 +51,60 @@ const datetimeLocal = (value) => {
 };
 const badge =
   "inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-100";
+const urgencyClass = (value) =>
+  followUpUrgency(value) === "today"
+    ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+    : followUpUrgency(value) === "overdue"
+      ? "bg-red-50 text-red-800 ring-red-200"
+      : "bg-slate-50 text-slate-700 ring-slate-200";
+
+function CrmCalendar({ accounts, month, onMonth, onDate }) {
+  const entries = calendarEntries(accounts), today = localDayKey(new Date());
+  return (
+    <section className="mt-5 rounded-2xl bg-white p-4 ring-1 ring-slate-200" aria-label="Follow-up calendar">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">{new Intl.DateTimeFormat("en-GB", { month:"long", year:"numeric" }).format(month)}</h2>
+        <div className="flex gap-2">
+          <button className="ps-button-secondary !px-3 !py-2" onClick={() => onMonth(new Date(month.getFullYear(), month.getMonth()-1, 1))} aria-label="Previous month">←</button>
+          <button className="ps-button-secondary !px-3 !py-2" onClick={() => onMonth(new Date())}>Today</button>
+          <button className="ps-button-secondary !px-3 !py-2" onClick={() => onMonth(new Date(month.getFullYear(), month.getMonth()+1, 1))} aria-label="Next month">→</button>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wide text-slate-400">
+        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((day)=><span className="py-1" key={day}>{day}</span>)}
+      </div>
+      <div className="grid grid-cols-7 overflow-hidden rounded-xl ring-1 ring-slate-200">
+        {calendarDays(month).map((day) => { const key=localDayKey(day), dayEntries=entries[key]||[], inMonth=day.getMonth()===month.getMonth(); return (
+          <div className={`min-h-20 border-b border-r border-slate-100 p-1.5 ${inMonth?'bg-white':'bg-slate-50 text-slate-400'}`} key={key}>
+            <button className={`flex size-6 items-center justify-center rounded-full text-xs font-semibold ${key===today?'bg-[var(--ps-blue)] text-white':''}`} onClick={() => onDate(key)} aria-label={`Filter follow-ups for ${key}`}>{day.getDate()}</button>
+            <div className="mt-1 grid gap-1">
+              {dayEntries.slice(0,2).map((account)=><a className="min-w-0 rounded bg-emerald-50 px-1.5 py-1 text-[10px] text-emerald-900 no-underline" href={`/admin/crm/cafes/${account.id}`} key={account.id} title={account.follow_up_note||account.display_name||account.name}><span className="block truncate font-bold">{account.display_name||account.name}</span>{account.follow_up_note?<span className="block truncate opacity-75">{account.follow_up_note}</span>:null}</a>)}
+              {dayEntries.length>2?<button className="text-left text-[10px] font-semibold text-slate-500" onClick={() => onDate(key)}>+{dayEntries.length-2} more</button>:null}
+            </div>
+          </div>
+        );})}
+      </div>
+    </section>
+  );
+}
 
 export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
   const [accounts, setAccounts] = useState([]),
-    [archivedAccounts, setArchivedAccounts] = useState(null),
+    [archivedAccounts, setArchivedAccounts] = useState([]),
     [filter, setFilter] = useState("all"),
     [search, setSearch] = useState(""),
+    [sort, setSort] = useState("next_follow_up_at:asc"),
+    [month, setMonth] = useState(new Date()),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
   useEffect(() => {
     let current = true;
-    request("/api/admin/crm/accounts?sort=next_follow_up", {}, accessToken)
-      .then((p) => {
-        if (current) setAccounts(p.accounts || []);
+    Promise.all([
+      request("/api/admin/crm/accounts?sort=next_follow_up", {}, accessToken),
+      request("/api/admin/crm/accounts?sort=next_follow_up&archived=true", {}, accessToken),
+    ])
+      .then(([active, archived]) => {
+        if (current) { setAccounts(active.accounts || []); setArchivedAccounts(archived.accounts || []); }
       })
       .catch((e) => {
         if (current) setError(e.message);
@@ -67,38 +116,10 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
       current = false;
     };
   }, [accessToken]);
-  useEffect(() => {
-    if (filter !== "archived" || archivedAccounts !== null) return;
-    let current = true;
-    request("/api/admin/crm/accounts?sort=next_follow_up&archived=true", {}, accessToken)
-      .then((p) => {
-        if (current) setArchivedAccounts(p.accounts || []);
-      })
-      .catch((e) => {
-        if (current) setError(e.message);
-      });
-    return () => {
-      current = false;
-    };
-  }, [accessToken, archivedAccounts, filter]);
-  const visibleAccounts = filter === "archived" ? archivedAccounts || [] : accounts,
-    viewLoading = filter === "archived" ? archivedAccounts === null && !error : loading,
-    filtered = crmListFilter(visibleAccounts, filter).filter(
-      (a) =>
-        !search ||
-        [
-          a.display_name,
-          a.name,
-          a.email,
-          a.website,
-          a.address,
-          a.primary_contact?.name,
-        ].some((v) =>
-          String(v || "")
-            .toLowerCase()
-            .includes(search.toLowerCase()),
-        ),
-    ),
+  const visibleAccounts = filter === "archived" ? archivedAccounts : accounts,
+    viewLoading = loading,
+    filtered = crmSort(crmSearch(crmListFilter(visibleAccounts, filter),search),sort),
+    counts = pipelineCounts(accounts,archivedAccounts.length),
     message = crmListMessage({
       loading: viewLoading,
       error,
@@ -111,31 +132,35 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
       adminContext={adminContext}
       onLogout={onLogout}
     >
-      <section className="ps-flow-card">
-        <p className="ps-eyebrow">Sales workspace</p>
-        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <section className="ps-flow-card !p-4 lg:!p-6">
+        <p className="ps-eyebrow">Sales Workspace</p>
+        <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-3xl font-semibold">Cafés</h1>
             <p className="mt-2 text-slate-500">
               Prospects and PocketStamp merchants in one sales view.
             </p>
           </div>
-          <input
-            className="ps-input lg:max-w-sm"
-            aria-label="Search cafés"
-            placeholder="Search café, contact or location"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
         </div>
+        <CrmCalendar accounts={accounts} month={month} onMonth={setMonth} onDate={(key)=>setFilter(`date:${key}`)} />
+        <section className="mt-5" aria-label="Pipeline summary">
+          <h2 className="text-lg font-semibold">Pipeline</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+            {[["active_prospects","Active prospects"],["interested","Interested"],["trials","Trials"],["customers","Customers"],["due_today","Due today"],["overdue","Overdue"],["archived","Archived"]].map(([key,label])=><button className={`rounded-xl p-3 text-left ring-1 transition hover:ring-[var(--ps-blue)] ${filter===key?'bg-blue-50 ring-blue-200':'bg-[#fbfaf7] ring-slate-200'}`} key={key} onClick={()=>setFilter(key)}><span className="block text-2xl font-semibold">{counts[key]}</span><span className="text-xs font-bold text-slate-500">{label}</span></button>)}
+          </div>
+        </section>
+        <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <input className="ps-input lg:max-w-sm" aria-label="Search cafés" placeholder="Search café, contact, email, phone or location" value={search} onChange={(e) => setSearch(e.target.value)} />
         <div className="mt-5 flex flex-wrap gap-2">
           {[
             ["all", "All"],
             ["follow_up", "Needs follow-up"],
-            ["prospects", "Prospects"],
+            ["due_today", "Due today"],
+            ["overdue", "Overdue"],
+            ["interested", "Interested"],
             ["trials", "Trials"],
             ["customers", "Customers"],
-            ["configured", "PocketStamp configured"],
+            ["configured", "Configured"],
             ["archived", "Archived"],
           ].map(([v, l]) => (
             <button
@@ -149,34 +174,23 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
             </button>
           ))}
         </div>
+        </div>
+        {filter.startsWith("date:")?<div className="mt-3 flex items-center gap-2 text-sm"><strong>Follow-ups on {date(filter.slice(5))}</strong><button className="text-[var(--ps-blue)]" onClick={()=>setFilter("all")}>Clear</button></div>:null}
         {error ? <p className="mt-5 text-red-700">{error}</p> : null}
         <div
-          className="mt-6 overflow-x-auto rounded-2xl ring-1 ring-slate-200"
+          className="mt-4 hidden overflow-x-auto rounded-xl ring-1 ring-slate-200 md:block"
           aria-busy={viewLoading}
         >
-          <table className="w-full min-w-[1100px] text-left text-sm">
+          <table className="w-full min-w-[780px] text-left text-sm">
             <thead className="bg-[#fbfaf7] text-xs uppercase text-slate-500">
               <tr>
-                {[
-                  "Café",
-                  "Location",
-                  "Primary contact",
-                  "Sales stage",
-                  "Last contact",
-                  "Next follow-up",
-                  "PocketStamp",
-                  "Assigned",
-                ].map((h) => (
-                  <th className="px-4 py-3" key={h}>
-                    {h}
-                  </th>
-                ))}
+                {[["Café","name"],["Location","location"],["Primary contact","contact"],["Stage","stage"],["Last contact","last_contact_at"],["Next follow-up","next_follow_up_at"],["PocketStamp",null],["Assigned to",null]].map(([label,key]) => <th className={`px-3 py-2 ${["PocketStamp","Assigned to"].includes(label)?"hidden lg:table-cell":""}`} key={label}>{key?<button className="font-bold uppercase" onClick={()=>setSort(`${key}:${sort===`${key}:asc`?'desc':'asc'}`)}>{label}{sort.startsWith(`${key}:`)?sort.endsWith("asc")?" ↑":" ↓":""}</button>:label}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((a) => (
-                <tr key={a.id}>
-                  <td className="px-4 py-4">
+                <tr className="cursor-pointer hover:bg-blue-50/40" key={a.id} onClick={() => { window.location.href=`/admin/crm/cafes/${a.id}`; }}>
+                  <td className="px-3 py-2.5">
                     <a
                       className="font-semibold text-[var(--ps-blue)] no-underline"
                       href={`/admin/crm/cafes/${a.id}`}
@@ -189,25 +203,23 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
                       </span>
                     ) : null}
                   </td>
-                  <td className="px-4 py-4 text-slate-600">
+                  <td className="px-3 py-2.5 text-slate-600">
                     {a.locality || a.address || "—"}
                   </td>
-                  <td className="px-4 py-4 text-slate-600">
+                  <td className="px-3 py-2.5 text-slate-600">
                     {a.primary_contact?.name || "—"}
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-2.5">
                     <span className={badge}>{stageLabel(a.stage)}</span>
                   </td>
-                  <td className="px-4 py-4 text-slate-600">
+                  <td className="px-3 py-2.5 text-slate-600">
                     {date(a.last_contact_at)}
                   </td>
-                  <td className="px-4 py-4 text-slate-600">
-                    {date(a.next_follow_up_at)}
+                  <td className="px-3 py-2.5"><span className={`inline-flex rounded-lg px-2 py-1 text-xs font-semibold ring-1 ${urgencyClass(a.next_follow_up_at)}`}>{date(a.next_follow_up_at)}</span>
                   </td>
-                  <td className="px-4 py-4 text-slate-600">
-                    {pocketStampState(a)}
+                  <td className="hidden px-3 py-2.5 text-slate-600 lg:table-cell"><span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold">{pocketStampState(a)}</span>
                   </td>
-                  <td className="px-4 py-4 text-slate-600">
+                  <td className="hidden px-3 py-2.5 text-slate-600 lg:table-cell">
                     {assignedAdminLabel(a, adminContext)}
                   </td>
                 </tr>
@@ -219,6 +231,10 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
               {message}
             </p>
           ) : null}
+        </div>
+        <div className="mt-4 grid gap-3 md:hidden">
+          {filtered.map((a)=><a className="rounded-xl bg-white p-4 text-inherit no-underline ring-1 ring-slate-200" href={`/admin/crm/cafes/${a.id}`} key={a.id}><div className="flex items-start justify-between gap-3"><strong>{a.display_name||a.name}</strong><span className={badge}>{stageLabel(a.stage)}</span></div><p className="mt-1 text-sm text-slate-500">{a.locality||a.address||"Location unavailable"}</p><div className={`mt-3 rounded-lg px-3 py-2 text-sm ring-1 ${urgencyClass(a.next_follow_up_at)}`}><span className="font-semibold">Next follow-up:</span> {date(a.next_follow_up_at)}</div></a>)}
+          {message?<p className="text-slate-500" role="status">{message}</p>:null}
         </div>
       </section>
     </Shell>
@@ -404,7 +420,7 @@ export function CrmAccountPage({
             ["Trial", stageLabel(account.trial_status)],
           ].map(([l, v]) => (
             <div
-              className="rounded-xl bg-[#fbfaf7] p-4 ring-1 ring-slate-100"
+              className={`rounded-xl p-4 ring-1 ${l === "Next follow-up" ? urgencyClass(account.next_follow_up_at) : "bg-[#fbfaf7] ring-slate-100"}`}
               key={l}
             >
               <p className="text-xs font-bold uppercase text-slate-500">{l}</p>
@@ -499,14 +515,14 @@ export function CrmAccountPage({
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <section>
             <h2 className="text-xl font-semibold">Activity timeline</h2>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid gap-2">
               {decorateTimelineActivities(activities).map((a) => (
                 <article
-                  className="rounded-xl p-4 ring-1 ring-slate-200"
+                  className={`rounded-xl p-3 ring-1 ${a.activity_type === "status_change" ? "bg-blue-50/60 ring-blue-200" : "bg-white ring-slate-200"}`}
                   key={a.id}
                 >
                   <div className="flex justify-between gap-3">
-                    <strong>{stageLabel(a.activity_type)}</strong>
+                    <strong className="flex items-center gap-2"><span className="flex size-6 items-center justify-center rounded-full bg-slate-100 text-xs" aria-hidden="true">{activityIcon(a.activity_type)}</span>{stageLabel(a.activity_type)}</strong>
                     <span className="text-sm text-slate-500">
                       {date(a.happened_at || a.happened_on)}
                     </span>
