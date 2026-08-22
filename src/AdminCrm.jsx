@@ -4,7 +4,7 @@ import {
   CRM_STAGES,
   activityIcon,
   assignedAdminLabel,
-  calendarDays,
+  calendarWeek,
   calendarEntries,
   crmListFilter,
   crmListMessage,
@@ -12,6 +12,7 @@ import {
   crmSort,
   decorateTimelineActivities,
   followUpUrgency,
+  formatWeekRange,
   hasTechnicalTabs,
   isArchived,
   localDayKey,
@@ -58,31 +59,30 @@ const urgencyClass = (value) =>
       ? "bg-red-50 text-red-800 ring-red-200"
       : "bg-slate-50 text-slate-700 ring-slate-200";
 
-function CrmCalendar({ accounts, month, onMonth, onDate }) {
+function CrmCalendar({ accounts, selectedDate, onSelectedDate, onDate }) {
   const entries = calendarEntries(accounts), today = localDayKey(new Date());
   return (
     <section className="mt-5 rounded-2xl bg-white p-4 ring-1 ring-slate-200" aria-label="Follow-up calendar">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{new Intl.DateTimeFormat("en-GB", { month:"long", year:"numeric" }).format(month)}</h2>
+        <h2 className="text-lg font-semibold">{formatWeekRange(selectedDate)}</h2>
         <div className="flex gap-2">
-          <button className="ps-button-secondary !px-3 !py-2" onClick={() => onMonth(new Date(month.getFullYear(), month.getMonth()-1, 1))} aria-label="Previous month">←</button>
-          <button className="ps-button-secondary !px-3 !py-2" onClick={() => onMonth(new Date())}>Today</button>
-          <button className="ps-button-secondary !px-3 !py-2" onClick={() => onMonth(new Date(month.getFullYear(), month.getMonth()+1, 1))} aria-label="Next month">→</button>
+          <button className="ps-button-secondary !px-3 !py-2" onClick={() => { const previous=new Date(selectedDate); previous.setDate(previous.getDate()-7); onSelectedDate(previous); }} aria-label="Previous week">←</button>
+          <button className="ps-button-secondary !px-3 !py-2" onClick={() => onSelectedDate(new Date())}>This week</button>
+          <button className="ps-button-secondary !px-3 !py-2" onClick={() => { const next=new Date(selectedDate); next.setDate(next.getDate()+7); onSelectedDate(next); }} aria-label="Next week">→</button>
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wide text-slate-400">
-        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((day)=><span className="py-1" key={day}>{day}</span>)}
-      </div>
-      <div className="grid grid-cols-7 overflow-hidden rounded-xl ring-1 ring-slate-200">
-        {calendarDays(month).map((day) => { const key=localDayKey(day), dayEntries=entries[key]||[], inMonth=day.getMonth()===month.getMonth(); return (
-          <div className={`min-h-20 border-b border-r border-slate-100 p-1.5 ${inMonth?'bg-white':'bg-slate-50 text-slate-400'}`} key={key}>
-            <button className={`flex size-6 items-center justify-center rounded-full text-xs font-semibold ${key===today?'bg-[var(--ps-blue)] text-white':''}`} onClick={() => onDate(key)} aria-label={`Filter follow-ups for ${key}`}>{day.getDate()}</button>
+      <div className="mt-3 overflow-x-auto pb-1">
+      <div className="grid min-w-[700px] grid-cols-7 overflow-hidden rounded-xl ring-1 ring-slate-200">
+        {calendarWeek(selectedDate).map((day) => { const key=localDayKey(day), dayEntries=entries[key]||[]; return (
+          <div className={`min-h-28 border-r border-slate-100 bg-white p-2 ${key===today?'bg-blue-50/40':''}`} key={key}>
+            <button className="text-left" onClick={() => onDate(key)} aria-label={`Filter follow-ups for ${key}`}><span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">{new Intl.DateTimeFormat("en-GB",{weekday:"short"}).format(day)}</span><span className={`mt-1 flex size-7 items-center justify-center rounded-full text-sm font-semibold ${key===today?'bg-[var(--ps-blue)] text-white':''}`}>{day.getDate()}</span></button>
             <div className="mt-1 grid gap-1">
               {dayEntries.slice(0,2).map((account)=><a className="min-w-0 rounded bg-emerald-50 px-1.5 py-1 text-[10px] text-emerald-900 no-underline" href={`/admin/crm/cafes/${account.id}`} key={account.id} title={account.follow_up_note||account.display_name||account.name}><span className="block truncate font-bold">{account.display_name||account.name}</span>{account.follow_up_note?<span className="block truncate opacity-75">{account.follow_up_note}</span>:null}</a>)}
               {dayEntries.length>2?<button className="text-left text-[10px] font-semibold text-slate-500" onClick={() => onDate(key)}>+{dayEntries.length-2} more</button>:null}
             </div>
           </div>
         );})}
+      </div>
       </div>
     </section>
   );
@@ -94,7 +94,7 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
     [filter, setFilter] = useState("all"),
     [search, setSearch] = useState(""),
     [sort, setSort] = useState("next_follow_up_at:asc"),
-    [month, setMonth] = useState(new Date()),
+    [selectedDate, setSelectedDate] = useState(new Date()),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -142,7 +142,7 @@ export function CrmCafesPage({ accessToken, Shell, adminContext, onLogout }) {
             </p>
           </div>
         </div>
-        <CrmCalendar accounts={accounts} month={month} onMonth={setMonth} onDate={(key)=>setFilter(`date:${key}`)} />
+        <CrmCalendar accounts={accounts} selectedDate={selectedDate} onSelectedDate={setSelectedDate} onDate={(key)=>setFilter(`date:${key}`)} />
         <section className="mt-5" aria-label="Pipeline summary">
           <h2 className="text-lg font-semibold">Pipeline</h2>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
