@@ -12,6 +12,7 @@ import {
   crmSort,
   decorateTimelineActivities,
   followUpUrgency,
+  followUpTimelineDetails,
   formatWeekRange,
   hasTechnicalTabs,
   isArchived,
@@ -548,7 +549,9 @@ export function CrmAccountPage({
           <section>
             <h2 className="text-xl font-semibold">Activity timeline</h2>
             <div className="mt-4 grid gap-2">
-              {decorateTimelineActivities(activities).map((a) => (
+              {decorateTimelineActivities(activities).map((a) => {
+                const followUpHistory = followUpTimelineDetails(a);
+                return (
                 <article
                   className={`rounded-xl p-3 ring-1 ${a.activity_type === "status_change" ? "bg-blue-50/60 ring-blue-200" : "bg-white ring-slate-200"}`}
                   key={a.id}
@@ -559,7 +562,17 @@ export function CrmAccountPage({
                       {date(a.happened_at || a.happened_on)}
                     </span>
                   </div>
-                  <p className="mt-2">{a.summary}</p>
+                  {!followUpHistory ? <p className="mt-2">{a.summary}</p> : null}
+                  {followUpHistory?.previousAt || followUpHistory?.nextAt ? (
+                    <p className="mt-2 font-semibold text-slate-700">
+                      {followUpHistory.previousAt ? date(followUpHistory.previousAt) : "Not scheduled"}
+                      {a.activity_type === "follow_up_rescheduled" ? " → " : null}
+                      {a.activity_type === "follow_up_rescheduled" ? (followUpHistory.nextAt ? date(followUpHistory.nextAt) : "Not scheduled") : null}
+                      {a.activity_type === "follow_up_scheduled" && followUpHistory.nextAt ? date(followUpHistory.nextAt) : null}
+                    </p>
+                  ) : null}
+                  {a.activity_type === "follow_up_rescheduled" && followUpHistory?.previousNote && followUpHistory.previousNote !== followUpHistory.nextNote ? <p className="mt-2 text-sm text-slate-400 line-through">{followUpHistory.previousNote}</p> : null}
+                  {followUpHistory?.nextNote ? <p className="mt-2 text-sm text-slate-600">{followUpHistory.nextNote}</p> : null}
                   {a.displayNotes ? (
                     <p className="mt-2 text-sm text-slate-500">
                       {a.displayNotes}
@@ -571,7 +584,8 @@ export function CrmAccountPage({
                     </p>
                   ) : null}
                 </article>
-              ))}
+                );
+              })}
               {!activities.length ? (
                 <p className="text-slate-500">No sales activity yet.</p>
               ) : null}
