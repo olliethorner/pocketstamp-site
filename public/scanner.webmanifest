@@ -1,0 +1,27 @@
+{
+  "id": "/merchant/scanner",
+  "name": "PocketStamp Scanner Mode",
+  "short_name": "PocketStamp",
+  "description": "Dedicated PocketStamp counter scanner kiosk.",
+  "start_url": "/merchant/scanner",
+  "scope": "/merchant/scanner",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#fbf7ef",
+  "theme_color": "#26354f",
+  "icons": [
+    {
+      "src": "/scanner-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/scanner-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

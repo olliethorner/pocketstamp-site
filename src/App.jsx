@@ -2233,6 +2233,8 @@ function ScannerKioskPage() {
   const redemptionActionControllerRef = useRef(null);
   const adjustmentActionControllerRef = useRef(null);
   const quickAddActionControllerRef = useRef(null);
+  const scannerCaptureEnabledRef = useRef(true);
+  const fullscreenRequestRef = useRef(false);
   if (!scanActionControllerRef.current) {
     scanActionControllerRef.current = createScannerMutationActionController({ namespace: "scanner.scan" });
   }
@@ -2260,6 +2262,12 @@ function ScannerKioskPage() {
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [quickAddActivityId, setQuickAddActivityId] = useState("");
   const [quickAddError, setQuickAddError] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(() => Boolean(
+    document.fullscreenElement ||
+    window.matchMedia?.("(display-mode: fullscreen)").matches ||
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    window.navigator.standalone,
+  ));
   const [adjustment, setAdjustment] = useState({
     isOpen: false,
     result: null,
@@ -2279,9 +2287,29 @@ function ScannerKioskPage() {
   const cooldown = pickFirst(device?.cooldownSeconds, device?.stampCooldownSeconds);
   const rewardThreshold = pickFirst(device?.rewardThreshold, device?.threshold);
   const scannerBranding = getScannerBranding(device || {});
+  scannerCaptureEnabledRef.current = !isCameraOpen && !isManualOpen && !adjustment.isOpen;
 
   function focusScannerInput() {
-    window.setTimeout(() => inputRef.current?.focus(), 40);
+    window.setTimeout(() => {
+      if (!scannerCaptureEnabledRef.current) return;
+      inputRef.current?.focus({ preventScroll: true });
+      if (navigator.virtualKeyboard?.hide) {
+        try {
+          navigator.virtualKeyboard.hide();
+        } catch (error) {
+          void error;
+        }
+      }
+    }, 40);
+  }
+
+  function enterScannerFullscreen() {
+    if (document.fullscreenElement || fullscreenRequestRef.current || !document.documentElement.requestFullscreen) return;
+    fullscreenRequestRef.current = true;
+    Promise.resolve(document.documentElement.requestFullscreen({ navigationUI: "hide" }))
+      .catch(() => document.documentElement.requestFullscreen?.())
+      .catch(() => {})
+      .finally(() => { fullscreenRequestRef.current = false; });
   }
 
   function clearGlobalScannerBuffer() {
@@ -2328,6 +2356,10 @@ function ScannerKioskPage() {
   function closeCamera() {
     scanActionControllerRef.current.clear();
     setIsCameraOpen(false);
+    setScanStatus("idle");
+    setScanResult(null);
+    setReadyMessage("");
+    clearManualAndScannerState();
     focusScannerInput();
   }
 
@@ -2406,6 +2438,38 @@ function ScannerKioskPage() {
     focusScannerInput();
   }, [deviceLoadStatus, scanStatus, isProcessing]);
 
+  useEffect(() => {
+    function recoverScannerFocus() {
+      if (document.visibilityState === "visible") focusScannerInput();
+    }
+    function updateFullscreenState() {
+      setIsFullscreen(Boolean(
+        document.fullscreenElement ||
+        window.matchMedia?.("(display-mode: fullscreen)").matches ||
+        window.matchMedia?.("(display-mode: standalone)").matches ||
+        window.navigator.standalone,
+      ));
+      recoverScannerFocus();
+    }
+    window.addEventListener("focus", recoverScannerFocus);
+    window.addEventListener("pageshow", recoverScannerFocus);
+    window.addEventListener("orientationchange", recoverScannerFocus);
+    document.addEventListener("visibilitychange", recoverScannerFocus);
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    return () => {
+      window.removeEventListener("focus", recoverScannerFocus);
+      window.removeEventListener("pageshow", recoverScannerFocus);
+      window.removeEventListener("orientationchange", recoverScannerFocus);
+      document.removeEventListener("visibilitychange", recoverScannerFocus);
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isManualOpen) window.setTimeout(() => manualInputRef.current?.focus({ preventScroll: true }), 40);
+    else focusScannerInput();
+  }, [isManualOpen]);
+
   async function handleScanSubmit(value = scanValue) {
     const trimmedValue = normalizeScannerScanValue(value);
     if (!trimmedValue) {
@@ -2446,7 +2510,7 @@ function ScannerKioskPage() {
       if (nextStatus === "stamp_added" || nextStatus === "reward_ready") {
         if (!await loadRecentActivity()) addFallbackActivity("stamp_added", payload);
       }
-      if (nextStatus !== "reward_ready") scheduleReady(nextStatus === "stamp_added" ? 3200 : 5200);
+      scheduleReady(nextStatus === "stamp_added" ? 3200 : nextStatus === "reward_ready" ? 6200 : 5200);
     } catch (error) {
       const errorResult = { message: getScanMessage(error) };
       setScanResult(errorResult);
@@ -2492,6 +2556,7 @@ function ScannerKioskPage() {
 
       if (isProtectedTarget(event.target)) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.isTrusted && event.key !== "Escape") enterScannerFullscreen();
 
       if (event.key === "Enter") {
         if (scannerBufferRef.current) {
@@ -2621,7 +2686,7 @@ function ScannerKioskPage() {
       setScanStatus(payload?.rewardReady ? "reward_ready" : "stamp_added");
       if (!await loadRecentActivity()) addFallbackActivity("stamps_adjusted", mergedResult);
       notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
-      if (!payload?.rewardReady) scheduleReady(3600);
+      scheduleReady(payload?.rewardReady ? 6200 : 3600);
     } catch (error) {
       setQuickAddError(getScanMessage(error));
     } finally {
@@ -2670,6 +2735,9 @@ function ScannerKioskPage() {
     adjustmentLookupSequenceRef.current += 1;
     adjustmentActionControllerRef.current.clear();
     setAdjustment((current) => ({ ...current, isOpen: false, isLoading: false, isReady: false, error: "", success: "", note: "", authoritativeStamps: null }));
+    setScanStatus("idle");
+    setScanResult(null);
+    setReadyMessage("");
     clearManualAndScannerState();
     focusScannerInput();
   }
@@ -2681,6 +2749,8 @@ function ScannerKioskPage() {
       scanActionControllerRef.current.clear();
       clearManualAndScannerState();
       focusScannerInput();
+    } else {
+      inputRef.current?.blur();
     }
   }
 
@@ -2769,7 +2839,7 @@ function ScannerKioskPage() {
       }));
       if (!await loadRecentActivity()) addFallbackActivity("stamps_adjusted", mergedResult);
       notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
-      if (!payload?.rewardReady) scheduleReady(3600);
+      scheduleReady(payload?.rewardReady ? 6200 : 3600);
     } catch (error) {
       setAdjustment((current) => ({
         ...current,
@@ -2925,22 +2995,13 @@ function ScannerKioskPage() {
         focusScannerInput();
       }}
     >
-      <input
+      <div
         ref={inputRef}
-        value={scanValue}
-        onChange={(event) => setScanValue(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            handleScanSubmit(event.currentTarget.value);
-          }
-        }}
-        autoFocus
-        autoCapitalize="off"
-        autoComplete="off"
-        spellCheck="false"
-        aria-label="Scanner input"
-        className="fixed left-0 top-0 h-px w-px opacity-0"
+        tabIndex="-1"
+        inputMode="none"
+        virtualkeyboardpolicy="manual"
+        aria-hidden="true"
+        className="ps-scanner-capture fixed left-0 top-0 h-px w-px overflow-hidden opacity-0 outline-none"
       />
 
       {isCameraOpen ? (
@@ -2996,6 +3057,11 @@ function ScannerKioskPage() {
             </div>
           </div>
           <div className="ps-scanner-device-meta flex flex-wrap gap-2 text-sm font-semibold text-[var(--ps-muted)]">
+            {!isFullscreen && document.documentElement.requestFullscreen ? (
+              <button type="button" onClick={enterScannerFullscreen} className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">
+                Enter fullscreen
+              </button>
+            ) : null}
             {scannerDeviceStatus ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(scannerDeviceStatus)}</span> : null}
             {mode ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{toTitle(mode)}</span> : null}
             {cooldown ? <span className="rounded-full bg-white px-3 py-2 ring-1 ring-[var(--ps-border)]">{cooldown}s cooldown</span> : null}
@@ -3028,6 +3094,7 @@ function ScannerKioskPage() {
                     window.clearTimeout(readyTimerRef.current);
                     scanActionControllerRef.current.clear();
                     clearManualAndScannerState();
+                    inputRef.current?.blur();
                     setIsCameraOpen(true);
                   }}
                   disabled={isProcessing}
