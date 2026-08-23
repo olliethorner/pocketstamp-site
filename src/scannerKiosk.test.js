@@ -24,9 +24,10 @@ test("manual and camera modes yield capture focus and restore scanner readiness 
   assert.match(source, /inputRef\.current\?\.blur\(\);[\s\S]*setIsCameraOpen\(true\)/);
 });
 
-test("success, reward, cooldown, and adjustment outcomes all schedule an automatic ready state", () => {
-  assert.match(source, /scheduleReady\(nextStatus === "stamp_added" \? 3200 : nextStatus === "reward_ready" \? 6200 : 5200\)/);
-  assert.equal((source.match(/scheduleReady\(payload\?\.rewardReady \? 6200 : 3600\)/g) || []).length, 2);
+test("normal successes schedule ready while reward decisions have no automatic timeout", () => {
+  assert.match(source, /if \(nextStatus !== "reward_ready"\) scheduleReady\(nextStatus === "stamp_added" \? 3200 : 5200\)/);
+  assert.equal((source.match(/if \(!payload\?\.rewardReady\) scheduleReady\(3600\)/g) || []).length, 2);
+  assert.doesNotMatch(source, /scheduleReady\([^\n]*reward_ready|rewardReady \? \d+ :/);
 });
 
 test("scanner focus recovers without polling after lifecycle and display changes", () => {

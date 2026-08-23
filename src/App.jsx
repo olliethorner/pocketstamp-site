@@ -2287,6 +2287,7 @@ function ScannerKioskPage() {
   const cooldown = pickFirst(device?.cooldownSeconds, device?.stampCooldownSeconds);
   const rewardThreshold = pickFirst(device?.rewardThreshold, device?.threshold);
   const scannerBranding = getScannerBranding(device || {});
+  const rewardDecisionPending = scanStatus === "reward_ready";
   scannerCaptureEnabledRef.current = !isCameraOpen && !isManualOpen && !adjustment.isOpen;
 
   function focusScannerInput() {
@@ -2471,6 +2472,10 @@ function ScannerKioskPage() {
   }, [isManualOpen]);
 
   async function handleScanSubmit(value = scanValue) {
+    if (rewardDecisionPending) {
+      clearGlobalScannerBuffer();
+      return;
+    }
     const trimmedValue = normalizeScannerScanValue(value);
     if (!trimmedValue) {
       setScanValue("");
@@ -2504,13 +2509,14 @@ function ScannerKioskPage() {
       const nextStatus = getScanStatus(payload);
       setScanResult(payload);
       setScanStatus(nextStatus);
+      if (nextStatus === "reward_ready") setIsManualOpen(false);
       if (nextStatus === "stamp_added" || nextStatus === "reward_ready") {
         notifyMerchantDataChanged({ source: "scanner", action: nextStatus });
       }
       if (nextStatus === "stamp_added" || nextStatus === "reward_ready") {
         if (!await loadRecentActivity()) addFallbackActivity("stamp_added", payload);
       }
-      scheduleReady(nextStatus === "stamp_added" ? 3200 : nextStatus === "reward_ready" ? 6200 : 5200);
+      if (nextStatus !== "reward_ready") scheduleReady(nextStatus === "stamp_added" ? 3200 : 5200);
     } catch (error) {
       const errorResult = { message: getScanMessage(error) };
       setScanResult(errorResult);
@@ -2549,6 +2555,10 @@ function ScannerKioskPage() {
     }
 
     function handleGlobalScannerKeyDown(event) {
+      if (scanStatus === "reward_ready") {
+        clearGlobalScannerBuffer();
+        return;
+      }
       if (isCameraOpen || adjustment.isOpen) {
         clearGlobalScannerBuffer();
         return;
@@ -2589,15 +2599,16 @@ function ScannerKioskPage() {
       document.removeEventListener("keydown", handleGlobalScannerKeyDown);
       window.clearTimeout(bufferTimerRef.current);
     };
-  }, [adjustment.isOpen, deviceLoadStatus, isCameraOpen, isProcessing]);
+  }, [adjustment.isOpen, deviceLoadStatus, isCameraOpen, isProcessing, scanStatus]);
 
   function handleCameraDetected(decodedValue) {
-    if (isProcessing) return;
+    if (isProcessing || rewardDecisionPending) return;
     setIsCameraOpen(false);
     handleScanSubmit(decodedValue);
   }
 
   async function openAdjustment(sourceResult = scanResult, lookupValue = "") {
+    if (rewardDecisionPending) return;
     const baseResult = sourceResult || (lookupValue ? { scanValue: lookupValue } : null);
     if (!baseResult && !lookupValue) {
       setReadyMessage("Scan or enter a pass code before adjusting stamps.");
@@ -2651,6 +2662,7 @@ function ScannerKioskPage() {
   }
 
   async function addQuickExtraStamp(item) {
+    if (rewardDecisionPending) return;
     const targetStamps = getQuickExtraStampTarget(item, rewardThreshold);
     if (targetStamps === null || quickAddActionControllerRef.current.state().pending) return;
     const sourceResult = {
@@ -2686,7 +2698,7 @@ function ScannerKioskPage() {
       setScanStatus(payload?.rewardReady ? "reward_ready" : "stamp_added");
       if (!await loadRecentActivity()) addFallbackActivity("stamps_adjusted", mergedResult);
       notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
-      scheduleReady(payload?.rewardReady ? 6200 : 3600);
+      if (!payload?.rewardReady) scheduleReady(3600);
     } catch (error) {
       setQuickAddError(getScanMessage(error));
     } finally {
@@ -2696,6 +2708,7 @@ function ScannerKioskPage() {
   }
 
   async function handleManualLookup() {
+    if (rewardDecisionPending) return;
     const trimmedValue = readCurrentManualValue();
     if (!trimmedValue || isProcessing || deviceLoadStatus !== "ready") {
       setReadyMessage("Enter a pass code before looking up a customer.");
@@ -2709,6 +2722,7 @@ function ScannerKioskPage() {
   }
 
   function handleManualSubmit() {
+    if (rewardDecisionPending) return;
     const currentValue = readCurrentManualValue();
     clearManualAndScannerState();
     handleScanSubmit(currentValue);
@@ -2743,6 +2757,7 @@ function ScannerKioskPage() {
   }
 
   function toggleManualEntry() {
+    if (rewardDecisionPending) return;
     const wasOpen = isManualOpen;
     setIsManualOpen((current) => !current);
     if (wasOpen) {
@@ -2832,6 +2847,7 @@ function ScannerKioskPage() {
       setScanStatus(payload?.rewardReady ? "reward_ready" : "stamp_added");
       setAdjustment((current) => ({
         ...current,
+        isOpen: !payload?.rewardReady,
         result: mergedResult,
         authoritativeStamps: currentStamps,
         isSaving: false,
@@ -2839,7 +2855,7 @@ function ScannerKioskPage() {
       }));
       if (!await loadRecentActivity()) addFallbackActivity("stamps_adjusted", mergedResult);
       notifyMerchantDataChanged({ source: "scanner", action: "stamp_adjusted" });
-      scheduleReady(payload?.rewardReady ? 6200 : 3600);
+      if (!payload?.rewardReady) scheduleReady(3600);
     } catch (error) {
       setAdjustment((current) => ({
         ...current,
@@ -3097,13 +3113,13 @@ function ScannerKioskPage() {
                     inputRef.current?.blur();
                     setIsCameraOpen(true);
                   }}
-                  disabled={isProcessing}
+                  disabled={isProcessing || rewardDecisionPending}
                   className="ps-button-primary bg-[var(--ps-espresso)] text-lg disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Scan with tablet camera
                 </button>
               ) : null}
-              {["stamp_added", "already_stamped_recently", "reward_ready", "reward_redeemed"].includes(displayStatus) && scanResult ? (
+              {["stamp_added", "already_stamped_recently", "reward_redeemed"].includes(displayStatus) && scanResult ? (
                 <button
                   type="button"
                   onClick={() => openAdjustment(scanResult)}
@@ -3195,7 +3211,7 @@ function ScannerKioskPage() {
                         <button
                           type="button"
                           onClick={() => addQuickExtraStamp(item)}
-                          disabled={Boolean(quickAddActivityId)}
+                          disabled={Boolean(quickAddActivityId) || rewardDecisionPending}
                           className="ps-scanner-row-action ps-button-secondary bg-white px-2.5 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {quickAddActivityId === item.id ? "Adding..." : "+1 more"}
@@ -3209,7 +3225,7 @@ function ScannerKioskPage() {
                           passSerialNumber: item.passSerialNumber,
                           currentStamps: item.stampCount,
                         })}
-                        disabled={Boolean(quickAddActivityId)}
+                        disabled={Boolean(quickAddActivityId) || rewardDecisionPending}
                         className="ps-scanner-row-action ps-button-secondary bg-white px-2.5 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Adjust
@@ -3233,6 +3249,7 @@ function ScannerKioskPage() {
             <button
               type="button"
               onClick={toggleManualEntry}
+              disabled={rewardDecisionPending}
               className="flex w-full items-center justify-between gap-3 text-left text-sm font-bold uppercase text-[var(--ps-muted)]"
             >
               <span>Manual code entry</span>
@@ -3255,20 +3272,20 @@ function ScannerKioskPage() {
                     onPaste={handleManualPaste}
                     className="ps-input bg-white"
                     placeholder="Paste or type a pass code"
-                    disabled={isProcessing}
+                    disabled={isProcessing || rewardDecisionPending}
                   />
                 </label>
                 <p className="mt-2 text-sm font-semibold text-[var(--ps-muted)]">
                   Use this only if the scanner/camera cannot read the Wallet QR.
                 </p>
                 <div className="mt-3 grid gap-2">
-                  <button type="submit" disabled={isProcessing} className="ps-button-secondary w-full bg-white disabled:cursor-not-allowed disabled:opacity-60">
+                  <button type="submit" disabled={isProcessing || rewardDecisionPending} className="ps-button-secondary w-full bg-white disabled:cursor-not-allowed disabled:opacity-60">
                     Submit scan
                   </button>
                   <button
                     type="button"
                     onClick={handleManualLookup}
-                    disabled={isProcessing || adjustment.isLoading}
+                    disabled={isProcessing || adjustment.isLoading || rewardDecisionPending}
                     className="ps-button-secondary w-full bg-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Look up customer
