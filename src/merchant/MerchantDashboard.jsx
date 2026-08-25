@@ -18,6 +18,7 @@ import {
   fetchMerchantScannerLaunchOptions,
   fetchMerchantReminderSummary,
   createMerchantScannerLaunch,
+  createNativeScannerProvisioningLaunch,
 } from "./api/merchantApi.js";
 import { normalizeCampaignRows } from "../merchantCampaigns.js";
 
@@ -373,6 +374,16 @@ export default function MerchantDashboard({
     }
   }
 
+  async function handleNativeScannerSetup(deviceId) {
+    setScannerError("");
+    try {
+      return await createNativeScannerProvisioningLaunch(accessToken, deviceId);
+    } catch (error) {
+      setScannerError("Android scanner setup couldn’t be created. Please try again.");
+      throw error;
+    }
+  }
+
   function handleCustomerSearchChange(nextSearch) {
     setCustomerSearch(nextSearch);
     setCustomerPagination((current) => ({ ...current, page: 1 }));
@@ -403,6 +414,7 @@ export default function MerchantDashboard({
       isScannerLoading={isScannerLoading}
       scannerError={scannerError}
       onLaunchScanner={handleLaunchScanner}
+      onNativeScannerSetup={handleNativeScannerSetup}
       onLogout={onLogout}
       onNavigate={onNavigate}
       onRefresh={handleManualRefresh}

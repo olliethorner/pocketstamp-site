@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 import {
   createMerchantScannerLaunch,
+  createNativeScannerProvisioningLaunch,
   fetchMerchantScannerLaunchOptions,
 } from "./merchant/api/merchantApi.js";
 
@@ -22,6 +23,7 @@ test("merchant scanner launch API uses authenticated safe device endpoints", asy
   try {
     await fetchMerchantScannerLaunchOptions("merchant-token");
     await createMerchantScannerLaunch("merchant-token", "scanner-exact");
+    await createNativeScannerProvisioningLaunch("merchant-token", "scanner-exact");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -29,6 +31,8 @@ test("merchant scanner launch API uses authenticated safe device endpoints", asy
   assert.equal(calls[0].options.headers.Authorization, "Bearer merchant-token");
   assert.match(calls[1].url, /\/api\/merchant\/scanner\/launch-sessions$/);
   assert.deepEqual(JSON.parse(calls[1].options.body), { deviceId: "scanner-exact" });
+  assert.match(calls[2].url, /\/api\/merchant\/scanner\/native-provisioning\/launch-sessions$/);
+  assert.deepEqual(JSON.parse(calls[2].options.body), { deviceId: "scanner-exact" });
   assert.equal(JSON.stringify(calls).includes("deviceToken"), false);
 });
 
@@ -36,12 +40,13 @@ test("Scanner dashboard action renders zero, one, and multiple-device states wit
   const vite = await createServer({ server: { middlewareMode: true }, appType: "custom" });
   try {
     const { default: ScannerLaunchAction } = await vite.ssrLoadModule("/src/merchant/ScannerLaunchAction.jsx");
-    const render = (props) => renderToStaticMarkup(React.createElement(ScannerLaunchAction, { onLaunch() {}, ...props }));
+    const render = (props) => renderToStaticMarkup(React.createElement(ScannerLaunchAction, { onLaunch() {}, onNativeSetup() {}, ...props }));
     assert.match(render({ devices: [] }), /Scanner Mode isn’t set up yet/);
 
-    const one = render({ devices: [{ id: "scanner-a", deviceName: "Main Counter", locationName: "High Street" }] });
+    const one = render({ devices: [{ id: "scanner-a", deviceName: "Main Counter", locationName: "High Street", mode: "auto_stamp" }] });
     assert.match(one, /Open Scanner Mode/);
     assert.match(one, /Main Counter/);
+    assert.match(one, /Set up Android scanner/);
     assert.doesNotMatch(one, /token|hash/i);
     assert.doesNotMatch(one, /<select/);
 

@@ -182,6 +182,13 @@ export function createMerchantScannerLaunch(accessToken, deviceId) {
   });
 }
 
+export function createNativeScannerProvisioningLaunch(accessToken, deviceId) {
+  return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/scanner/native-provisioning/launch-sessions", {
+    method: "POST",
+    body: JSON.stringify({ deviceId }),
+  });
+}
+
 export function fetchMerchantCampaigns(accessToken) {
   return requestAuthenticatedMerchantJson(accessToken, "/api/merchant/campaigns");
 }

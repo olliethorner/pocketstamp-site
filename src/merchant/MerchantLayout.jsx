@@ -40,6 +40,7 @@ export default function MerchantLayout({
   isScannerLoading,
   scannerError,
   onLaunchScanner,
+  onNativeScannerSetup,
   onLogout,
   onNavigate,
   onRefresh,
@@ -98,7 +99,7 @@ export default function MerchantLayout({
             </p>
           </div>
           <div className="mt-6"><NavigationLinks page={page} /></div>
-          <div className="mt-6 border-t border-[var(--ps-border)] pt-5"><ScannerLaunchAction devices={scannerDevices} isLoading={isScannerLoading} error={scannerError} onLaunch={onLaunchScanner} /></div>
+          <div className="mt-6 border-t border-[var(--ps-border)] pt-5"><ScannerLaunchAction devices={scannerDevices} isLoading={isScannerLoading} error={scannerError} onLaunch={onLaunchScanner} onNativeSetup={onNativeScannerSetup} /></div>
           <div className="mt-auto border-t border-[var(--ps-border)] pt-5">
             <p className="truncate text-xs font-semibold uppercase text-[var(--ps-muted)]">{merchantContext.role}</p>
             <a href="/merchant/account" aria-current={page === "account" ? "page" : undefined} className="mt-3 block rounded-xl px-3 py-2.5 text-sm font-semibold text-[var(--ps-muted)] hover:bg-white hover:text-[var(--ps-espresso)]">Account &amp; Security</a>
@@ -137,7 +138,7 @@ export default function MerchantLayout({
               <div id="merchant-mobile-menu" className="border-t border-[var(--ps-border)] px-5 py-4">
                 <NavigationLinks page={page} />
                 <a href="/merchant/account" className="mt-2 block rounded-xl px-3 py-2.5 text-sm font-semibold text-[var(--ps-muted)]">Account &amp; Security</a>
-                <div className="mt-4 border-t border-[var(--ps-border)] pt-4"><ScannerLaunchAction devices={scannerDevices} isLoading={isScannerLoading} error={scannerError} onLaunch={onLaunchScanner} /></div>
+                <div className="mt-4 border-t border-[var(--ps-border)] pt-4"><ScannerLaunchAction devices={scannerDevices} isLoading={isScannerLoading} error={scannerError} onLaunch={onLaunchScanner} onNativeSetup={onNativeScannerSetup} /></div>
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <button type="button" onClick={onRefresh} className="rounded-xl border border-[var(--ps-border)] bg-white px-3 py-2 text-sm font-semibold">{refreshLabel}</button>
                   <button type="button" onClick={onLogout} className="rounded-xl border border-[var(--ps-border)] bg-white px-3 py-2 text-sm font-semibold">Sign out</button>
