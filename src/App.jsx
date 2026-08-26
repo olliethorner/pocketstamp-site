@@ -204,12 +204,19 @@ const setupSteps = [
 ];
 
 const scannerModeBullets = [
-  "Works with a 2D counter scanner",
-  "Tablet camera scan fallback",
-  "Manual code entry fallback",
-  "Reward confirmation",
-  "Manual stamp adjustment when needed",
-  "Activity is logged",
+  "Runs alongside your till software where compatible",
+  "Quick loyalty confirmation over the POS screen",
+  "Redeem or Skip when a reward is ready",
+  "Adjust multi-coffee orders from the notification shade",
+  "Manual corrections available when needed",
+  "Dedicated scanner setup available as a fallback",
+];
+
+const posWorkflowSteps = [
+  ["Customer scans", "Customers scan their Apple Wallet or Google Wallet loyalty card."],
+  ["PocketStamp updates", "PocketStamp records the visit and updates their loyalty progress."],
+  ["Staff keep serving", "A quick notification confirms the result while your existing POS stays on screen."],
+  ["Rewards stay simple", "When a reward is ready, staff can Redeem or Skip directly from the notification."],
 ];
 
 const SCANNER_API_BASE_URL = "";
@@ -1129,6 +1136,7 @@ function SiteFooter() {
           <a href={contactUrl}>Contact</a>
           <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a>
           <a href={demoJoinUrl}>Try the PocketStamp demo card</a>
+          <a href="/download">PocketStamp Scanner · Android Download</a>
         </div>
       </div>
     </footer>
@@ -1274,6 +1282,12 @@ function MarketingHomepage() {
   const menuButtonRef = useRef(null);
   const firstMenuLinkRef = useRef(null);
 
+  usePageMetadata({
+    title: "PocketStamp – Wallet Loyalty That Works Alongside Your POS",
+    description: "Digital café loyalty in Apple Wallet and Google Wallet, designed to work alongside compatible Android POS tablets — no customer app required.",
+    canonicalUrl: "https://www.getpocketstamp.com/",
+  });
+
   useEffect(() => {
     if (!menuOpen) return undefined;
 
@@ -1346,6 +1360,7 @@ function MarketingHomepage() {
             <a href="#retention" onClick={closeMenu}>Bring customers back</a>
             <a href="#pilot" onClick={closeMenu}>Café pilot</a>
             <a href="/merchant" onClick={closeMenu}>Merchant login</a>
+            <a href="/download" onClick={closeMenu}>Scanner App</a>
             <a href={demoHref} className="ps-pill ps-pill-dark" onClick={closeMenu}>Book a demo</a>
           </div>
         ) : null}
@@ -1359,13 +1374,14 @@ function MarketingHomepage() {
             transition={{ duration: 0.45 }}
             className="ps-hero-copy"
           >
-            <p className="ps-eyebrow">Digital loyalty for independent cafés</p>
+            <p className="ps-eyebrow">Wallet loyalty for independent cafés</p>
             <h1 className="ps-display">
-              Digital loyalty that brings customers back.
+              Digital loyalty, without changing how you run your café.
             </h1>
             <p className="ps-hero-intro">
-              Customers scan your QR code, join in seconds and add a branded loyalty
-              card to Apple Wallet or Google Wallet — no app required.
+              Give customers a branded loyalty card in Apple Wallet or Google Wallet.
+              PocketStamp works alongside compatible Android POS tablets, so your
+              team can keep using the till they already know.
             </p>
             <div className="ps-hero-actions">
               <a href={demoHref} className="ps-pill ps-pill-dark">Book a demo</a>
@@ -1373,8 +1389,8 @@ function MarketingHomepage() {
             </div>
             <div className="ps-badges">
               <span>No customer app</span>
-              <span>iPhone + Android</span>
-              <span>Counter Scanner Mode</span>
+              <span>Apple + Google Wallet</span>
+              <span>Keep your existing POS</span>
             </div>
           </motion.div>
 
@@ -1415,11 +1431,22 @@ function MarketingHomepage() {
               </div>
             ))}
           </div>
-          <p className="ps-note">
-            Counter Scanner Mode is available now. NFC tap-to-stamp support can
-            be added later when Apple approval and compatible hardware are
-            available.
-          </p>
+        </div>
+      </section>
+
+      <section id="existing-pos" className="ps-section ps-pos-section">
+        <div className="ps-section-shell">
+          <div className="ps-pos-heading">
+            <div><p className="ps-eyebrow">Works alongside your existing POS</p><h2 className="ps-display ps-section-title">Your till stays your till.</h2></div>
+            <p className="ps-section-lede">On compatible Android POS tablets, PocketStamp Scanner runs quietly in the background. Staff stay in their normal till software while PocketStamp handles loyalty.</p>
+          </div>
+          <div className="ps-pos-workflow">
+            {posWorkflowSteps.map(([title, body], index) => <article key={title} className="ps-pos-step"><span>0{index + 1}</span><h3>{title}</h3><p>{body}</p></article>)}
+          </div>
+          <div className="ps-compatibility-card">
+            <div><strong>Less hardware. Less counter clutter.</strong><p>For compatible Android POS setups, PocketStamp can run directly alongside your existing till software. If your setup isn’t compatible, PocketStamp can also be deployed with a dedicated scanner setup.</p></div>
+            <p className="ps-compatibility-note">PocketStamp Scanner is designed for compatible Android POS tablets. We’ll confirm compatibility as part of setup.</p>
+          </div>
         </div>
       </section>
 
@@ -1450,8 +1477,8 @@ function MarketingHomepage() {
           <article className="ps-product-row">
             <div className="ps-product-copy">
               <p className="ps-product-number">02 / Counter</p>
-              <h3>Built for the café counter.</h3>
-              <p>Apple Wallet and Google Wallet customers scan the same loyalty card at the till. PocketStamp adds the stamp automatically, with backup tools for busy service.</p>
+              <h3>Loyalty in the background. Your POS in front.</h3>
+              <p>Customers scan their Wallet card and a small notification confirms the result over your existing POS workflow, where compatible.</p>
               <SimpleBullets items={scannerModeBullets} />
             </div>
             <ScannerProductVisual />
@@ -1523,11 +1550,11 @@ function MarketingHomepage() {
         <div className="ps-section-shell ps-pilot-grid">
           <div className="ps-pilot-copy">
             <p className="ps-eyebrow">Early café offer</p>
-            <h2 className="ps-display ps-section-title">Setup in days. Ready this week.</h2>
+            <h2 className="ps-display ps-section-title">Simple setup, shaped around your café.</h2>
             <p className="ps-section-lede">
-              Pilot spaces are open for independent cafés. We build a simple
-              loyalty system around your café brand, from its Wallet card and
-              Join QR to the dashboard and counter scanner setup.
+              We’ll configure PocketStamp with your café, install the scanner,
+              and get your team ready to use it — from the Wallet card and Join
+              QR to your dashboard and counter workflow.
             </p>
             <p className="ps-supporting-copy">
               Built for cafés that want to replace paper stamp cards without
@@ -1557,7 +1584,7 @@ function MarketingHomepage() {
         <div className="ps-section-shell">
           <p className="ps-eyebrow">Ready when you are</p>
           <h2 className="ps-display">Start bringing loyal customers back this week.</h2>
-          <p>Give customers a loyalty card they keep, a simple way to collect stamps, and timely reasons to return through Apple Wallet and Google Wallet.</p>
+          <p>Customers use Wallet. Staff keep using their till. PocketStamp handles loyalty — and gives customers timely reasons to return.</p>
           <div className="ps-final-actions">
             <a href={demoHref} className="ps-pill ps-pill-dark">Book a demo</a>
             <a href={pilotHref} className="ps-pill ps-pill-outline">Start a café pilot</a>
@@ -1589,7 +1616,13 @@ function extractScannerDevice(payload = {}) {
 
 function ScannerDownloadPage() {
   const isAndroid = /Android/i.test(navigator.userAgent);
-  const apkPath = "/downloads/PocketStamp-Scanner-v1.1.0.apk";
+  const apkPath = "/downloads/PocketStamp-Scanner-v1.1.1.apk";
+
+  usePageMetadata({
+    title: "PocketStamp Scanner for Android | PocketStamp",
+    description: "Download PocketStamp Scanner for compatible Android POS tablets and set up Wallet loyalty for your café.",
+    canonicalUrl: "https://www.getpocketstamp.com/download",
+  });
 
   return (
     <main className="ps-site ps-download-page">
@@ -1602,23 +1635,24 @@ function ScannerDownloadPage() {
 
       <section className="ps-download-panel" aria-labelledby="download-title">
         <div className="ps-download-icon" aria-hidden="true">↓</div>
-        <p className="ps-eyebrow">Android POS</p>
+        <p className="ps-eyebrow">PocketStamp Scanner · Android</p>
         <h1 id="download-title" className="ps-display">PocketStamp Scanner</h1>
         <p className="ps-download-intro">
-          Run PocketStamp loyalty directly alongside your Android POS.
+          Download PocketStamp Scanner, then open the app and enter the setup code from your PocketStamp merchant dashboard.
         </p>
-        <a className="ps-download-button" href={apkPath} download="PocketStamp-Scanner-v1.1.0.apk">
+        <a className="ps-download-button" href={apkPath} download="PocketStamp-Scanner-v1.1.1.apk">
           Download PocketStamp Scanner
         </a>
-        <p className="ps-download-meta">Version 1.1.0 <span aria-hidden="true">·</span> Android</p>
+        <p className="ps-download-meta">Version 1.1.1 <span aria-hidden="true">·</span> Android</p>
         {!isAndroid ? (
           <p className="ps-download-compatibility">
-            PocketStamp Scanner is currently available for Android POS tablets.
+            PocketStamp Scanner is designed for compatible Android POS tablets. We’ll confirm compatibility as part of setup.
           </p>
         ) : null}
         <p className="ps-download-support">
           After installing, open PocketStamp Scanner and enter the setup code provided from your PocketStamp merchant dashboard.
         </p>
+        <a href="/" className="ps-download-back">← Back to PocketStamp</a>
       </section>
     </main>
   );
