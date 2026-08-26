@@ -1246,6 +1246,115 @@
   }
 }
 
+.ps-download-page {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(47, 109, 246, 0.1), transparent 24rem),
+    linear-gradient(180deg, #fbf7ef 0%, #f4eee4 100%);
+  color: var(--ps-ink);
+  display: flex;
+  min-height: 100svh;
+  padding: 7rem 1.25rem 3rem;
+}
+
+.ps-download-header {
+  left: 0;
+  padding: 1.5rem clamp(1.25rem, 5vw, 4rem);
+  position: absolute;
+  top: 0;
+}
+
+.ps-download-header .ps-wordmark {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.65rem;
+  text-decoration: none;
+}
+
+.ps-download-panel {
+  background: rgba(255, 253, 248, 0.94);
+  border: 1px solid var(--ps-border);
+  border-radius: 2rem;
+  box-shadow: var(--ps-shadow);
+  margin: 0 auto;
+  max-width: 38rem;
+  padding: clamp(2rem, 6vw, 4rem);
+  text-align: center;
+  width: 100%;
+}
+
+.ps-download-icon {
+  align-items: center;
+  background: var(--ps-blue-soft);
+  border-radius: 1.25rem;
+  color: var(--ps-blue);
+  display: inline-flex;
+  font-size: 1.65rem;
+  font-weight: 800;
+  height: 3.75rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  width: 3.75rem;
+}
+
+.ps-download-panel h1 {
+  font-size: clamp(2.4rem, 8vw, 4rem);
+  line-height: 1.02;
+  margin: 0.65rem auto 1rem;
+}
+
+.ps-download-intro {
+  color: var(--ps-muted);
+  font-size: 1.08rem;
+  line-height: 1.7;
+  margin: 0 auto 1.75rem;
+  max-width: 29rem;
+}
+
+.ps-download-button {
+  background: var(--ps-blue);
+  border-radius: 999px;
+  box-shadow: 0 14px 34px rgba(47, 109, 246, 0.25);
+  color: #fff;
+  display: inline-flex;
+  font-weight: 780;
+  justify-content: center;
+  padding: 0.95rem 1.5rem;
+  text-decoration: none;
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.ps-download-button:hover {
+  background: #225de0;
+  transform: translateY(-1px);
+}
+
+.ps-download-meta {
+  color: var(--ps-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 1rem 0 0;
+}
+
+.ps-download-compatibility {
+  background: var(--ps-blue-soft);
+  border-radius: 0.85rem;
+  color: #244c9c;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  margin: 1.5rem auto 0;
+  padding: 0.75rem 1rem;
+}
+
+.ps-download-support {
+  border-top: 1px solid var(--ps-border);
+  color: var(--ps-muted);
+  font-size: 0.92rem;
+  line-height: 1.65;
+  margin: 1.75rem 0 0;
+  padding-top: 1.5rem;
+}
+
 @media (max-width: 420px) {
   .ps-campaign-row {
     align-items: flex-start;

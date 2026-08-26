@@ -1587,6 +1587,43 @@ function extractScannerDevice(payload = {}) {
   );
 }
 
+function ScannerDownloadPage() {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const apkPath = "/downloads/PocketStamp-Scanner-v1.1.0.apk";
+
+  return (
+    <main className="ps-site ps-download-page">
+      <header className="ps-download-header">
+        <a href="/" className="ps-wordmark" aria-label="PocketStamp home">
+          <span className="ps-logo-mark" aria-hidden="true">P</span>
+          <span>PocketStamp</span>
+        </a>
+      </header>
+
+      <section className="ps-download-panel" aria-labelledby="download-title">
+        <div className="ps-download-icon" aria-hidden="true">↓</div>
+        <p className="ps-eyebrow">Android POS</p>
+        <h1 id="download-title" className="ps-display">PocketStamp Scanner</h1>
+        <p className="ps-download-intro">
+          Run PocketStamp loyalty directly alongside your Android POS.
+        </p>
+        <a className="ps-download-button" href={apkPath} download="PocketStamp-Scanner-v1.1.0.apk">
+          Download PocketStamp Scanner
+        </a>
+        <p className="ps-download-meta">Version 1.1.0 <span aria-hidden="true">·</span> Android</p>
+        {!isAndroid ? (
+          <p className="ps-download-compatibility">
+            PocketStamp Scanner is currently available for Android POS tablets.
+          </p>
+        ) : null}
+        <p className="ps-download-support">
+          After installing, open PocketStamp Scanner and enter the setup code provided from your PocketStamp merchant dashboard.
+        </p>
+      </section>
+    </main>
+  );
+}
+
 function getScannerMerchantName(device = {}) {
   return pickFirst(
     device.merchantName,
@@ -3331,6 +3368,10 @@ export default function App() {
 
   if (pathname === loyaltyTermsUrl || pathname === `${loyaltyTermsUrl}/`) {
     return <PublicLegalPage type="terms" />;
+  }
+
+  if (pathname === "/download" || pathname === "/download/") {
+    return <ScannerDownloadPage />;
   }
 
   if (isMerchantSetupPath(pathname)) {

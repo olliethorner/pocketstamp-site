@@ -50,12 +50,24 @@ test("all unrelated current-main rewrites remain unchanged", () => {
     { source: "/legal/privacy", destination: "/index.html" },
     { source: "/legal/terms", destination: "/index.html" },
     { source: "/contact", destination: "/index.html" },
+    { source: "/download", destination: "/index.html" },
     { source: "/merchant", destination: "/index.html" },
     { source: "/merchant/:path*", destination: "/index.html" },
     { source: "/admin", destination: "/index.html" },
     { source: "/admin/:path*", destination: "/index.html" },
   ]);
-  assert.deepEqual(Object.keys(configuration), ["rewrites"]);
+  assert.deepEqual(Object.keys(configuration), ["headers", "rewrites"]);
+});
+
+test("Android download is served with an APK filename and content type", () => {
+  assert.deepEqual(configuration.headers, [{
+    source: "/downloads/PocketStamp-Scanner-v1.1.0.apk",
+    headers: [
+      { key: "Content-Type", value: "application/vnd.android.package-archive" },
+      { key: "Content-Disposition", value: "attachment; filename=\"PocketStamp-Scanner-v1.1.0.apk\"" },
+      { key: "Cache-Control", value: "public, max-age=3600, must-revalidate" },
+    ],
+  }]);
 });
 
 test("production join middleware overwrites the authenticated public-origin boundary", () => {

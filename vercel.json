@@ -1,4 +1,23 @@
 {
+  "headers": [
+    {
+      "source": "/downloads/PocketStamp-Scanner-v1.1.0.apk",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"PocketStamp-Scanner-v1.1.0.apk\""
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, must-revalidate"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/merchant/scanner/:path*",
@@ -42,6 +61,10 @@
     },
     {
       "source": "/contact",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/download",
       "destination": "/index.html"
     },
     {
