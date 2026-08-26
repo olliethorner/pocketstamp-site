@@ -49,8 +49,6 @@ const MERCHANT_DATA_CHANGED_STORAGE_KEY = "pocketstampMerchantDataChangedAt";
 
 const demoHref =
   `mailto:${SALES_EMAIL}?subject=PocketStamp demo enquiry`;
-const pilotHref =
-  `mailto:${SALES_EMAIL}?subject=PocketStamp café pilot`;
 const demoJoinUrl = "/join/pocket-stamp-demo";
 const demoSuccessUrl = "/join/pocket-stamp-demo/success";
 const demoCreateCardUrl = "/demo/pocket-stamp-demo/create";
@@ -193,14 +191,6 @@ const reminderBullets = [
   ["Reward-ready messages", "Your free coffee is ready."],
   ["Birthday rewards", "Happy Birthday! Enjoy a free coffee on us today."],
   ["Win-back reminders", "A gentle nudge when a regular has not visited in a while."],
-];
-
-const setupSteps = [
-  "Send your logo, colours and reward",
-  "We build your Wallet card and join page",
-  "You get your dashboard, Join QR and scanner setup",
-  "Customers scan at the till to collect stamps",
-  "Wallet reminders and scheduled updates help bring them back",
 ];
 
 const scannerModeBullets = [
@@ -1358,7 +1348,6 @@ function MarketingHomepage() {
             <a ref={firstMenuLinkRef} href="#how-it-works" onClick={closeMenu}>How it works</a>
             <a href="#system" onClick={closeMenu}>The product</a>
             <a href="#retention" onClick={closeMenu}>Bring customers back</a>
-            <a href="#pilot" onClick={closeMenu}>Café pilot</a>
             <a href="/merchant" onClick={closeMenu}>Merchant login</a>
             <a href="/download" onClick={closeMenu}>Scanner App</a>
             <a href={demoHref} className="ps-pill ps-pill-dark" onClick={closeMenu}>Book a demo</a>
@@ -1533,53 +1522,6 @@ function MarketingHomepage() {
         </div>
       </section>
 
-      <section className="ps-section ps-journey" aria-labelledby="android-faq-title">
-        <div className="ps-section-shell">
-          <p className="ps-eyebrow">Frequently asked questions</p>
-          <h2 className="ps-display ps-section-title">Simple for every customer.</h2>
-          <div className="mt-10 max-w-3xl rounded-3xl bg-[#fbf7ef] p-6 ring-1 ring-stone-200 sm:p-8">
-            <h3 id="android-faq-title" className="text-xl font-semibold text-[var(--ps-ink)]">Does PocketStamp work on Android?</h3>
-            <p className="mt-3 leading-7 text-[var(--ps-muted)]">
-              Yes. PocketStamp supports Google Wallet on Android and Apple Wallet on iPhone. Customers do not need to download a separate PocketStamp app.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="pilot" className="ps-section ps-pilot">
-        <div className="ps-section-shell ps-pilot-grid">
-          <div className="ps-pilot-copy">
-            <p className="ps-eyebrow">Early café offer</p>
-            <h2 className="ps-display ps-section-title">Simple setup, shaped around your café.</h2>
-            <p className="ps-section-lede">
-              We’ll configure PocketStamp with your café, install the scanner,
-              and get your team ready to use it — from the Wallet card and Join
-              QR to your dashboard and counter workflow.
-            </p>
-            <p className="ps-supporting-copy">
-              Built for cafés that want to replace paper stamp cards without
-              asking customers to download another app.
-            </p>
-          </div>
-          <div className="ps-pricing">
-            <p className="ps-product-number">Pilot package</p>
-            <div className="ps-pricing-heading">
-              <p className="ps-display">Setup fee + monthly plan</p>
-              <p>A clear pilot offer before anything goes live.</p>
-            </div>
-            <ul className="ps-setup-list">
-              {setupSteps.map((step) => (
-                <li key={step} className="flex gap-3">
-                  <CheckMark className="mt-0" />
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ul>
-            <a href={pilotHref} className="ps-pill ps-pill-dark">Start with your café</a>
-          </div>
-        </div>
-      </section>
-
       <section className="ps-final-cta">
         <div className="ps-section-shell">
           <p className="ps-eyebrow">Ready when you are</p>
@@ -1587,7 +1529,6 @@ function MarketingHomepage() {
           <p>Customers use Wallet. Staff keep using their till. PocketStamp handles loyalty — and gives customers timely reasons to return.</p>
           <div className="ps-final-actions">
             <a href={demoHref} className="ps-pill ps-pill-dark">Book a demo</a>
-            <a href={pilotHref} className="ps-pill ps-pill-outline">Start a café pilot</a>
           </div>
         </div>
       </section>

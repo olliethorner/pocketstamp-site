@@ -22,10 +22,7 @@ test("public customer journey covers joining, both Wallets, scanning, and automa
   assert.match(appSource, /Customers scan their Apple Wallet or Google Wallet loyalty card/);
 });
 
-test("Android FAQ and default metadata describe both supported platforms", () => {
-  assert.match(homepageSource, /Does PocketStamp work on Android\?/);
-  assert.match(homepageSource, /Google Wallet on Android and Apple Wallet on iPhone/);
-  assert.match(homepageSource, /do not need to download a separate PocketStamp app/);
+test("default metadata describes both supported Wallet platforms", () => {
   assert.match(indexSource, /Wallet Loyalty That Works Alongside Your POS/);
   assert.match(indexSource, /Digital café loyalty in Apple Wallet and Google Wallet/);
 });

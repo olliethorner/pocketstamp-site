@@ -11,6 +11,13 @@ test("homepage includes the existing-POS proposition and download navigation", (
   assert.match(appSource, /href="\/download"/);
 });
 
+test("homepage excludes the removed FAQ and café pilot sections", () => {
+  assert.doesNotMatch(appSource, /Frequently asked questions/);
+  assert.doesNotMatch(appSource, /Early café offer/);
+  assert.doesNotMatch(appSource, /Pilot package/);
+  assert.doesNotMatch(appSource, /href="#pilot"/);
+});
+
 test("download page retains the production Scanner v1.1.1 asset", () => {
   assert.match(appSource, /function ScannerDownloadPage/);
   assert.match(appSource, /\/downloads\/PocketStamp-Scanner-v1\.1\.1\.apk/);
