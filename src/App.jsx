@@ -1589,7 +1589,7 @@ function extractScannerDevice(payload = {}) {
 
 function ScannerDownloadPage() {
   const isAndroid = /Android/i.test(navigator.userAgent);
-  const apkPath = "/downloads/PocketStamp-Scanner-v1.1.0.apk";
+  const apkPath = "/downloads/PocketStamp-Scanner-v1.1.1.apk";
 
   return (
     <main className="ps-site ps-download-page">
@@ -1607,10 +1607,10 @@ function ScannerDownloadPage() {
         <p className="ps-download-intro">
           Run PocketStamp loyalty directly alongside your Android POS.
         </p>
-        <a className="ps-download-button" href={apkPath} download="PocketStamp-Scanner-v1.1.0.apk">
+        <a className="ps-download-button" href={apkPath} download="PocketStamp-Scanner-v1.1.1.apk">
           Download PocketStamp Scanner
         </a>
-        <p className="ps-download-meta">Version 1.1.0 <span aria-hidden="true">·</span> Android</p>
+        <p className="ps-download-meta">Version 1.1.1 <span aria-hidden="true">·</span> Android</p>
         {!isAndroid ? (
           <p className="ps-download-compatibility">
             PocketStamp Scanner is currently available for Android POS tablets.

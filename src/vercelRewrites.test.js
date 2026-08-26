@@ -61,10 +61,10 @@ test("all unrelated current-main rewrites remain unchanged", () => {
 
 test("Android download is served with an APK filename and content type", () => {
   assert.deepEqual(configuration.headers, [{
-    source: "/downloads/PocketStamp-Scanner-v1.1.0.apk",
+    source: "/downloads/PocketStamp-Scanner-v1.1.1.apk",
     headers: [
       { key: "Content-Type", value: "application/vnd.android.package-archive" },
-      { key: "Content-Disposition", value: "attachment; filename=\"PocketStamp-Scanner-v1.1.0.apk\"" },
+      { key: "Content-Disposition", value: "attachment; filename=\"PocketStamp-Scanner-v1.1.1.apk\"" },
       { key: "Cache-Control", value: "public, max-age=3600, must-revalidate" },
     ],
   }]);
