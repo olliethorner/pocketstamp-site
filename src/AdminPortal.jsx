@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SUPPORT_LINE } from "./contactEmails.js";
 import {
+  buildCanonicalPassThemeSubmission,
   buildPassThemeResolverPayload,
   extractResolvedPassTheme,
   isLatestPassThemeResolution,
@@ -1702,6 +1703,23 @@ function OnboardCafePage({ accessToken, adminContext, onLogout, onNavigate }) {
   const [error, setError] = useState("");
   const [createdPayload, setCreatedPayload] = useState(null);
   const [copyState, setCopyState] = useState("");
+  const [resolvedOnboardingTheme, setResolvedOnboardingTheme] = useState(null);
+  const onboardingResolutionRequestRef = useRef(0);
+  const onboardingResolverPayloadKey = JSON.stringify(buildPassThemeResolverPayload(form));
+
+  useEffect(() => {
+    const requestId = onboardingResolutionRequestRef.current + 1;
+    onboardingResolutionRequestRef.current = requestId;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const theme = await requestPassThemeResolution(adminFetch, accessToken, JSON.parse(onboardingResolverPayloadKey));
+        if (isLatestPassThemeResolution(onboardingResolutionRequestRef.current, requestId)) setResolvedOnboardingTheme(theme);
+      } catch {
+        if (isLatestPassThemeResolution(onboardingResolutionRequestRef.current, requestId)) setResolvedOnboardingTheme(null);
+      }
+    }, PASS_THEME_RESOLVER_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [accessToken, onboardingResolverPayloadKey]);
 
   const warnings = useMemo(() => {
     const items = [];
@@ -1789,10 +1807,13 @@ function OnboardCafePage({ accessToken, adminContext, onLogout, onNavigate }) {
     setIsSubmitting(true);
 
     try {
+      const canonicalTheme = await requestPassThemeResolution(adminFetch, accessToken, form);
+      if (!canonicalTheme) throw new Error("Unable to verify the final Wallet branding. Please try again.");
       const payload = await adminFetch("/api/admin/onboard-merchant", {
         method: "POST",
         body: JSON.stringify({
           ...form,
+          ...buildCanonicalPassThemeSubmission(canonicalTheme),
           rewardThreshold: Number(form.rewardThreshold),
         }),
       }, accessToken);
@@ -2091,6 +2112,12 @@ function OnboardCafePage({ accessToken, adminContext, onLogout, onNavigate }) {
                     logoTileEnabled={form.passLogoTileEnabled}
                     logoTileColor={form.passLogoTileColor}
                     logoFit={form.passLogoFit}
+                    finalBackgroundColor={resolvedOnboardingTheme?.finalBackgroundColor}
+                    finalForegroundColor={resolvedOnboardingTheme?.finalForegroundColor}
+                    finalLabelColor={resolvedOnboardingTheme?.finalLabelColor}
+                    finalStampFilledColor={resolvedOnboardingTheme?.stampFilledColor}
+                    finalStampEmptyColor={resolvedOnboardingTheme?.stampEmptyColor}
+                    resolvedOnly={Boolean(resolvedOnboardingTheme)}
                   />
                 </div>
               </div>
@@ -2567,9 +2594,14 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout, o
     setSaveMessage("");
 
     try {
+      const canonicalTheme = await requestPassThemeResolution(adminFetch, accessToken, form);
+      if (!canonicalTheme) throw new Error("Unable to verify the final Wallet branding. Please try again.");
       const payload = await adminFetch(`/api/admin/merchants/${merchantId}`, {
         method: "PATCH",
-        body: JSON.stringify(buildMerchantEditPatchPayload(form)),
+        body: JSON.stringify(buildMerchantEditPatchPayload({
+          ...form,
+          ...buildCanonicalPassThemeSubmission(canonicalTheme),
+        })),
       }, accessToken);
       const nextMerchant = extractMerchant(payload);
       setDetailPayload(payload || detailPayload);

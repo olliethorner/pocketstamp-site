@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildCanonicalPassThemeSubmission,
   buildPassThemeResolverPayload,
   extractResolvedPassTheme,
   isLatestPassThemeResolution,
   requestPassThemeResolution,
   transitionPassThemePreview,
 } from "./passThemeResolver.js";
+
+test("canonical onboarding submission uses the exact resolved preview values", () => {
+  assert.deepEqual(buildCanonicalPassThemeSubmission({ passThemeMode: "brand_bold", passThemeResolved: true, passThemeResolutionVersion: 1, passAccentColor: "rgb(1, 2, 3)", finalBackgroundColor: "rgb(4, 5, 6)", finalForegroundColor: "rgb(7, 8, 9)", finalLabelColor: "rgb(10, 11, 12)", stampFilledColor: "rgb(13, 14, 15)", stampEmptyColor: "rgb(16, 17, 18)", logoTileEnabled: false, logoTileColor: "rgb(19, 20, 21)", logoFit: "cover" }), { passThemeMode: "brand_bold", passThemeResolved: true, passThemeResolutionVersion: 1, passAccentColor: "rgb(1, 2, 3)", backgroundColor: "rgb(4, 5, 6)", foregroundColor: "rgb(7, 8, 9)", textColor: "rgb(7, 8, 9)", labelColor: "rgb(10, 11, 12)", passStampFilledColor: "rgb(13, 14, 15)", passStampEmptyColor: "rgb(16, 17, 18)", passLogoTileEnabled: false, passLogoTileColor: "rgb(19, 20, 21)", passLogoFit: "cover" });
+});
 import {
   applyWalletColorSuggestions,
   applyWalletThemePreset,

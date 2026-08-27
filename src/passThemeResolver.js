@@ -72,6 +72,8 @@ export function extractResolvedPassTheme(payload = {}) {
   );
 
   return {
+    ...(firstDefined(theme?.passThemeMode, theme?.themeMode) ? { passThemeMode: firstDefined(theme?.passThemeMode, theme?.themeMode) } : {}),
+    ...(firstDefined(theme?.passAccentColor, theme?.accentColor) ? { passAccentColor: firstDefined(theme?.passAccentColor, theme?.accentColor) } : {}),
     finalBackgroundColor,
     finalForegroundColor,
     finalLabelColor,
@@ -80,6 +82,26 @@ export function extractResolvedPassTheme(payload = {}) {
     logoTileEnabled: Boolean(firstDefined(theme?.logoTileEnabled, theme?.passLogoTileEnabled, false)),
     logoTileColor: firstDefined(theme?.logoTileColor, theme?.passLogoTileColor, "#ffffff"),
     logoFit: firstDefined(theme?.logoFit, theme?.passLogoFit, "contain"),
+    ...(theme?.passThemeResolved !== undefined ? { passThemeResolved: Boolean(theme.passThemeResolved) } : {}),
+    ...(theme?.passThemeResolutionVersion !== undefined ? { passThemeResolutionVersion: theme.passThemeResolutionVersion } : {}),
     themeWarnings: Array.isArray(warnings) ? warnings.filter(Boolean) : warnings ? [String(warnings)] : [],
+  };
+}
+
+export function buildCanonicalPassThemeSubmission(theme = {}) {
+  return {
+    passThemeMode: theme.passThemeMode,
+    passThemeResolved: theme.passThemeResolved,
+    passThemeResolutionVersion: theme.passThemeResolutionVersion,
+    passAccentColor: theme.passAccentColor,
+    backgroundColor: theme.finalBackgroundColor,
+    foregroundColor: theme.finalForegroundColor,
+    textColor: theme.finalForegroundColor,
+    labelColor: theme.finalLabelColor,
+    passStampFilledColor: theme.stampFilledColor,
+    passStampEmptyColor: theme.stampEmptyColor,
+    passLogoTileEnabled: theme.logoTileEnabled,
+    passLogoTileColor: theme.logoTileColor,
+    passLogoFit: theme.logoFit,
   };
 }
