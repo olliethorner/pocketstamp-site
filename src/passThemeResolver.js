@@ -2,6 +2,8 @@ export const PASS_THEME_RESOLVER_DEBOUNCE_MS = 300;
 
 const supportedThemeFields = [
   "passThemeMode",
+  "passThemeResolved",
+  "passThemeResolutionVersion",
   "passAccentColor",
   "backgroundColor",
   "foregroundColor",

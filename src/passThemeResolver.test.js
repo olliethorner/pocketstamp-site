@@ -244,6 +244,17 @@ test("non-theme fields do not change the resolver payload", () => {
   );
 });
 
+test("resolver payload preserves the canonical marker for untouched persisted themes", () => {
+  const payload = buildPassThemeResolverPayload({
+    passThemeMode: "brand_bold",
+    passThemeResolved: true,
+    passThemeResolutionVersion: 1,
+    backgroundColor: "rgb(0, 245, 212)",
+  });
+  assert.equal(payload.passThemeResolved, true);
+  assert.equal(payload.passThemeResolutionVersion, 1);
+});
+
 test("resolution uses the authenticated admin request mechanism", async () => {
   const calls = [];
   const adminRequest = async (...args) => {

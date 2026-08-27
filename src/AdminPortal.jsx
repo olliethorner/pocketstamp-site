@@ -388,6 +388,8 @@ function normalizeWalletThemeState(merchant = {}) {
 
   return {
     passThemeMode: pickFirst(merchant.passThemeMode, walletTheme.passThemeMode, walletTheme.mode, "premium_dark"),
+    passThemeResolved: Boolean(pickFirst(merchant.passThemeResolved, walletTheme.passThemeResolved, false)),
+    passThemeResolutionVersion: pickFirst(merchant.passThemeResolutionVersion, walletTheme.passThemeResolutionVersion, null),
     passAccentColor: pickFirst(merchant.passAccentColor, walletTheme.passAccentColor, walletTheme.accentColor, merchant.brandColor, merchant.branding?.brandColor, ""),
     backgroundColor: pickFirst(merchant.backgroundColor, walletTheme.backgroundColor, merchant.branding?.backgroundColor, ""),
     foregroundColor: pickFirst(merchant.foregroundColor, walletTheme.foregroundColor, merchant.textColor, merchant.branding?.foregroundColor, merchant.branding?.textColor, ""),
@@ -2547,8 +2549,12 @@ function MerchantDetailPage({ merchantId, accessToken, adminContext, onLogout, o
 
     setForm((current) => {
       let next = { ...current, [name]: value };
+      if (isPassThemeResolverField(name) && name !== "passThemeResolved" && name !== "passThemeResolutionVersion") {
+        next.passThemeResolved = false;
+        next.passThemeResolutionVersion = null;
+      }
       if (name === "passThemeMode") {
-        next = applyWalletThemePreset(current, value);
+        next = { ...applyWalletThemePreset(current, value), passThemeResolved: false, passThemeResolutionVersion: null };
       }
       if (name === "foregroundColor") next.textColor = value;
       if (name === "textColor") next.foregroundColor = value;
