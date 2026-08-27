@@ -398,7 +398,7 @@ function normalizeWalletThemeState(merchant = {}) {
     passStampFilledColor: pickFirst(merchant.passStampFilledColor, merchant.stampFilledColor, walletTheme.passStampFilledColor, walletTheme.stampFilledColor, ""),
     passStampEmptyColor: pickFirst(merchant.passStampEmptyColor, merchant.stampEmptyColor, walletTheme.passStampEmptyColor, walletTheme.stampEmptyColor, ""),
     passLogoTileEnabled: Boolean(pickFirst(merchant.passLogoTileEnabled, merchant.logoTileEnabled, walletTheme.passLogoTileEnabled, walletTheme.logoTileEnabled, false)),
-    passLogoTileColor: pickFirst(merchant.passLogoTileColor, walletTheme.passLogoTileColor, walletTheme.logoTileColor, ""),
+    passLogoTileColor: pickFirst(merchant.passLogoTileColor, merchant.logoTileColor, walletTheme.passLogoTileColor, walletTheme.logoTileColor, merchant.branding?.logoTileColor, ""),
     passLogoFit: pickFirst(merchant.passLogoFit, merchant.logoFit, walletTheme.passLogoFit, walletTheme.logoFit, "contain"),
     passDesignNotes: pickFirst(merchant.passDesignNotes, walletTheme.passDesignNotes, walletTheme.designNotes, ""),
     finalBackgroundColor: pickFirst(merchant.finalBackgroundColor, finalTheme.finalBackgroundColor, finalTheme.backgroundColor, ""),
