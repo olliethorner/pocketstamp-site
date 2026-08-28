@@ -61,7 +61,8 @@ function merchantNameFromPath(pathname) {
   if (!slug) return { slug: "pocket-stamp-demo", name: "PocketStamp Café" };
   const words = slug.split("-").filter(Boolean);
   if (!words.length || words.some((word) => !/^[a-z0-9]+$/i.test(word))) return { slug: "pocket-stamp-demo", name: "PocketStamp Café" };
-  return { slug: words.join("-"), name: words.join(" ").toUpperCase() };
+  const displayWords = words.map((word) => word.toLowerCase() === "and" ? "&" : word);
+  return { slug: words.join("-"), name: displayWords.join(" ").toUpperCase() };
 }
 
 const nav = [
