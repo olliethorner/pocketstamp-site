@@ -51,6 +51,7 @@ test("all unrelated current-main rewrites remain unchanged", () => {
     { source: "/legal/terms", destination: "/index.html" },
     { source: "/contact", destination: "/index.html" },
     { source: "/download", destination: "/index.html" },
+    { source: "/dashboard-demo/:path*", destination: "/index.html" },
     { source: "/merchant", destination: "/index.html" },
     { source: "/merchant/:path*", destination: "/index.html" },
     { source: "/admin", destination: "/index.html" },

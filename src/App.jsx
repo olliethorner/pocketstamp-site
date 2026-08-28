@@ -6,6 +6,7 @@ import MerchantSetup from "./merchant/MerchantSetup.jsx";
 import MerchantForgotPassword from "./merchant/MerchantForgotPassword.jsx";
 import MerchantResetPassword from "./merchant/MerchantResetPassword.jsx";
 import MerchantDashboard from "./merchant/MerchantDashboard.jsx";
+import MerchantDashboardDemo from "./merchant/MerchantDashboardDemo.jsx";
 import {
   isMerchantScannerPath,
   isMerchantSetupPath,
@@ -3324,6 +3325,10 @@ export default function App() {
     setPathname(window.location.pathname);
     window.scrollTo({ top: 0, behavior: "instant" });
   };
+
+  if (pathname === "/dashboard-demo" || pathname === "/dashboard-demo/" || pathname.startsWith("/dashboard-demo/")) {
+    return <MerchantDashboardDemo />;
+  }
 
   if (pathname === demoJoinUrl) {
     return <DemoJoinPage />;

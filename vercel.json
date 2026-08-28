@@ -68,6 +68,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/dashboard-demo/:path*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/merchant",
       "destination": "/index.html"
     },
