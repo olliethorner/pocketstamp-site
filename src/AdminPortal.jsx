@@ -19,6 +19,7 @@ import {
 import { shouldPollOnboardingStatus, shouldPollWalletReadiness, walletReadinessRows } from "./adminOnboardingStatus.js";
 import { CrmAccountPage, CrmCafesPage } from "./AdminCrm.jsx";
 import { clearAdminCrmCache, getAccountLists, getMerchantSummary, setAccountList, setMerchantSummary } from "./adminCrmCache.js";
+import PosCompatibilityPage from "./PosCompatibilityPage.jsx";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
@@ -1295,6 +1296,7 @@ function AdminShell({ children, active, adminContext, onLogout, onNavigate }) {
   const navItems = [
     ["/admin/onboard", "Onboard Café"],
     ["/admin/cafes", "Cafés"],
+    ["/admin/pos-compatibility", "POS Compatibility"],
     ["/admin/account", "My Account"],
   ];
 
@@ -3809,6 +3811,9 @@ export default function AdminPortal({ path, onNavigate }) {
 
   if (path === "/admin/onboard") return <OnboardCafePage {...pageProps} />;
   if (path === "/admin/cafes") return <CrmCafesPage {...pageProps} Shell={AdminShell} />;
+  if (path === "/admin/pos-compatibility") return (
+    <PosCompatibilityPage {...pageProps} adminFetch={adminFetch} AdminShell={AdminShell} />
+  );
   if (path === "/admin/account") return <AccountPage adminContext={adminContext} onLogout={handleLogout} onNavigate={onNavigate} />;
 
   const detailMatch = path.match(/^\/admin\/cafes\/([^/]+)$/);
