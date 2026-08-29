@@ -1395,13 +1395,6 @@ function MarketingHomepage() {
         </div>
       </section>
 
-      <section className="ps-manifesto">
-        <div className="ps-section-shell">
-          <p>No app. <span>No paper.</span> No forgotten stamp cards.</p>
-          <small>A loyalty experience that stays with your customer, not in a drawer.</small>
-        </div>
-      </section>
-
       <section id="how-it-works" className="ps-section ps-journey">
         <div className="ps-section-shell">
           <p className="ps-eyebrow">How it works</p>

@@ -360,23 +360,6 @@
   right: 0;
 }
 
-.ps-manifesto {
-  background: #fffdf8;
-  border-block: 1px solid rgba(80, 71, 61, 0.12);
-  color: var(--ps-ink);
-  padding: clamp(2.5rem, 7vw, 5.5rem) clamp(1.25rem, 5vw, 4rem);
-  text-align: center;
-}
-
-.ps-manifesto p {
-  font-size: clamp(2rem, 5vw, 4.7rem);
-  font-weight: 720;
-  letter-spacing: 0;
-  line-height: 1.04;
-  margin: 0 auto;
-  max-width: 62rem;
-}
-
 .ps-feature-block {
   background: rgba(255, 253, 248, 0.72);
   border: 1px solid rgba(80, 71, 61, 0.12);
@@ -1599,11 +1582,11 @@
 }
 
 .ps-hero-copy .ps-display {
-  font-size: clamp(2.7rem, 12vw, 6.5rem);
+  font-size: clamp(2.7rem, 7.2vw, 5rem);
   letter-spacing: -0.045em;
   line-height: 0.96;
   margin-top: 1rem;
-  max-width: 11ch;
+  max-width: 13ch;
 }
 
 .ps-hero-intro,
@@ -1662,29 +1645,6 @@
 
 .ps-marketing .hero-pass-label {
   font-size: 0.7rem;
-}
-
-.ps-manifesto {
-  padding: 3.5rem 0;
-  text-align: left;
-}
-
-.ps-manifesto p {
-  font-size: clamp(2rem, 9vw, 4.7rem);
-  letter-spacing: -0.035em;
-  line-height: 1.02;
-}
-
-.ps-manifesto p span {
-  color: var(--ps-blue);
-}
-
-.ps-manifesto small {
-  color: var(--ps-muted);
-  display: block;
-  font-size: 0.95rem;
-  line-height: 1.55;
-  margin-top: 1.25rem;
 }
 
 .ps-section {
@@ -2443,10 +2403,6 @@
     min-height: clamp(26rem, 55vw, 34rem);
   }
 
-  .ps-manifesto {
-    text-align: center;
-  }
-
   .ps-system-intro {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2534,6 +2490,17 @@
 
   .ps-retention-panel {
     gap: 5rem;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .ps-hero-grid {
+    gap: 3rem;
+    grid-template-columns: minmax(0, 1fr) minmax(26rem, 0.86fr);
+  }
+
+  .ps-hero-copy .ps-display {
+    font-size: clamp(3.5rem, 6vw, 4.25rem);
   }
 }
 
