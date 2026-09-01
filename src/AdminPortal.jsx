@@ -20,6 +20,7 @@ import { shouldPollOnboardingStatus, shouldPollWalletReadiness, walletReadinessR
 import { CrmAccountPage, CrmCafesPage } from "./AdminCrm.jsx";
 import { clearAdminCrmCache, getAccountLists, getMerchantSummary, setAccountList, setMerchantSummary } from "./adminCrmCache.js";
 import PosCompatibilityPage from "./PosCompatibilityPage.jsx";
+import { invitationAccessToken, SAFE_ERROR, setInvitedAdminPassword, signOutInvitationSession, validateAdminInvitation } from "./adminActivation.js";
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_POCKETSTAMP_BACKEND_URL;
 const PUBLIC_SITE_BASE_URL = "https://getpocketstamp.com";
@@ -3662,6 +3663,54 @@ function AdminLoginPage({ onLogin }) {
       </section>
     </main>
   );
+}
+
+export function AdminSetPasswordPage({ onNavigate }) {
+  const [accessToken] = useState(() => invitationAccessToken());
+  const [state, setState] = useState("validating");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    clearAdminSession();
+    window.history.replaceState(null, "", "/admin/set-password");
+    validateAdminInvitation({ accessToken, supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY, backendUrl: ADMIN_API_BASE_URL })
+      .then(() => setState("ready"))
+      .catch(() => { setMessage(SAFE_ERROR); setState("error"); });
+  }, [accessToken]);
+
+  async function submit(event) {
+    event.preventDefault();
+    if (password.length < 8) { setMessage("Use a password with at least 8 characters."); return; }
+    if (password !== confirm) { setMessage("Passwords do not match."); return; }
+    setState("submitting");
+    setMessage("");
+    try {
+      await setInvitedAdminPassword({ accessToken, password, supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY });
+      await signOutInvitationSession({ accessToken, supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY }).catch(() => {});
+      setPassword("");
+      setConfirm("");
+      setState("done");
+    } catch {
+      setMessage(SAFE_ERROR);
+      setState("error");
+    }
+  }
+
+  return <main className="ps-dashboard min-h-screen px-5 py-10 text-[var(--ps-espresso)]"><section className="ps-flow-card mx-auto max-w-xl">
+    <p className="ps-eyebrow">PocketStamp Admin</p>
+    <h1 className="mt-3 text-3xl font-semibold">Set your password</h1>
+    {state === "validating" ? <p className="mt-5 text-[var(--ps-muted)]">Validating your secure invitation…</p> : null}
+    {message ? <div className="mt-5"><Alert tone="red">{message}</Alert></div> : null}
+    {state === "ready" || state === "submitting" ? <form onSubmit={submit} className="mt-6 grid gap-5">
+      <Field label="Password"><TextInput type="password" autoComplete="new-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></Field>
+      <Field label="Confirm password"><TextInput type="password" autoComplete="new-password" minLength={8} value={confirm} onChange={(event) => setConfirm(event.target.value)} required /></Field>
+      <button type="submit" className="ps-button-primary" disabled={state === "submitting"}>{state === "submitting" ? "Setting password…" : "Set password"}</button>
+    </form> : null}
+    {state === "done" ? <div className="mt-6"><p className="font-semibold">Your Admin password is set.</p><button type="button" className="ps-button-primary mt-5" onClick={() => onNavigate("/admin/login", { replace: true })}>Continue to sign in</button></div> : null}
+    {state === "error" ? <a className="mt-6 inline-block font-semibold text-[var(--ps-blue)]" href="/admin/login">Back to Admin sign in</a> : null}
+  </section></main>;
 }
 
 function AccountPage({ adminContext, onLogout, onNavigate }) {

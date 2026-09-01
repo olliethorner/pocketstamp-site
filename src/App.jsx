@@ -1,6 +1,6 @@
 import { Component, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import AdminPortal from "./AdminPortal.jsx";
+import AdminPortal, { AdminSetPasswordPage } from "./AdminPortal.jsx";
 import MerchantPortalShell from "./merchant/MerchantPortal.jsx";
 import MerchantSetup from "./merchant/MerchantSetup.jsx";
 import MerchantForgotPassword from "./merchant/MerchantForgotPassword.jsx";
@@ -3385,6 +3385,10 @@ export default function App() {
         page={merchantPage}
       />
     );
+  }
+
+  if (pathname === "/admin/set-password") {
+    return <AdminSetPasswordPage onNavigate={navigate} />;
   }
 
   if (pathname.startsWith("/admin")) {
