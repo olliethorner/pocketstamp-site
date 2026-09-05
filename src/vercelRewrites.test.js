@@ -49,6 +49,7 @@ test("all unrelated current-main rewrites remain unchanged", () => {
     { source: "/pass/:serial", destination: `${backend}/pass/:serial` },
     { source: "/legal/privacy", destination: "/index.html" },
     { source: "/legal/terms", destination: "/index.html" },
+    { source: "/pricing", destination: "/index.html" },
     { source: "/contact", destination: "/index.html" },
     { source: "/download", destination: "/index.html" },
     { source: "/dashboard-demo/:path*", destination: "/index.html" },

@@ -1,3 +1,4 @@
+import PricingPage from "./marketing/PricingPage.jsx";
 import { Component, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import MarketingHomepage from "./marketing/MarketingHomepage.jsx";
 import AdminPortal, { AdminSetPasswordPage } from "./AdminPortal.jsx";
@@ -2692,6 +2693,8 @@ export default function App() {
     setPathname(window.location.pathname);
     window.scrollTo({ top: 0, behavior: "instant" });
   };
+
+  if (pathname === "/pricing" || pathname === "/pricing/") return <PricingPage />;
 
   if (pathname === "/dashboard-demo" || pathname === "/dashboard-demo/" || pathname.startsWith("/dashboard-demo/")) {
     return <MerchantDashboardDemo />;

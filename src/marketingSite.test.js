@@ -25,11 +25,11 @@ test("homepage includes the existing-POS proposition and download navigation", (
   assert.match(layoutSource, /href="\/download"/);
 });
 
-test("approved homepage restores the FAQ and enquiry-led café pilot offer", () => {
+test("homepage retains FAQ and introduces the complete software pricing offer", () => {
   assert.match(homepageSource, /id="faq"/);
-  assert.match(homepageSource, /Early café offer/);
-  assert.match(homepageSource, /Pilot package/);
-  assert.match(homepageSource, /\+ monthly plan/);
+  assert.match(homepageSource, /Simple café pricing/);
+  assert.match(homepageSource, /All software features included/);
+  assert.match(homepageSource, /href="\/pricing"/);
 });
 
 test("approved Wallet section retains no-app positioning without legacy manifesto styling", () => {

@@ -60,10 +60,14 @@ const links = [
   ["#how-it-works", "How it works"],
   ["#system", "Product"],
   ["#retention", "Retention"],
-  ["#pilot", "Café pilot"],
+  ["/pricing", "Pricing"],
 ];
 
-export function Navigation() {
+export function Navigation({ currentPage = "home" }) {
+  const navigationLinks = links.map(([href, label]) => [
+    currentPage !== "home" && href.startsWith("#") ? `/${href}` : href,
+    label,
+  ]);
   const [open, setOpen] = useState(false);
   const trigger = useRef(null);
   const dialog = useRef(null);
@@ -117,8 +121,16 @@ export function Navigation() {
         <nav className="mk-container mk-nav" aria-label="Primary navigation">
           <Brand />
           <div className="mk-nav-links">
-            {links.map(([href, label]) => (
-              <a href={href} key={href}>
+            {navigationLinks.map(([href, label]) => (
+              <a
+                href={href}
+                key={href}
+                aria-current={
+                  currentPage === "pricing" && href === "/pricing"
+                    ? "page"
+                    : undefined
+                }
+              >
                 {label}
               </a>
             ))}
@@ -165,8 +177,17 @@ export function Navigation() {
             </button>
           </div>
           <nav aria-label="Mobile navigation">
-            {links.map(([href, label]) => (
-              <a key={href} href={href} onClick={closeMenu}>
+            {navigationLinks.map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                onClick={closeMenu}
+                aria-current={
+                  currentPage === "pricing" && href === "/pricing"
+                    ? "page"
+                    : undefined
+                }
+              >
                 {label}
                 <ArrowUpRight size={20} />
               </a>
@@ -199,6 +220,7 @@ export function Footer() {
             <p>Wallet loyalty for independent cafés.</p>
           </div>
           <div>
+            <a href="/pricing">Pricing</a>
             <a href="/contact">Contact</a>
             <a href={demoJoinUrl}>Try the demo card</a>
             <a href="/merchant">Merchant login</a>

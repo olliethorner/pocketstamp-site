@@ -54,6 +54,6 @@ export const faqs = [
   ],
   [
     "What does getting started involve?",
-    "We’ll configure PocketStamp with your café, install the scanner and get your team ready to use it. The pilot package has a setup fee and a monthly plan, with a clear offer agreed before anything goes live.",
+    "We’ll configure PocketStamp with your café, install the scanner and get your team ready to use it. Both offers include all software features. Choose software only or a supplied counter hardware setup.",
   ],
 ];

@@ -18,13 +18,8 @@ import {
   CounterVisual,
   DashboardVisual,
 } from "./MerchantVisuals.jsx";
-import {
-  demoHref,
-  demoJoinUrl,
-  pilotHref,
-  setupSteps,
-  faqs,
-} from "./marketingContent.js";
+import { demoHref, demoJoinUrl, setupSteps, faqs } from "./marketingContent.js";
+import { pricing, pounds, vatQualifier } from "./pricingContent.js";
 import "./marketing.css";
 
 export default function MarketingHomepage() {
@@ -299,7 +294,7 @@ export default function MarketingHomepage() {
             </div>
             <div className="mk-offer">
               <div className="mk-offer-copy">
-                <p className="mk-eyebrow">Early café offer</p>
+                <p className="mk-eyebrow">Simple café pricing</p>
                 <h3>
                   Simple setup,
                   <br />
@@ -314,13 +309,17 @@ export default function MarketingHomepage() {
                 </span>
               </div>
               <div className="mk-offer-package">
-                <p className="mk-eyebrow">Pilot package</p>
+                <p className="mk-eyebrow">All software features included</p>
                 <h3>
-                  Setup fee
+                  From {pounds(pricing.monthly)}
                   <br />
-                  <span>+ monthly plan</span>
+                  <span>/month per café</span>
                 </h3>
-                <p>A clear pilot offer before anything goes live.</p>
+                <p>
+                  Every software feature included. Explore annual and hardware
+                  options.
+                </p>
+                {vatQualifier && <p>{vatQualifier}</p>}
                 <CheckList
                   items={[
                     "Branded Wallet card and join page",
@@ -329,8 +328,8 @@ export default function MarketingHomepage() {
                     "Wallet reminders and scheduled updates",
                   ]}
                 />
-                <Button href={pilotHref} arrow>
-                  Start with your café
+                <Button href="/pricing" arrow>
+                  View pricing
                 </Button>
               </div>
             </div>
