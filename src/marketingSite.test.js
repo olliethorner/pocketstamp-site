@@ -4,24 +4,40 @@ import test from "node:test";
 
 const appSource = readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
 const appStyles = readFileSync(new URL("./App.css", import.meta.url), "utf8");
-const vercelConfig = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+const homepageSource = readFileSync(
+  new URL("./marketing/MarketingHomepage.jsx", import.meta.url),
+  "utf8",
+).replace(/\s+/g, " ");
+const layoutSource = readFileSync(
+  new URL("./marketing/MarketingLayout.jsx", import.meta.url),
+  "utf8",
+);
+const vercelConfig = JSON.parse(
+  readFileSync(new URL("../vercel.json", import.meta.url), "utf8"),
+);
 
 test("homepage includes the existing-POS proposition and download navigation", () => {
-  assert.match(appSource, /Digital loyalty, without changing how you run your café/);
-  assert.match(appSource, /id="existing-pos"/);
-  assert.match(appSource, /href="\/download"/);
+  assert.match(
+    homepageSource,
+    /Digital loyalty, without changing how you run your café/,
+  );
+  assert.match(homepageSource, /id="existing-pos"/);
+  assert.match(layoutSource, /href="\/download"/);
 });
 
-test("homepage excludes the removed FAQ and café pilot sections", () => {
-  assert.doesNotMatch(appSource, /Frequently asked questions/);
-  assert.doesNotMatch(appSource, /Early café offer/);
-  assert.doesNotMatch(appSource, /Pilot package/);
-  assert.doesNotMatch(appSource, /href="#pilot"/);
+test("approved homepage restores the FAQ and enquiry-led café pilot offer", () => {
+  assert.match(homepageSource, /id="faq"/);
+  assert.match(homepageSource, /Early café offer/);
+  assert.match(homepageSource, /Pilot package/);
+  assert.match(homepageSource, /\+ monthly plan/);
 });
 
-test("homepage excludes the retired no-app manifesto section and its exclusive styles", () => {
-  assert.doesNotMatch(appSource, /No forgotten stamp cards/);
-  assert.doesNotMatch(appSource, /A loyalty experience that stays with your customer/);
+test("approved Wallet section retains no-app positioning without legacy manifesto styling", () => {
+  assert.match(homepageSource, /No forgotten stamp cards/);
+  assert.match(
+    homepageSource,
+    /A loyalty experience that stays with your customer/,
+  );
   assert.doesNotMatch(appSource, /ps-manifesto/);
   assert.doesNotMatch(appStyles, /\.ps-manifesto/);
 });
