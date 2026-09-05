@@ -9,6 +9,13 @@ const configuration = JSON.parse(fs.readFileSync(new URL("../vercel.json", impor
 const rewrites = configuration.rewrites;
 const backend = "https://pocketstamp-wallet-backend-production.up.railway.app";
 
+test("both pricing URL forms serve the same public SPA entry", () => {
+  assert.deepEqual(rewrites.filter(({ source }) => source === "/pricing" || source === "/pricing/"), [
+    { source: "/pricing", destination: "/index.html" },
+    { source: "/pricing/", destination: "/index.html" },
+  ]);
+});
+
 test("public Google save-link refresh is routed to the existing Railway endpoint", () => {
   assert.deepEqual(rewrites.filter(({ source }) => source.includes("google-save-link")), [{
     source: "/join/:merchantSlug((?!pocket-stamp-demo$)[^/]+)/google-save-link",
@@ -50,6 +57,7 @@ test("all unrelated current-main rewrites remain unchanged", () => {
     { source: "/legal/privacy", destination: "/index.html" },
     { source: "/legal/terms", destination: "/index.html" },
     { source: "/pricing", destination: "/index.html" },
+    { source: "/pricing/", destination: "/index.html" },
     { source: "/contact", destination: "/index.html" },
     { source: "/download", destination: "/index.html" },
     { source: "/dashboard-demo/:path*", destination: "/index.html" },

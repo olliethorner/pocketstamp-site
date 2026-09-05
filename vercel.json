@@ -64,6 +64,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/pricing/",
+      "destination": "/index.html"
+    },
+    {
       "source": "/contact",
       "destination": "/index.html"
     },
